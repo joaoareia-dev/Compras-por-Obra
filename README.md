@@ -85,6 +85,25 @@ postgresql://postgres:senha@localhost:5432/gestao_obras
 
 O arquivo [render.yaml](C:\Users\joaof\Documents\New project\render.yaml) configura o Web Service. O banco continua sendo criado no painel do Render e a `DATABASE_URL` deve ser vinculada nas variaveis do servico.
 
+## Deploy automatizado
+
+O repositório agora inclui o workflow [render-deploy.yml](C:\Users\joaof\Documents\New project\.github\workflows\render-deploy.yml), que pode:
+
+- disparar deploy automaticamente a cada `push` na branch `main`
+- permitir deploy manual em `Actions > Render Deploy > Run workflow`
+
+Para ativar:
+
+1. No Render, abra o seu Web Service.
+2. Vá em `Settings > Deploy Hook`.
+3. Crie ou copie a URL do deploy hook.
+4. No GitHub do repositório, abra `Settings > Secrets and variables > Actions`.
+5. Crie o secret:
+
+- `RENDER_DEPLOY_HOOK_URL`
+
+Depois disso, cada push em `main` pode acionar o deploy automaticamente pelo GitHub Actions.
+
 ## Dependencias e erros comuns
 
 Ja ajustados:
