@@ -1,7 +1,9 @@
-﻿const USERS_KEY = "gc_users";
-const SESSION_KEY = "gc_session";
-const OBRAS_KEY = "gc_obras";
-const COMPRAS_KEY = "gc_compras";
+const state = {
+  obras: [],
+  compras: [],
+  usuarios: [],
+  sessionUser: null
+};
 
 const loginSection = document.getElementById("loginSection");
 const appSection = document.getElementById("appSection");
@@ -16,9 +18,11 @@ const obrasTableBody = document.getElementById("obrasTableBody");
 const obraEditIdInput = document.getElementById("obraEditId");
 const obraSubmitBtn = document.getElementById("obraSubmitBtn");
 const obraCancelEditBtn = document.getElementById("obraCancelEditBtn");
+
 const finalizacaoForm = document.getElementById("finalizacaoForm");
 const finalizacaoObraSelect = document.getElementById("finalizacaoObra");
 const finalizacaoTableBody = document.getElementById("finalizacaoTableBody");
+
 const compraForm = document.getElementById("compraForm");
 const comprasTableBody = document.getElementById("comprasTableBody");
 const compraObraSelect = document.getElementById("compraObra");
@@ -33,6 +37,7 @@ const descricaoOptions = document.getElementById("descricaoOptions");
 const categoriaOptions = document.getElementById("categoriaOptions");
 const fornecedorOptions = document.getElementById("fornecedorOptions");
 const unidadeOptions = document.getElementById("unidadeOptions");
+
 const relatorioObraSelect = document.getElementById("relatorioObra");
 const relatorioTipoSelect = document.getElementById("relatorioTipo");
 const relatorioTodasComprasInput = document.getElementById("relatorioTodasCompras");
@@ -43,62 +48,51 @@ const relatorioTableBody = document.getElementById("relatorioTableBody");
 const resumoRelatorio = document.getElementById("resumoRelatorio");
 const aplicarRelatorioBtn = document.getElementById("aplicarRelatorio");
 const imprimirRelatorioBtn = document.getElementById("imprimirRelatorio");
+const usuarioForm = document.getElementById("usuarioForm");
+const usuariosTableBody = document.getElementById("usuariosTableBody");
 
 const menuButtons = Array.from(document.querySelectorAll(".menu-btn"));
 const pages = Array.from(document.querySelectorAll(".page"));
 
-function seedData() {
-  if (!localStorage.getItem(USERS_KEY)) {
-    const users = [
-      {
-        id: crypto.randomUUID(),
-        name: "Administrador",
-        email: "admin@obra.local",
-        password: "123456",
-        role: "gerente"
-      }
-    ];
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+async function apiFetch(path, options = {}) {
+  const response = await fetch(path, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    },
+    ...options
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || "Falha na comunicacao com o servidor.");
   }
 
-  // Compatibilidade para bases antigas sem perfil.
-  const users = getUsers().map((user) => ({
-    ...user,
-    role: user.role || "gerente"
-  }));
-  writeJson(USERS_KEY, users);
-
-  if (!localStorage.getItem(OBRAS_KEY)) {
-    localStorage.setItem(OBRAS_KEY, JSON.stringify([]));
-  }
-
-  if (!localStorage.getItem(COMPRAS_KEY)) {
-    localStorage.setItem(COMPRAS_KEY, JSON.stringify([]));
-  }
+  return data;
 }
 
-function readJson(key) {
-  try {
-    return JSON.parse(localStorage.getItem(key) || "[]");
-  } catch (error) {
-    return [];
-  }
+async function refreshData() {
+  const payload = await apiFetch("/api/bootstrap");
+  state.obras = payload.obras || [];
+  state.compras = payload.compras || [];
 }
 
-function writeJson(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
-}
-
-function getUsers() {
-  return readJson(USERS_KEY);
+async function refreshUsers() {
+  const payload = await apiFetch("/api/users");
+  state.usuarios = payload.users || [];
 }
 
 function getObras() {
-  return readJson(OBRAS_KEY);
+  return state.obras;
 }
 
 function getCompras() {
-  return readJson(COMPRAS_KEY);
+  return state.compras;
+}
+
+function getUsuarios() {
+  return state.usuarios;
 }
 
 function formatCurrency(value) {
@@ -147,7 +141,7 @@ function getPeriodoRelatorioTexto() {
   const dataFim = document.getElementById("relatorioDataFim").value;
 
   if (dataInicio && dataFim) {
-    return `${formatDate(dataInicio)} até ${formatDate(dataFim)}`;
+    return `${formatDate(dataInicio)} ate ${formatDate(dataFim)}`;
   }
 
   if (dataInicio) {
@@ -155,10 +149,10 @@ function getPeriodoRelatorioTexto() {
   }
 
   if (dataFim) {
-    return `Até ${formatDate(dataFim)}`;
+    return `Ate ${formatDate(dataFim)}`;
   }
 
-  return "Sem período informado";
+  return "Sem periodo informado";
 }
 
 function getCompraTotal(compra) {
@@ -179,8 +173,7 @@ function getUltimaObraLancadaId() {
     return "";
   }
 
-  const ultimaCompra = compras[compras.length - 1];
-  return ultimaCompra?.obraId || "";
+  return compras[compras.length - 1]?.obraId || "";
 }
 
 function getAditivosValor(obra) {
@@ -222,9 +215,7 @@ function buildUniqueValues(values) {
 }
 
 function updateDatalist(element, values) {
-  element.innerHTML = values
-    .map((value) => `<option value="${escapeHtml(value)}"></option>`)
-    .join("");
+  element.innerHTML = values.map((value) => `<option value="${escapeHtml(value)}"></option>`).join("");
 }
 
 function refreshCompraAutocomplete() {
@@ -263,69 +254,72 @@ function preencherCamposPorDescricao() {
   compraUnidadeInput.value = ultimaCompra.unidade || "";
 }
 
-function isLoggedIn() {
-  return Boolean(localStorage.getItem(SESSION_KEY));
-}
-
 function getSessionUser() {
-  return JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+  return state.sessionUser;
 }
 
 function setSession(user) {
-  localStorage.setItem(
-    SESSION_KEY,
-    JSON.stringify({
-      id: user.id,
-      name: user.name,
-      email: user.email
-    })
-  );
+  state.sessionUser = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role
+  };
 }
 
 function clearSession() {
-  localStorage.removeItem(SESSION_KEY);
+  state.sessionUser = null;
 }
 
 function getCurrentUserRecord() {
-  const sessionUser = getSessionUser();
-  if (!sessionUser) {
-    return null;
-  }
-
-  return getUsers().find((user) => user.id === sessionUser.id) || null;
+  return getSessionUser();
 }
 
-function confirmarAutorizacaoGerente(motivo) {
+async function confirmarAutorizacaoGerente(motivo) {
   const currentUser = getCurrentUserRecord();
   if (!currentUser) {
-    alert("Sessão inválida. Faça login novamente.");
+    alert("Sessao invalida. Faca login novamente.");
     return false;
   }
 
-  if (currentUser.role !== "gerente") {
-    alert("Apenas usuários com nível gerente podem executar esta ação.");
+  if (currentUser.role !== "administrador") {
+    alert("Apenas administradores podem executar esta acao.");
     return false;
   }
 
-  const senhaInformada = prompt(`Autorização de gerente necessária (${motivo}). Informe a senha do usuário atual:`);
+  const senhaInformada = prompt(`Autorizacao de administrador necessaria (${motivo}). Informe a senha do usuario atual:`);
   if (senhaInformada === null) {
     return false;
   }
 
-  if (senhaInformada !== currentUser.password) {
-    alert("Senha de gerente inválida. Ação cancelada.");
+  try {
+    const result = await apiFetch("/api/authorize-manager", {
+      method: "POST",
+      body: JSON.stringify({
+        userId: currentUser.id,
+        password: senhaInformada
+      })
+    });
+
+    if (!result.authorized) {
+      alert("Senha de administrador invalida. Acao cancelada.");
+      return false;
+    }
+  } catch (error) {
+    alert(error.message);
     return false;
   }
 
   return true;
 }
 
-function confirmarExclusaoObraComSenhaGerente() {
-  const confirmouAcao = confirm("Tem certeza que deseja excluir esta obra? Esta ação também remove as compras vinculadas.");
+async function confirmarExclusaoObraComSenhaGerente() {
+  const confirmouAcao = confirm("Tem certeza que deseja excluir esta obra? Esta acao tambem remove as compras vinculadas.");
   if (!confirmouAcao) {
     return false;
   }
-  return confirmarAutorizacaoGerente("exclusão de obra");
+
+  return confirmarAutorizacaoGerente("exclusao de obra");
 }
 
 function getObraById(obraId) {
@@ -365,6 +359,51 @@ function showApp() {
   appSection.classList.remove("hidden");
 }
 
+function isAdmin() {
+  return getSessionUser()?.role === "administrador";
+}
+
+function syncPermissionsUI() {
+  document.querySelectorAll(".admin-only").forEach((element) => {
+    element.classList.toggle("hidden", !isAdmin());
+  });
+
+  if (!isAdmin() && ["obras", "finalizacao", "usuarios"].includes(document.querySelector(".menu-btn.active")?.dataset.section)) {
+    activatePage("dashboard");
+  }
+}
+
+function renderUsuarios() {
+  if (!usuariosTableBody) {
+    return;
+  }
+
+  if (!isAdmin()) {
+    usuariosTableBody.innerHTML = `<tr><td colspan="4" class="empty">Apenas administradores podem visualizar usuarios.</td></tr>`;
+    return;
+  }
+
+  const usuarios = getUsuarios();
+  if (!usuarios.length) {
+    usuariosTableBody.innerHTML = `<tr><td colspan="4" class="empty">Nenhum usuario cadastrado.</td></tr>`;
+    return;
+  }
+
+  const currentUserId = getSessionUser()?.id;
+  usuariosTableBody.innerHTML = usuarios
+    .map(
+      (usuario) => `
+      <tr>
+        <td>${usuario.name}</td>
+        <td>${usuario.email}</td>
+        <td>${usuario.role === "administrador" ? "Administrador" : "Usuario"}</td>
+        <td>${usuario.id === currentUserId ? "-" : `<button class="btn delete" data-usuario-delete="${usuario.id}">Excluir</button>`}</td>
+      </tr>
+    `
+    )
+    .join("");
+}
+
 function activatePage(pageId) {
   pages.forEach((page) => {
     page.classList.toggle("hidden", page.id !== pageId);
@@ -384,9 +423,7 @@ function renderDashboard() {
   const compras = getCompras();
   const obrasFinalizadas = obras.filter((obra) => obra.finalizacao?.dataEntrega).length;
   const totalGasto = compras.reduce((sum, compra) => sum + getCompraTotal(compra), 0);
-  const totalPago = compras
-    .filter((compra) => compra.pago)
-    .reduce((sum, compra) => sum + getCompraTotal(compra), 0);
+  const totalPago = compras.filter((compra) => compra.pago).reduce((sum, compra) => sum + getCompraTotal(compra), 0);
   const totalAberto = totalGasto - totalPago;
   const resumoObras = obras
     .map((obra) => {
@@ -431,7 +468,7 @@ function renderDashboard() {
         <p class="metric-value">${obras.length}</p>
       </article>
       <article class="metric-card">
-        <p class="metric-title">Compras lançadas</p>
+        <p class="metric-title">Compras lancadas</p>
         <p class="metric-value">${compras.length}</p>
       </article>
       <article class="metric-card">
@@ -468,17 +505,12 @@ function populateObraSelects() {
     return;
   }
 
-  compraObraSelect.innerHTML = obras
-    .map((obra) => `<option value="${obra.id}">${obra.nome}</option>`)
-    .join("");
-
+  compraObraSelect.innerHTML = obras.map((obra) => `<option value="${obra.id}">${obra.nome}</option>`).join("");
   if (ultimaObraLancadaId && obras.some((obra) => obra.id === ultimaObraLancadaId)) {
     compraObraSelect.value = ultimaObraLancadaId;
   }
 
-  finalizacaoObraSelect.innerHTML = obras
-    .map((obra) => `<option value="${obra.id}">${obra.nome}</option>`)
-    .join("");
+  finalizacaoObraSelect.innerHTML = obras.map((obra) => `<option value="${obra.id}">${obra.nome}</option>`).join("");
 
   relatorioObraSelect.innerHTML = `
     <option value="">Todas as obras</option>
@@ -518,13 +550,13 @@ function renderFinalizacoes() {
   const obras = getObras();
 
   if (!obras.length) {
-    finalizacaoTableBody.innerHTML =
-      `<tr><td colspan="5" class="empty">Nenhuma obra cadastrada.</td></tr>`;
+    finalizacaoTableBody.innerHTML = `<tr><td colspan="5" class="empty">Nenhuma obra cadastrada.</td></tr>`;
     return;
   }
 
   finalizacaoTableBody.innerHTML = obras
-    .map((obra) => `
+    .map(
+      (obra) => `
       <tr>
         <td>${obra.nome}</td>
         <td>${formatDate(obra.finalizacao?.dataEntrega)}</td>
@@ -532,7 +564,8 @@ function renderFinalizacoes() {
         <td>${formatCurrency(getAditivosValor(obra))}</td>
         <td>${obra.finalizacao?.dataEntrega ? "Finalizada" : "Em andamento"}</td>
       </tr>
-    `)
+    `
+    )
     .join("");
 }
 
@@ -542,7 +575,7 @@ function renderCompras() {
   const obraMap = new Map(obras.map((obra) => [obra.id, obra.nome]));
 
   if (!compras.length) {
-    comprasTableBody.innerHTML = `<tr><td colspan="11" class="empty">Nenhuma compra lançada.</td></tr>`;
+    comprasTableBody.innerHTML = `<tr><td colspan="11" class="empty">Nenhuma compra lancada.</td></tr>`;
     return;
   }
 
@@ -586,19 +619,19 @@ function filtrarComprasParaRelatorio() {
 function montarCabecalhoRelatorio(comprasFiltradas) {
   const obras = getObras();
   const obraSelecionada = obras.find((obra) => obra.id === relatorioObraSelect.value) || null;
-  const tipo = relatorioTipoSelect.value === "mensal" ? "Totais em intervalos mensais" : "Por descrição de material";
+  const tipo = relatorioTipoSelect.value === "mensal" ? "Totais em intervalos mensais" : "Por descricao de material";
   const meta = [
     `<span><strong>Tipo:</strong> ${tipo}</span>`,
     obraSelecionada ? `<span><strong>Obra:</strong> ${obraSelecionada.nome}</span>` : "",
-    getPeriodoRelatorioTexto() !== "Sem período informado"
-      ? `<span><strong>Período:</strong> ${getPeriodoRelatorioTexto()}</span>`
+    getPeriodoRelatorioTexto() !== "Sem periodo informado"
+      ? `<span><strong>Periodo:</strong> ${getPeriodoRelatorioTexto()}</span>`
       : "",
     comprasFiltradas.length ? `<span><strong>Registros:</strong> ${comprasFiltradas.length}</span>` : ""
   ].filter(Boolean);
 
   relatorioCabecalho.innerHTML = `
     <div>
-      <h4>Relatório para impressão</h4>
+      <h4>Relatorio para impressao</h4>
     </div>
     <div class="report-meta">
       ${meta.join("")}
@@ -633,18 +666,14 @@ function renderRelatorioPorDescricao(comprasFiltradas) {
   });
 
   const totalGeral = Array.from(grupos.values()).reduce((sum, linha) => sum + linha.total, 0);
-  let acumulado = 0;
   const usarCurvaAbc = relatorioCurvaAbcInput.checked;
+  let acumulado = 0;
 
-  const linhasBase = Array.from(grupos.values()).map((linha) => {
-    const participacao = totalGeral > 0 ? (linha.total / totalGeral) * 100 : 0;
-    return {
-      ...linha,
-      participacao,
-      participacaoAcumulada: 0,
-      curvaAbc: "-"
-    };
-  });
+  const linhasBase = Array.from(grupos.values()).map((linha) => ({
+    ...linha,
+    participacao: totalGeral > 0 ? (linha.total / totalGeral) * 100 : 0,
+    curvaAbc: "-"
+  }));
 
   const linhas = usarCurvaAbc
     ? linhasBase.sort((a, b) => b.total - a.total || a.descricao.localeCompare(b.descricao, "pt-BR"))
@@ -653,14 +682,13 @@ function renderRelatorioPorDescricao(comprasFiltradas) {
   if (usarCurvaAbc) {
     linhas.forEach((linha) => {
       acumulado += linha.participacao;
-      linha.participacaoAcumulada = acumulado;
       linha.curvaAbc = calcularClasseCurvaAbc(acumulado);
     });
   }
 
   relatorioTableHead.innerHTML = `
     <tr>
-      <th>Descrição</th>
+      <th>Descricao</th>
       ${relatorioObraSelect.value ? "" : "<th>Obra</th>"}
       <th>Unidade</th>
       <th>Qtd.</th>
@@ -716,9 +744,9 @@ function renderRelatorioMensal(comprasFiltradas) {
 
   relatorioTableHead.innerHTML = `
     <tr>
-      <th>Mês</th>
+      <th>Mes</th>
       <th>Quantidade de compras</th>
-      <th>Total do mês</th>
+      <th>Total do mes</th>
       <th>Total pago</th>
       <th>Total em aberto</th>
     </tr>
@@ -744,11 +772,8 @@ function renderRelatorioMensal(comprasFiltradas) {
 function renderRelatorios() {
   const comprasFiltradas = filtrarComprasParaRelatorio();
   const tipo = relatorioTipoSelect.value;
-
   const totalCompras = comprasFiltradas.reduce((sum, compra) => sum + getCompraTotal(compra), 0);
-  const totalPago = comprasFiltradas
-    .filter((compra) => compra.pago)
-    .reduce((sum, compra) => sum + getCompraTotal(compra), 0);
+  const totalPago = comprasFiltradas.filter((compra) => compra.pago).reduce((sum, compra) => sum + getCompraTotal(compra), 0);
   const ticketMedio = comprasFiltradas.length ? totalCompras / comprasFiltradas.length : 0;
   const resumoItems = [
     { titulo: "Total", valor: totalCompras, mostrar: totalCompras > 0 || comprasFiltradas.length > 0 },
@@ -769,6 +794,7 @@ function renderRelatorios() {
         )
         .join("")
     : "";
+
   montarCabecalhoRelatorio(comprasFiltradas);
 
   if (tipo === "mensal") {
@@ -780,20 +806,21 @@ function renderRelatorios() {
 }
 
 function renderAll() {
+  syncPermissionsUI();
   renderDashboard();
   populateObraSelects();
   refreshCompraAutocomplete();
   renderObras();
   renderFinalizacoes();
   renderCompras();
+  renderUsuarios();
   renderRelatorios();
 }
 
 function atualizarPrecoTotalCompraForm() {
   const quantidade = Number(compraQuantidadeInput.value || 0);
   const precoUnitario = Number(compraPrecoUnitarioInput.value || 0);
-  const precoTotal = quantidade * precoUnitario;
-  compraPrecoTotalInput.value = precoTotal.toFixed(2);
+  compraPrecoTotalInput.value = (quantidade * precoUnitario).toFixed(2);
 }
 
 function atualizarEstadoPeriodoRelatorio() {
@@ -811,28 +838,34 @@ function atualizarEstadoCurvaAbc() {
   }
 }
 
-loginForm.addEventListener("submit", (event) => {
+loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   loginError.classList.add("hidden");
 
-  const email = document.getElementById("loginEmail").value.trim().toLowerCase();
-  const password = document.getElementById("loginPassword").value;
+  try {
+    const result = await apiFetch("/api/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: document.getElementById("loginEmail").value.trim().toLowerCase(),
+        password: document.getElementById("loginPassword").value
+      })
+    });
 
-  const user = getUsers().find((item) => item.email === email && item.password === password);
-
-  if (!user) {
-    loginError.textContent = "Usuário ou senha inválidos.";
+    setSession(result.user);
+    await initializeApp();
+  } catch (error) {
+    loginError.textContent = error.message || "Usuario ou senha invalidos.";
     loginError.classList.remove("hidden");
-    return;
   }
-
-  setSession(user);
-  initializeApp();
 });
 
 logoutBtn.addEventListener("click", () => {
-  clearSession();
-  showLogin();
+  apiFetch("/api/logout", { method: "POST" })
+    .catch(() => null)
+    .finally(() => {
+      clearSession();
+      showLogin();
+    });
 });
 
 menuButtons.forEach((button) => {
@@ -841,48 +874,42 @@ menuButtons.forEach((button) => {
   });
 });
 
-obraForm.addEventListener("submit", (event) => {
+obraForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const obraId = obraEditIdInput.value;
-  if (obraId && isObraFinalizada(obraId) && !confirmarAutorizacaoGerente("edição de obra finalizada")) {
-    return;
+  try {
+    const obraId = obraEditIdInput.value;
+    if (obraId && isObraFinalizada(obraId) && !(await confirmarAutorizacaoGerente("edicao de obra finalizada"))) {
+      return;
+    }
+
+    const payload = {
+      nome: document.getElementById("obraNome").value.trim(),
+      local: document.getElementById("obraLocal").value.trim(),
+      responsavel: document.getElementById("obraResponsavel").value.trim(),
+      dataInicio: document.getElementById("obraDataInicio").value,
+      orcamento: Number(document.getElementById("obraOrcamento").value)
+    };
+
+    await apiFetch(obraId ? `/api/obras/${obraId}` : "/api/obras", {
+      method: obraId ? "PUT" : "POST",
+      body: JSON.stringify(payload)
+    });
+
+    await refreshData();
+    resetObraForm();
+    renderAll();
+    activatePage("obras");
+  } catch (error) {
+    alert(error.message);
   }
-
-  const obra = {
-    id: obraId || crypto.randomUUID(),
-    nome: document.getElementById("obraNome").value.trim(),
-    local: document.getElementById("obraLocal").value.trim(),
-    responsavel: document.getElementById("obraResponsavel").value.trim(),
-    dataInicio: document.getElementById("obraDataInicio").value,
-    orcamento: Number(document.getElementById("obraOrcamento").value)
-  };
-
-  const obras = obraId
-    ? getObras().map((item) => {
-        if (item.id !== obraId) {
-          return item;
-        }
-
-        return {
-          ...item,
-          ...obra
-        };
-      })
-    : [...getObras(), obra];
-
-  writeJson(OBRAS_KEY, obras);
-
-  resetObraForm();
-  renderAll();
-  activatePage("obras");
 });
 
 obraCancelEditBtn.addEventListener("click", () => {
   resetObraForm();
 });
 
-finalizacaoForm.addEventListener("submit", (event) => {
+finalizacaoForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const obraId = finalizacaoObraSelect.value;
@@ -891,84 +918,78 @@ finalizacaoForm.addEventListener("submit", (event) => {
     return;
   }
 
-  if (isObraFinalizada(obraId) && !confirmarAutorizacaoGerente("alteração em obra finalizada")) {
-    return;
-  }
-
-  const dataEntrega = document.getElementById("finalizacaoDataEntrega").value;
-  const aditivosInfo = document.getElementById("finalizacaoAditivosInfo").value.trim();
-  const aditivosValor = Number(document.getElementById("finalizacaoAditivosValor").value || 0);
-
-  const obras = getObras().map((obra) => {
-    if (obra.id !== obraId) {
-      return obra;
+  try {
+    if (isObraFinalizada(obraId) && !(await confirmarAutorizacaoGerente("alteracao em obra finalizada"))) {
+      return;
     }
 
-    return {
-      ...obra,
-      finalizacao: {
-        dataEntrega,
-        aditivosInfo,
-        aditivosValor,
-        atualizadoEm: new Date().toISOString()
-      }
-    };
-  });
+    await apiFetch(`/api/obras/${obraId}/finalizacao`, {
+      method: "PUT",
+      body: JSON.stringify({
+        dataEntrega: document.getElementById("finalizacaoDataEntrega").value,
+        aditivosInfo: document.getElementById("finalizacaoAditivosInfo").value.trim(),
+        aditivosValor: Number(document.getElementById("finalizacaoAditivosValor").value || 0)
+      })
+    });
 
-  writeJson(OBRAS_KEY, obras);
-  finalizacaoForm.reset();
-  document.getElementById("finalizacaoDataEntrega").value = new Date().toISOString().slice(0, 10);
-  document.getElementById("finalizacaoAditivosValor").value = "0";
-  renderAll();
-  activatePage("finalizacao");
+    await refreshData();
+    finalizacaoForm.reset();
+    document.getElementById("finalizacaoDataEntrega").value = new Date().toISOString().slice(0, 10);
+    document.getElementById("finalizacaoAditivosValor").value = "0";
+    renderAll();
+    activatePage("finalizacao");
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
-compraForm.addEventListener("submit", (event) => {
+compraForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const obraId = compraObraSelect.value;
   if (!obraId) {
-    alert("Cadastre uma obra antes de lançar compras.");
+    alert("Cadastre uma obra antes de lancar compras.");
     return;
   }
 
-  if (isObraFinalizada(obraId) && !confirmarAutorizacaoGerente("lançamento em obra finalizada")) {
-    return;
+  try {
+    if (isObraFinalizada(obraId) && !(await confirmarAutorizacaoGerente("lancamento em obra finalizada"))) {
+      return;
+    }
+
+    const quantidade = Number(compraQuantidadeInput.value);
+    const precoUnitario = Number(compraPrecoUnitarioInput.value);
+    const precoTotal = quantidade * precoUnitario;
+
+    await apiFetch("/api/compras", {
+      method: "POST",
+      body: JSON.stringify({
+        obraId,
+        data: document.getElementById("compraData").value,
+        descricao: compraDescricaoInput.value.trim(),
+        categoria: compraCategoriaInput.value.trim(),
+        fornecedor: compraFornecedorInput.value.trim(),
+        unidade: compraUnidadeInput.value.trim(),
+        quantidade,
+        precoUnitario,
+        precoTotal,
+        pago: document.getElementById("compraPago").checked
+      })
+    });
+
+    await refreshData();
+    compraForm.reset();
+    compraObraSelect.value = obraId;
+    document.getElementById("compraData").value = new Date().toISOString().slice(0, 10);
+    document.getElementById("obraDataInicio").value = new Date().toISOString().slice(0, 10);
+    document.getElementById("finalizacaoDataEntrega").value = new Date().toISOString().slice(0, 10);
+    document.getElementById("finalizacaoAditivosValor").value = "0";
+    atualizarPrecoTotalCompraForm();
+    renderAll();
+    activatePage("compras");
+  } catch (error) {
+    alert(error.message);
   }
-
-  const quantidade = Number(document.getElementById("compraQuantidade").value);
-  const precoUnitario = Number(document.getElementById("compraPrecoUnitario").value);
-  const precoTotal = quantidade * precoUnitario;
-
-  const compra = {
-    id: crypto.randomUUID(),
-    obraId,
-    createdAt: new Date().toISOString(),
-    data: document.getElementById("compraData").value,
-    descricao: compraDescricaoInput.value.trim(),
-    categoria: compraCategoriaInput.value.trim(),
-    fornecedor: compraFornecedorInput.value.trim(),
-    unidade: compraUnidadeInput.value.trim(),
-    quantidade,
-    precoUnitario,
-    precoTotal,
-    valor: precoTotal,
-    pago: document.getElementById("compraPago").checked
-  };
-
-  const compras = getCompras();
-  compras.push(compra);
-  writeJson(COMPRAS_KEY, compras);
-
-  compraForm.reset();
-  compraObraSelect.value = obraId;
-  document.getElementById("compraData").value = new Date().toISOString().slice(0, 10);
-  document.getElementById("obraDataInicio").value = new Date().toISOString().slice(0, 10);
-  document.getElementById("finalizacaoDataEntrega").value = new Date().toISOString().slice(0, 10);
-  document.getElementById("finalizacaoAditivosValor").value = "0";
-  atualizarPrecoTotalCompraForm();
-  renderAll();
-  activatePage("compras");
 });
 
 compraQuantidadeInput.addEventListener("input", atualizarPrecoTotalCompraForm);
@@ -977,7 +998,7 @@ compraDescricaoInput.addEventListener("input", preencherCamposPorDescricao);
 compraDescricaoInput.addEventListener("change", preencherCamposPorDescricao);
 compraDescricaoInput.addEventListener("blur", preencherCamposPorDescricao);
 
-obrasTableBody.addEventListener("click", (event) => {
+obrasTableBody.addEventListener("click", async (event) => {
   const editButton = event.target.closest("[data-obra-edit]");
   if (editButton) {
     const id = editButton.getAttribute("data-obra-edit");
@@ -986,7 +1007,7 @@ obrasTableBody.addEventListener("click", (event) => {
       return;
     }
 
-    if (isObraFinalizada(id) && !confirmarAutorizacaoGerente("edição de obra finalizada")) {
+    if (isObraFinalizada(id) && !(await confirmarAutorizacaoGerente("edicao de obra finalizada"))) {
       return;
     }
 
@@ -995,43 +1016,95 @@ obrasTableBody.addEventListener("click", (event) => {
     return;
   }
 
-  const button = event.target.closest("[data-obra-delete]");
-  if (!button) {
+  const deleteButton = event.target.closest("[data-obra-delete]");
+  if (!deleteButton) {
     return;
   }
 
-  if (!confirmarExclusaoObraComSenhaGerente()) {
-    return;
+  try {
+    if (!(await confirmarExclusaoObraComSenhaGerente())) {
+      return;
+    }
+
+    const id = deleteButton.getAttribute("data-obra-delete");
+    await apiFetch(`/api/obras/${id}`, { method: "DELETE" });
+    await refreshData();
+    renderAll();
+  } catch (error) {
+    alert(error.message);
   }
-
-  const id = button.getAttribute("data-obra-delete");
-  const obras = getObras().filter((obra) => obra.id !== id);
-  const compras = getCompras().filter((compra) => compra.obraId !== id);
-  writeJson(OBRAS_KEY, obras);
-  writeJson(COMPRAS_KEY, compras);
-
-  renderAll();
 });
 
-comprasTableBody.addEventListener("click", (event) => {
+comprasTableBody.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-compra-delete]");
   if (!button) {
     return;
   }
 
-  const id = button.getAttribute("data-compra-delete");
-  const compra = getCompras().find((item) => item.id === id);
-  if (compra && isObraFinalizada(compra.obraId)) {
-    if (!confirmarAutorizacaoGerente("exclusão de compra de obra finalizada")) {
+  try {
+    const id = button.getAttribute("data-compra-delete");
+    const compra = getCompras().find((item) => item.id === id);
+    if (compra && isObraFinalizada(compra.obraId)) {
+      if (!(await confirmarAutorizacaoGerente("exclusao de compra de obra finalizada"))) {
+        return;
+      }
+    }
+
+    await apiFetch(`/api/compras/${id}`, { method: "DELETE" });
+    await refreshData();
+    renderAll();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+if (usuarioForm) {
+  usuarioForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    try {
+      await apiFetch("/api/users", {
+        method: "POST",
+        body: JSON.stringify({
+          name: document.getElementById("usuarioNome").value.trim(),
+          email: document.getElementById("usuarioEmail").value.trim().toLowerCase(),
+          password: document.getElementById("usuarioSenha").value,
+          role: document.getElementById("usuarioRole").value
+        })
+      });
+
+      usuarioForm.reset();
+      await refreshUsers();
+      renderUsuarios();
+      activatePage("usuarios");
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+}
+
+if (usuariosTableBody) {
+  usuariosTableBody.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-usuario-delete]");
+    if (!button) {
       return;
     }
-  }
 
-  const compras = getCompras().filter((compra) => compra.id !== id);
-  writeJson(COMPRAS_KEY, compras);
+    if (!confirm("Tem certeza que deseja excluir este usuario?")) {
+      return;
+    }
 
-  renderAll();
-});
+    try {
+      await apiFetch(`/api/users/${button.getAttribute("data-usuario-delete")}`, {
+        method: "DELETE"
+      });
+      await refreshUsers();
+      renderUsuarios();
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+}
 
 aplicarRelatorioBtn.addEventListener("click", () => {
   renderRelatorios();
@@ -1068,17 +1141,37 @@ document.getElementById("relatorioDataFim").addEventListener("change", () => {
   renderRelatorios();
 });
 
-function initializeApp() {
-  if (!isLoggedIn()) {
+async function initializeApp() {
+  try {
+    const me = await apiFetch("/api/me");
+    setSession(me.user);
+  } catch (error) {
+    clearSession();
     showLogin();
     return;
   }
 
+  try {
+    await refreshData();
+    if (isAdmin()) {
+      await refreshUsers();
+    } else {
+      state.usuarios = [];
+    }
+  } catch (error) {
+    clearSession();
+    showLogin();
+    alert(`Falha ao carregar dados do servidor: ${error.message}`);
+    return;
+  }
+
   const sessionUser = getSessionUser();
-  welcomeText.textContent = `Bem-vindo, ${sessionUser?.name || "Usuário"}`;
+  welcomeText.textContent = `Bem-vindo, ${sessionUser?.name || "Usuario"}`;
   showApp();
 
   document.getElementById("compraData").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("finalizacaoDataEntrega").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("finalizacaoAditivosValor").value = "0";
   atualizarPrecoTotalCompraForm();
   resetObraForm();
   atualizarEstadoPeriodoRelatorio();
@@ -1087,5 +1180,4 @@ function initializeApp() {
   activatePage("dashboard");
 }
 
-seedData();
 initializeApp();

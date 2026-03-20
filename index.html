@@ -39,15 +39,16 @@
 
       <nav class="menu card">
         <button class="menu-btn active" data-section="dashboard">Dashboard</button>
-        <button class="menu-btn" data-section="obras">Cadastro de Obras</button>
+        <button class="menu-btn admin-only" data-section="obras">Cadastro de Obras</button>
         <button class="menu-btn" data-section="compras">Lançamento de Compras</button>
-        <button class="menu-btn" data-section="finalizacao">Finalização de Obra</button>
+        <button class="menu-btn admin-only" data-section="finalizacao">Finalização de Obra</button>
         <button class="menu-btn" data-section="relatorios">Relatórios</button>
+        <button class="menu-btn admin-only" data-section="usuarios">Usuários</button>
       </nav>
 
       <section id="dashboard" class="page card"></section>
 
-      <section id="obras" class="page card hidden">
+      <section id="obras" class="page card hidden admin-only">
         <h3>Cadastro de Obras</h3>
         <form id="obraForm" class="form-grid cols-2">
           <input type="hidden" id="obraEditId" />
@@ -93,7 +94,7 @@
         </div>
       </section>
 
-      <section id="finalizacao" class="page card hidden">
+      <section id="finalizacao" class="page card hidden admin-only">
         <h3>Finalização de Obra</h3>
         <form id="finalizacaoForm" class="form-grid cols-2">
           <label>
@@ -248,6 +249,46 @@
               <tbody id="relatorioTableBody"></tbody>
             </table>
           </div>
+        </div>
+      </section>
+
+      <section id="usuarios" class="page card hidden admin-only">
+        <h3>Cadastro de Usuários</h3>
+        <form id="usuarioForm" class="form-grid cols-2">
+          <label>
+            Nome
+            <input type="text" id="usuarioNome" required />
+          </label>
+          <label>
+            E-mail
+            <input type="email" id="usuarioEmail" required />
+          </label>
+          <label>
+            Senha
+            <input type="password" id="usuarioSenha" required />
+          </label>
+          <label>
+            Perfil
+            <select id="usuarioRole" required>
+              <option value="usuario">Usuário</option>
+              <option value="administrador">Administrador</option>
+            </select>
+          </label>
+          <button type="submit" class="btn primary">Salvar Usuário</button>
+        </form>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>E-mail</th>
+                <th>Perfil</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="usuariosTableBody"></tbody>
+          </table>
         </div>
       </section>
     </section>
