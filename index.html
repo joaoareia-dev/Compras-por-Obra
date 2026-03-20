@@ -1,0 +1,258 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestão de Custos de Obras</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-bg"></div>
+
+  <main class="container">
+    <section id="loginSection" class="card login-card">
+      <h1>Gestão de Custos de Obras</h1>
+      <p class="subtitle">Acesse o portal para gerenciar suas obras e compras.</p>
+      <form id="loginForm" class="form-grid">
+        <label>
+          E-mail
+          <input type="email" id="loginEmail" required placeholder="admin@obra.local" />
+        </label>
+        <label>
+          Senha
+          <input type="password" id="loginPassword" required placeholder="123456" />
+        </label>
+        <button type="submit" class="btn primary">Entrar</button>
+      </form>
+      <p class="hint">Usuário inicial: <strong>admin@obra.local</strong> | Senha: <strong>123456</strong></p>
+      <p id="loginError" class="error hidden"></p>
+    </section>
+
+    <section id="appSection" class="hidden">
+      <header class="topbar card">
+        <div>
+          <h2>Painel de Custos</h2>
+          <p id="welcomeText" class="subtitle"></p>
+        </div>
+        <button id="logoutBtn" class="btn ghost">Sair</button>
+      </header>
+
+      <nav class="menu card">
+        <button class="menu-btn active" data-section="dashboard">Dashboard</button>
+        <button class="menu-btn" data-section="obras">Cadastro de Obras</button>
+        <button class="menu-btn" data-section="compras">Lançamento de Compras</button>
+        <button class="menu-btn" data-section="finalizacao">Finalização de Obra</button>
+        <button class="menu-btn" data-section="relatorios">Relatórios</button>
+      </nav>
+
+      <section id="dashboard" class="page card"></section>
+
+      <section id="obras" class="page card hidden">
+        <h3>Cadastro de Obras</h3>
+        <form id="obraForm" class="form-grid cols-2">
+          <input type="hidden" id="obraEditId" />
+          <label>
+            Nome da Obra
+            <input type="text" id="obraNome" required />
+          </label>
+          <label>
+            Local
+            <input type="text" id="obraLocal" required />
+          </label>
+          <label>
+            Responsável
+            <input type="text" id="obraResponsavel" required />
+          </label>
+          <label>
+            Data de início da obra
+            <input type="date" id="obraDataInicio" required />
+          </label>
+          <label>
+            Orçamento Previsto (R$)
+            <input type="number" id="obraOrcamento" min="0" step="0.01" required />
+          </label>
+          <button type="submit" id="obraSubmitBtn" class="btn primary">Salvar Obra</button>
+          <button type="button" id="obraCancelEditBtn" class="btn ghost hidden">Cancelar edição</button>
+        </form>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Obra</th>
+                <th>Local</th>
+                <th>Responsável</th>
+                <th>Início</th>
+                <th>Orçamento</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="obrasTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="finalizacao" class="page card hidden">
+        <h3>Finalização de Obra</h3>
+        <form id="finalizacaoForm" class="form-grid cols-2">
+          <label>
+            Obra
+            <select id="finalizacaoObra" required></select>
+          </label>
+          <label>
+            Data final de entrega
+            <input type="date" id="finalizacaoDataEntrega" required />
+          </label>
+          <label>
+            Aditivos (descrição)
+            <input type="text" id="finalizacaoAditivosInfo" placeholder="Ex.: aditivo de fundação e elétrica" />
+          </label>
+          <label>
+            Valor total de aditivos (R$)
+            <input type="number" id="finalizacaoAditivosValor" min="0" step="0.01" value="0" />
+          </label>
+          <button type="submit" class="btn primary">Salvar Finalização</button>
+        </form>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Obra</th>
+                <th>Data de entrega</th>
+                <th>Aditivos</th>
+                <th>Valor aditivos</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="finalizacaoTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="compras" class="page card hidden">
+        <h3>Lançamento de Compras</h3>
+        <form id="compraForm" class="form-grid cols-2">
+          <label>
+            Obra
+            <select id="compraObra" required></select>
+          </label>
+          <label>
+            Data da Compra
+            <input type="date" id="compraData" required />
+          </label>
+          <label>
+            Descrição
+            <input type="text" id="compraDescricao" list="descricaoOptions" autocomplete="off" required />
+          </label>
+          <label>
+            Categoria
+            <input type="text" id="compraCategoria" list="categoriaOptions" placeholder="Material, Serviço..." autocomplete="off" required />
+          </label>
+          <label>
+            Fornecedor
+            <input type="text" id="compraFornecedor" list="fornecedorOptions" autocomplete="off" required />
+          </label>
+          <label>
+            Unidade
+            <input type="text" id="compraUnidade" list="unidadeOptions" placeholder="un, m2, saco..." autocomplete="off" required />
+          </label>
+          <label>
+            Quantidade
+            <input type="number" id="compraQuantidade" min="0" step="0.001" required />
+          </label>
+          <label>
+            Preço unitário (R$)
+            <input type="number" id="compraPrecoUnitario" min="0" step="0.01" required />
+          </label>
+          <label>
+            Preço total (R$)
+            <input type="number" id="compraPrecoTotal" min="0" step="0.01" readonly />
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="compraPago" />
+            Compra já paga
+          </label>
+          <button type="submit" class="btn primary">Registrar Compra</button>
+        </form>
+        <datalist id="descricaoOptions"></datalist>
+        <datalist id="categoriaOptions"></datalist>
+        <datalist id="fornecedorOptions"></datalist>
+        <datalist id="unidadeOptions"></datalist>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Obra</th>
+                <th>Descrição</th>
+                <th>Fornecedor</th>
+                <th>Categoria</th>
+                <th>Unidade</th>
+                <th>Qtd.</th>
+                <th>Preço unit.</th>
+                <th>Preço total</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="comprasTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="relatorios" class="page card hidden">
+        <h3>Relatórios</h3>
+        <div class="form-grid cols-3">
+          <label>
+            Obra
+            <select id="relatorioObra"></select>
+          </label>
+          <label>
+            Tipo de relatório
+            <select id="relatorioTipo">
+              <option value="descricao">Por descrição de material</option>
+              <option value="mensal">Totais em intervalos mensais</option>
+            </select>
+          </label>
+          <label class="checkbox-label report-toggle">
+            <input type="checkbox" id="relatorioTodasCompras" />
+            Todas as compras da obra
+          </label>
+          <label class="checkbox-label report-toggle">
+            <input type="checkbox" id="relatorioCurvaAbc" />
+            Ordenar por Curva ABC
+          </label>
+          <label>
+            Data Inicial
+            <input type="date" id="relatorioDataInicio" />
+          </label>
+          <label>
+            Data Final
+            <input type="date" id="relatorioDataFim" />
+          </label>
+        </div>
+        <div class="report-actions">
+          <button id="aplicarRelatorio" class="btn primary">Gerar Relatório</button>
+          <button id="imprimirRelatorio" class="btn ghost">Imprimir relatório</button>
+        </div>
+
+        <div id="relatorioPrintArea" class="report-print-area">
+          <div id="relatorioCabecalho" class="report-header"></div>
+          <div id="resumoRelatorio" class="cards-grid"></div>
+          <div class="table-wrap">
+            <table>
+              <thead id="relatorioTableHead"></thead>
+              <tbody id="relatorioTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

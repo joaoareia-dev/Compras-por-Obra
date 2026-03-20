@@ -1,0 +1,1091 @@
+﻿const USERS_KEY = "gc_users";
+const SESSION_KEY = "gc_session";
+const OBRAS_KEY = "gc_obras";
+const COMPRAS_KEY = "gc_compras";
+
+const loginSection = document.getElementById("loginSection");
+const appSection = document.getElementById("appSection");
+const loginForm = document.getElementById("loginForm");
+const loginError = document.getElementById("loginError");
+const welcomeText = document.getElementById("welcomeText");
+const dashboardSection = document.getElementById("dashboard");
+const logoutBtn = document.getElementById("logoutBtn");
+
+const obraForm = document.getElementById("obraForm");
+const obrasTableBody = document.getElementById("obrasTableBody");
+const obraEditIdInput = document.getElementById("obraEditId");
+const obraSubmitBtn = document.getElementById("obraSubmitBtn");
+const obraCancelEditBtn = document.getElementById("obraCancelEditBtn");
+const finalizacaoForm = document.getElementById("finalizacaoForm");
+const finalizacaoObraSelect = document.getElementById("finalizacaoObra");
+const finalizacaoTableBody = document.getElementById("finalizacaoTableBody");
+const compraForm = document.getElementById("compraForm");
+const comprasTableBody = document.getElementById("comprasTableBody");
+const compraObraSelect = document.getElementById("compraObra");
+const compraDescricaoInput = document.getElementById("compraDescricao");
+const compraCategoriaInput = document.getElementById("compraCategoria");
+const compraFornecedorInput = document.getElementById("compraFornecedor");
+const compraUnidadeInput = document.getElementById("compraUnidade");
+const compraQuantidadeInput = document.getElementById("compraQuantidade");
+const compraPrecoUnitarioInput = document.getElementById("compraPrecoUnitario");
+const compraPrecoTotalInput = document.getElementById("compraPrecoTotal");
+const descricaoOptions = document.getElementById("descricaoOptions");
+const categoriaOptions = document.getElementById("categoriaOptions");
+const fornecedorOptions = document.getElementById("fornecedorOptions");
+const unidadeOptions = document.getElementById("unidadeOptions");
+const relatorioObraSelect = document.getElementById("relatorioObra");
+const relatorioTipoSelect = document.getElementById("relatorioTipo");
+const relatorioTodasComprasInput = document.getElementById("relatorioTodasCompras");
+const relatorioCurvaAbcInput = document.getElementById("relatorioCurvaAbc");
+const relatorioCabecalho = document.getElementById("relatorioCabecalho");
+const relatorioTableHead = document.getElementById("relatorioTableHead");
+const relatorioTableBody = document.getElementById("relatorioTableBody");
+const resumoRelatorio = document.getElementById("resumoRelatorio");
+const aplicarRelatorioBtn = document.getElementById("aplicarRelatorio");
+const imprimirRelatorioBtn = document.getElementById("imprimirRelatorio");
+
+const menuButtons = Array.from(document.querySelectorAll(".menu-btn"));
+const pages = Array.from(document.querySelectorAll(".page"));
+
+function seedData() {
+  if (!localStorage.getItem(USERS_KEY)) {
+    const users = [
+      {
+        id: crypto.randomUUID(),
+        name: "Administrador",
+        email: "admin@obra.local",
+        password: "123456",
+        role: "gerente"
+      }
+    ];
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  }
+
+  // Compatibilidade para bases antigas sem perfil.
+  const users = getUsers().map((user) => ({
+    ...user,
+    role: user.role || "gerente"
+  }));
+  writeJson(USERS_KEY, users);
+
+  if (!localStorage.getItem(OBRAS_KEY)) {
+    localStorage.setItem(OBRAS_KEY, JSON.stringify([]));
+  }
+
+  if (!localStorage.getItem(COMPRAS_KEY)) {
+    localStorage.setItem(COMPRAS_KEY, JSON.stringify([]));
+  }
+}
+
+function readJson(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || "[]");
+  } catch (error) {
+    return [];
+  }
+}
+
+function writeJson(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function getUsers() {
+  return readJson(USERS_KEY);
+}
+
+function getObras() {
+  return readJson(OBRAS_KEY);
+}
+
+function getCompras() {
+  return readJson(COMPRAS_KEY);
+}
+
+function formatCurrency(value) {
+  return Number(value || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL"
+  });
+}
+
+function formatDate(isoDate) {
+  if (!isoDate) {
+    return "-";
+  }
+
+  const date = new Date(`${isoDate}T00:00:00`);
+  return date.toLocaleDateString("pt-BR");
+}
+
+function formatMonthLabel(monthKey) {
+  const [year, month] = monthKey.split("-");
+  const date = new Date(Number(year), Number(month) - 1, 1);
+  return date.toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric"
+  });
+}
+
+function calcularClasseCurvaAbc(percentualAcumulado) {
+  if (percentualAcumulado <= 80) {
+    return "A";
+  }
+
+  if (percentualAcumulado <= 95) {
+    return "B";
+  }
+
+  return "C";
+}
+
+function getPeriodoRelatorioTexto() {
+  if (relatorioTodasComprasInput.checked) {
+    return "Todas as compras da obra";
+  }
+
+  const dataInicio = document.getElementById("relatorioDataInicio").value;
+  const dataFim = document.getElementById("relatorioDataFim").value;
+
+  if (dataInicio && dataFim) {
+    return `${formatDate(dataInicio)} até ${formatDate(dataFim)}`;
+  }
+
+  if (dataInicio) {
+    return `A partir de ${formatDate(dataInicio)}`;
+  }
+
+  if (dataFim) {
+    return `Até ${formatDate(dataFim)}`;
+  }
+
+  return "Sem período informado";
+}
+
+function getCompraTotal(compra) {
+  if (typeof compra.precoTotal === "number") {
+    return compra.precoTotal;
+  }
+
+  if (typeof compra.quantidade === "number" && typeof compra.precoUnitario === "number") {
+    return compra.quantidade * compra.precoUnitario;
+  }
+
+  return Number(compra.valor || 0);
+}
+
+function getUltimaObraLancadaId() {
+  const compras = getCompras();
+  if (!compras.length) {
+    return "";
+  }
+
+  const ultimaCompra = compras[compras.length - 1];
+  return ultimaCompra?.obraId || "";
+}
+
+function getAditivosValor(obra) {
+  return Number(obra?.finalizacao?.aditivosValor || 0);
+}
+
+function getOrcamentoComAditivos(obra) {
+  return Number(obra.orcamento || 0) + getAditivosValor(obra);
+}
+
+function normalizeValue(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;");
+}
+
+function buildUniqueValues(values) {
+  const unique = new Map();
+
+  values.forEach((value) => {
+    const cleaned = String(value || "").trim();
+    if (!cleaned) {
+      return;
+    }
+
+    const normalized = normalizeValue(cleaned);
+    if (!unique.has(normalized)) {
+      unique.set(normalized, cleaned);
+    }
+  });
+
+  return Array.from(unique.values()).sort((a, b) => a.localeCompare(b, "pt-BR"));
+}
+
+function updateDatalist(element, values) {
+  element.innerHTML = values
+    .map((value) => `<option value="${escapeHtml(value)}"></option>`)
+    .join("");
+}
+
+function refreshCompraAutocomplete() {
+  const compras = getCompras();
+  updateDatalist(descricaoOptions, buildUniqueValues(compras.map((compra) => compra.descricao)));
+  updateDatalist(categoriaOptions, buildUniqueValues(compras.map((compra) => compra.categoria)));
+  updateDatalist(fornecedorOptions, buildUniqueValues(compras.map((compra) => compra.fornecedor)));
+  updateDatalist(unidadeOptions, buildUniqueValues(compras.map((compra) => compra.unidade)));
+}
+
+function findLastCompraByDescricao(descricao) {
+  const descricaoAlvo = normalizeValue(descricao);
+  if (!descricaoAlvo) {
+    return null;
+  }
+
+  const compras = getCompras();
+  for (let index = compras.length - 1; index >= 0; index -= 1) {
+    const compra = compras[index];
+    if (normalizeValue(compra.descricao) === descricaoAlvo) {
+      return compra;
+    }
+  }
+
+  return null;
+}
+
+function preencherCamposPorDescricao() {
+  const ultimaCompra = findLastCompraByDescricao(compraDescricaoInput.value);
+  if (!ultimaCompra) {
+    return;
+  }
+
+  compraCategoriaInput.value = ultimaCompra.categoria || "";
+  compraFornecedorInput.value = ultimaCompra.fornecedor || "";
+  compraUnidadeInput.value = ultimaCompra.unidade || "";
+}
+
+function isLoggedIn() {
+  return Boolean(localStorage.getItem(SESSION_KEY));
+}
+
+function getSessionUser() {
+  return JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+}
+
+function setSession(user) {
+  localStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({
+      id: user.id,
+      name: user.name,
+      email: user.email
+    })
+  );
+}
+
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+}
+
+function getCurrentUserRecord() {
+  const sessionUser = getSessionUser();
+  if (!sessionUser) {
+    return null;
+  }
+
+  return getUsers().find((user) => user.id === sessionUser.id) || null;
+}
+
+function confirmarAutorizacaoGerente(motivo) {
+  const currentUser = getCurrentUserRecord();
+  if (!currentUser) {
+    alert("Sessão inválida. Faça login novamente.");
+    return false;
+  }
+
+  if (currentUser.role !== "gerente") {
+    alert("Apenas usuários com nível gerente podem executar esta ação.");
+    return false;
+  }
+
+  const senhaInformada = prompt(`Autorização de gerente necessária (${motivo}). Informe a senha do usuário atual:`);
+  if (senhaInformada === null) {
+    return false;
+  }
+
+  if (senhaInformada !== currentUser.password) {
+    alert("Senha de gerente inválida. Ação cancelada.");
+    return false;
+  }
+
+  return true;
+}
+
+function confirmarExclusaoObraComSenhaGerente() {
+  const confirmouAcao = confirm("Tem certeza que deseja excluir esta obra? Esta ação também remove as compras vinculadas.");
+  if (!confirmouAcao) {
+    return false;
+  }
+  return confirmarAutorizacaoGerente("exclusão de obra");
+}
+
+function getObraById(obraId) {
+  return getObras().find((obra) => obra.id === obraId) || null;
+}
+
+function isObraFinalizada(obraId) {
+  return Boolean(getObraById(obraId)?.finalizacao?.dataEntrega);
+}
+
+function resetObraForm() {
+  obraForm.reset();
+  obraEditIdInput.value = "";
+  obraSubmitBtn.textContent = "Salvar Obra";
+  obraCancelEditBtn.classList.add("hidden");
+  document.getElementById("obraDataInicio").value = new Date().toISOString().slice(0, 10);
+}
+
+function preencherFormularioObra(obra) {
+  obraEditIdInput.value = obra.id;
+  document.getElementById("obraNome").value = obra.nome || "";
+  document.getElementById("obraLocal").value = obra.local || "";
+  document.getElementById("obraResponsavel").value = obra.responsavel || "";
+  document.getElementById("obraDataInicio").value = obra.dataInicio || "";
+  document.getElementById("obraOrcamento").value = Number(obra.orcamento || 0);
+  obraSubmitBtn.textContent = "Atualizar Obra";
+  obraCancelEditBtn.classList.remove("hidden");
+}
+
+function showLogin() {
+  loginSection.classList.remove("hidden");
+  appSection.classList.add("hidden");
+}
+
+function showApp() {
+  loginSection.classList.add("hidden");
+  appSection.classList.remove("hidden");
+}
+
+function activatePage(pageId) {
+  pages.forEach((page) => {
+    page.classList.toggle("hidden", page.id !== pageId);
+  });
+
+  menuButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.section === pageId);
+  });
+
+  if (pageId === "relatorios") {
+    renderRelatorios();
+  }
+}
+
+function renderDashboard() {
+  const obras = getObras();
+  const compras = getCompras();
+  const obrasFinalizadas = obras.filter((obra) => obra.finalizacao?.dataEntrega).length;
+  const totalGasto = compras.reduce((sum, compra) => sum + getCompraTotal(compra), 0);
+  const totalPago = compras
+    .filter((compra) => compra.pago)
+    .reduce((sum, compra) => sum + getCompraTotal(compra), 0);
+  const totalAberto = totalGasto - totalPago;
+  const resumoObras = obras
+    .map((obra) => {
+      const totalObra = compras
+        .filter((compra) => compra.obraId === obra.id)
+        .reduce((sum, compra) => sum + getCompraTotal(compra), 0);
+      const orcamentoTotal = getOrcamentoComAditivos(obra);
+      const saldo = orcamentoTotal - totalObra;
+      const percentualConsumido = orcamentoTotal > 0 ? (totalObra / orcamentoTotal) * 100 : 0;
+
+      return `
+        <article class="obra-summary-card">
+          <div class="obra-summary-head">
+            <div>
+              <h4>${obra.nome}</h4>
+              <p>${obra.local}</p>
+            </div>
+            <span class="obra-status ${obra.finalizacao?.dataEntrega ? "status-finished" : "status-progress"}">
+              ${obra.finalizacao?.dataEntrega ? "Finalizada" : "Em andamento"}
+            </span>
+          </div>
+          <div class="obra-summary-grid">
+            <p><strong>Responsavel:</strong> ${obra.responsavel}</p>
+            <p><strong>Inicio:</strong> ${formatDate(obra.dataInicio)}</p>
+            <p><strong>Entrega:</strong> ${formatDate(obra.finalizacao?.dataEntrega)}</p>
+            <p><strong>Orcamento:</strong> ${formatCurrency(orcamentoTotal)}</p>
+            <p><strong>Gasto:</strong> ${formatCurrency(totalObra)}</p>
+            <p><strong>Saldo:</strong> ${formatCurrency(saldo)}</p>
+            <p><strong>Aditivos:</strong> ${formatCurrency(getAditivosValor(obra))}</p>
+            <p><strong>Consumo:</strong> ${percentualConsumido.toFixed(1)}%</p>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  dashboardSection.innerHTML = `
+    <h3>Dashboard</h3>
+    <div class="cards-grid">
+      <article class="metric-card">
+        <p class="metric-title">Obras cadastradas</p>
+        <p class="metric-value">${obras.length}</p>
+      </article>
+      <article class="metric-card">
+        <p class="metric-title">Compras lançadas</p>
+        <p class="metric-value">${compras.length}</p>
+      </article>
+      <article class="metric-card">
+        <p class="metric-title">Obras finalizadas</p>
+        <p class="metric-value">${obrasFinalizadas}</p>
+      </article>
+      <article class="metric-card">
+        <p class="metric-title">Total gasto</p>
+        <p class="metric-value">${formatCurrency(totalGasto)}</p>
+      </article>
+      <article class="metric-card">
+        <p class="metric-title">Total em aberto</p>
+        <p class="metric-value">${formatCurrency(totalAberto)}</p>
+      </article>
+    </div>
+    <div class="dashboard-obras-header">
+      <h4>Resumo por obra</h4>
+      <p class="subtitle">Visao consolidada de orcamento, gastos e andamento.</p>
+    </div>
+    <div class="obra-summary-list">
+      ${resumoObras || '<p class="empty">Nenhuma obra cadastrada.</p>'}
+    </div>
+  `;
+}
+
+function populateObraSelects() {
+  const obras = getObras();
+  const ultimaObraLancadaId = getUltimaObraLancadaId();
+
+  if (!obras.length) {
+    compraObraSelect.innerHTML = `<option value="">Cadastre uma obra antes</option>`;
+    finalizacaoObraSelect.innerHTML = `<option value="">Cadastre uma obra antes</option>`;
+    relatorioObraSelect.innerHTML = `<option value="">Todas as obras</option>`;
+    return;
+  }
+
+  compraObraSelect.innerHTML = obras
+    .map((obra) => `<option value="${obra.id}">${obra.nome}</option>`)
+    .join("");
+
+  if (ultimaObraLancadaId && obras.some((obra) => obra.id === ultimaObraLancadaId)) {
+    compraObraSelect.value = ultimaObraLancadaId;
+  }
+
+  finalizacaoObraSelect.innerHTML = obras
+    .map((obra) => `<option value="${obra.id}">${obra.nome}</option>`)
+    .join("");
+
+  relatorioObraSelect.innerHTML = `
+    <option value="">Todas as obras</option>
+    ${obras.map((obra) => `<option value="${obra.id}">${obra.nome}</option>`).join("")}
+  `;
+}
+
+function renderObras() {
+  const obras = getObras();
+
+  if (!obras.length) {
+    obrasTableBody.innerHTML = `<tr><td colspan="7" class="empty">Nenhuma obra cadastrada.</td></tr>`;
+    return;
+  }
+
+  obrasTableBody.innerHTML = obras
+    .map(
+      (obra) => `
+      <tr>
+        <td>${obra.nome}</td>
+        <td>${obra.local}</td>
+        <td>${obra.responsavel}</td>
+        <td>${formatDate(obra.dataInicio)}</td>
+        <td>${formatCurrency(getOrcamentoComAditivos(obra))}</td>
+        <td>${obra.finalizacao?.dataEntrega ? "Finalizada" : "Em andamento"}</td>
+        <td>
+          <button class="btn ghost" data-obra-edit="${obra.id}">Editar</button>
+          <button class="btn delete" data-obra-delete="${obra.id}">Excluir</button>
+        </td>
+      </tr>
+    `
+    )
+    .join("");
+}
+
+function renderFinalizacoes() {
+  const obras = getObras();
+
+  if (!obras.length) {
+    finalizacaoTableBody.innerHTML =
+      `<tr><td colspan="5" class="empty">Nenhuma obra cadastrada.</td></tr>`;
+    return;
+  }
+
+  finalizacaoTableBody.innerHTML = obras
+    .map((obra) => `
+      <tr>
+        <td>${obra.nome}</td>
+        <td>${formatDate(obra.finalizacao?.dataEntrega)}</td>
+        <td>${obra.finalizacao?.aditivosInfo || "-"}</td>
+        <td>${formatCurrency(getAditivosValor(obra))}</td>
+        <td>${obra.finalizacao?.dataEntrega ? "Finalizada" : "Em andamento"}</td>
+      </tr>
+    `)
+    .join("");
+}
+
+function renderCompras() {
+  const compras = getCompras();
+  const obras = getObras();
+  const obraMap = new Map(obras.map((obra) => [obra.id, obra.nome]));
+
+  if (!compras.length) {
+    comprasTableBody.innerHTML = `<tr><td colspan="11" class="empty">Nenhuma compra lançada.</td></tr>`;
+    return;
+  }
+
+  const sorted = [...compras].sort((a, b) => new Date(b.data) - new Date(a.data));
+
+  comprasTableBody.innerHTML = sorted
+    .map(
+      (compra) => `
+      <tr>
+        <td>${formatDate(compra.data)}</td>
+        <td>${obraMap.get(compra.obraId) || "Obra removida"}</td>
+        <td>${compra.descricao}</td>
+        <td>${compra.fornecedor}</td>
+        <td>${compra.categoria}</td>
+        <td>${compra.unidade || "-"}</td>
+        <td>${Number(compra.quantidade || 0).toLocaleString("pt-BR")}</td>
+        <td>${formatCurrency(compra.precoUnitario || 0)}</td>
+        <td>${formatCurrency(getCompraTotal(compra))}</td>
+        <td class="${compra.pago ? "status-pago" : "status-aberto"}">${compra.pago ? "Pago" : "Em aberto"}</td>
+        <td><button class="btn delete" data-compra-delete="${compra.id}">Excluir</button></td>
+      </tr>
+    `
+    )
+    .join("");
+}
+
+function filtrarComprasParaRelatorio() {
+  const obraId = relatorioObraSelect.value;
+  const dataInicio = document.getElementById("relatorioDataInicio").value;
+  const dataFim = document.getElementById("relatorioDataFim").value;
+  const todasComprasDaObra = relatorioTodasComprasInput.checked;
+
+  return getCompras().filter((compra) => {
+    const matchObra = !obraId || compra.obraId === obraId;
+    const matchInicio = todasComprasDaObra || !dataInicio || compra.data >= dataInicio;
+    const matchFim = todasComprasDaObra || !dataFim || compra.data <= dataFim;
+    return matchObra && matchInicio && matchFim;
+  });
+}
+
+function montarCabecalhoRelatorio(comprasFiltradas) {
+  const obras = getObras();
+  const obraSelecionada = obras.find((obra) => obra.id === relatorioObraSelect.value) || null;
+  const tipo = relatorioTipoSelect.value === "mensal" ? "Totais em intervalos mensais" : "Por descrição de material";
+  const meta = [
+    `<span><strong>Tipo:</strong> ${tipo}</span>`,
+    obraSelecionada ? `<span><strong>Obra:</strong> ${obraSelecionada.nome}</span>` : "",
+    getPeriodoRelatorioTexto() !== "Sem período informado"
+      ? `<span><strong>Período:</strong> ${getPeriodoRelatorioTexto()}</span>`
+      : "",
+    comprasFiltradas.length ? `<span><strong>Registros:</strong> ${comprasFiltradas.length}</span>` : ""
+  ].filter(Boolean);
+
+  relatorioCabecalho.innerHTML = `
+    <div>
+      <h4>Relatório para impressão</h4>
+    </div>
+    <div class="report-meta">
+      ${meta.join("")}
+    </div>
+  `;
+}
+
+function renderRelatorioPorDescricao(comprasFiltradas) {
+  const obras = getObras();
+  const obraMap = new Map(obras.map((obra) => [obra.id, obra.nome]));
+  const grupos = new Map();
+
+  comprasFiltradas.forEach((compra) => {
+    const chave = normalizeValue(compra.descricao);
+    if (!chave) {
+      return;
+    }
+
+    if (!grupos.has(chave)) {
+      grupos.set(chave, {
+        descricao: compra.descricao,
+        obraNome: obraMap.get(compra.obraId) || "Obra removida",
+        unidade: compra.unidade || "-",
+        quantidade: 0,
+        total: 0
+      });
+    }
+
+    const grupo = grupos.get(chave);
+    grupo.quantidade += Number(compra.quantidade || 0);
+    grupo.total += getCompraTotal(compra);
+  });
+
+  const totalGeral = Array.from(grupos.values()).reduce((sum, linha) => sum + linha.total, 0);
+  let acumulado = 0;
+  const usarCurvaAbc = relatorioCurvaAbcInput.checked;
+
+  const linhasBase = Array.from(grupos.values()).map((linha) => {
+    const participacao = totalGeral > 0 ? (linha.total / totalGeral) * 100 : 0;
+    return {
+      ...linha,
+      participacao,
+      participacaoAcumulada: 0,
+      curvaAbc: "-"
+    };
+  });
+
+  const linhas = usarCurvaAbc
+    ? linhasBase.sort((a, b) => b.total - a.total || a.descricao.localeCompare(b.descricao, "pt-BR"))
+    : linhasBase.sort((a, b) => a.descricao.localeCompare(b.descricao, "pt-BR"));
+
+  if (usarCurvaAbc) {
+    linhas.forEach((linha) => {
+      acumulado += linha.participacao;
+      linha.participacaoAcumulada = acumulado;
+      linha.curvaAbc = calcularClasseCurvaAbc(acumulado);
+    });
+  }
+
+  relatorioTableHead.innerHTML = `
+    <tr>
+      <th>Descrição</th>
+      ${relatorioObraSelect.value ? "" : "<th>Obra</th>"}
+      <th>Unidade</th>
+      <th>Qtd.</th>
+      <th>Total</th>
+      ${usarCurvaAbc ? "<th>%</th><th>ABC</th>" : ""}
+    </tr>
+  `;
+
+  relatorioTableBody.innerHTML = linhas.length
+    ? linhas
+        .map(
+          (linha) => `
+        <tr>
+          <td>${linha.descricao}</td>
+          ${relatorioObraSelect.value ? "" : `<td>${linha.obraNome}</td>`}
+          <td>${linha.unidade}</td>
+          <td>${linha.quantidade.toLocaleString("pt-BR")}</td>
+          <td>${formatCurrency(linha.total)}</td>
+          ${usarCurvaAbc ? `<td>${linha.participacao.toFixed(1)}%</td><td>${linha.curvaAbc}</td>` : ""}
+        </tr>
+      `
+        )
+        .join("")
+    : `<tr><td colspan="${relatorioObraSelect.value ? (usarCurvaAbc ? 6 : 4) : (usarCurvaAbc ? 7 : 5)}" class="empty">Nenhuma compra encontrada para os filtros selecionados.</td></tr>`;
+}
+
+function renderRelatorioMensal(comprasFiltradas) {
+  const grupos = new Map();
+
+  comprasFiltradas.forEach((compra) => {
+    const monthKey = String(compra.data || "").slice(0, 7);
+    if (!monthKey) {
+      return;
+    }
+
+    if (!grupos.has(monthKey)) {
+      grupos.set(monthKey, {
+        mes: monthKey,
+        quantidadeCompras: 0,
+        total: 0,
+        pago: 0
+      });
+    }
+
+    const grupo = grupos.get(monthKey);
+    const totalCompra = getCompraTotal(compra);
+    grupo.quantidadeCompras += 1;
+    grupo.total += totalCompra;
+    grupo.pago += compra.pago ? totalCompra : 0;
+  });
+
+  const linhas = Array.from(grupos.values()).sort((a, b) => a.mes.localeCompare(b.mes));
+
+  relatorioTableHead.innerHTML = `
+    <tr>
+      <th>Mês</th>
+      <th>Quantidade de compras</th>
+      <th>Total do mês</th>
+      <th>Total pago</th>
+      <th>Total em aberto</th>
+    </tr>
+  `;
+
+  relatorioTableBody.innerHTML = linhas.length
+    ? linhas
+        .map(
+          (linha) => `
+        <tr>
+          <td>${formatMonthLabel(linha.mes)}</td>
+          <td>${linha.quantidadeCompras}</td>
+          <td>${formatCurrency(linha.total)}</td>
+          <td>${formatCurrency(linha.pago)}</td>
+          <td>${formatCurrency(linha.total - linha.pago)}</td>
+        </tr>
+      `
+        )
+        .join("")
+    : `<tr><td colspan="5" class="empty">Nenhuma compra encontrada para os filtros selecionados.</td></tr>`;
+}
+
+function renderRelatorios() {
+  const comprasFiltradas = filtrarComprasParaRelatorio();
+  const tipo = relatorioTipoSelect.value;
+
+  const totalCompras = comprasFiltradas.reduce((sum, compra) => sum + getCompraTotal(compra), 0);
+  const totalPago = comprasFiltradas
+    .filter((compra) => compra.pago)
+    .reduce((sum, compra) => sum + getCompraTotal(compra), 0);
+  const ticketMedio = comprasFiltradas.length ? totalCompras / comprasFiltradas.length : 0;
+  const resumoItems = [
+    { titulo: "Total", valor: totalCompras, mostrar: totalCompras > 0 || comprasFiltradas.length > 0 },
+    { titulo: "Pago", valor: totalPago, mostrar: totalPago > 0 },
+    { titulo: "Em aberto", valor: totalCompras - totalPago, mostrar: totalCompras - totalPago > 0 },
+    { titulo: "Ticket medio", valor: ticketMedio, mostrar: ticketMedio > 0 && comprasFiltradas.length > 1 }
+  ].filter((item) => item.mostrar);
+
+  resumoRelatorio.innerHTML = resumoItems.length
+    ? resumoItems
+        .map(
+          (item) => `
+      <article class="metric-card compact">
+        <p class="metric-title">${item.titulo}</p>
+        <p class="metric-value">${formatCurrency(item.valor)}</p>
+      </article>
+    `
+        )
+        .join("")
+    : "";
+  montarCabecalhoRelatorio(comprasFiltradas);
+
+  if (tipo === "mensal") {
+    renderRelatorioMensal(comprasFiltradas);
+    return;
+  }
+
+  renderRelatorioPorDescricao(comprasFiltradas);
+}
+
+function renderAll() {
+  renderDashboard();
+  populateObraSelects();
+  refreshCompraAutocomplete();
+  renderObras();
+  renderFinalizacoes();
+  renderCompras();
+  renderRelatorios();
+}
+
+function atualizarPrecoTotalCompraForm() {
+  const quantidade = Number(compraQuantidadeInput.value || 0);
+  const precoUnitario = Number(compraPrecoUnitarioInput.value || 0);
+  const precoTotal = quantidade * precoUnitario;
+  compraPrecoTotalInput.value = precoTotal.toFixed(2);
+}
+
+function atualizarEstadoPeriodoRelatorio() {
+  const disabled = relatorioTodasComprasInput.checked;
+  document.getElementById("relatorioDataInicio").disabled = disabled;
+  document.getElementById("relatorioDataFim").disabled = disabled;
+}
+
+function atualizarEstadoCurvaAbc() {
+  const habilitado = relatorioTipoSelect.value === "descricao";
+  relatorioCurvaAbcInput.disabled = !habilitado;
+
+  if (!habilitado) {
+    relatorioCurvaAbcInput.checked = false;
+  }
+}
+
+loginForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  loginError.classList.add("hidden");
+
+  const email = document.getElementById("loginEmail").value.trim().toLowerCase();
+  const password = document.getElementById("loginPassword").value;
+
+  const user = getUsers().find((item) => item.email === email && item.password === password);
+
+  if (!user) {
+    loginError.textContent = "Usuário ou senha inválidos.";
+    loginError.classList.remove("hidden");
+    return;
+  }
+
+  setSession(user);
+  initializeApp();
+});
+
+logoutBtn.addEventListener("click", () => {
+  clearSession();
+  showLogin();
+});
+
+menuButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    activatePage(button.dataset.section);
+  });
+});
+
+obraForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+
+  const obraId = obraEditIdInput.value;
+  if (obraId && isObraFinalizada(obraId) && !confirmarAutorizacaoGerente("edição de obra finalizada")) {
+    return;
+  }
+
+  const obra = {
+    id: obraId || crypto.randomUUID(),
+    nome: document.getElementById("obraNome").value.trim(),
+    local: document.getElementById("obraLocal").value.trim(),
+    responsavel: document.getElementById("obraResponsavel").value.trim(),
+    dataInicio: document.getElementById("obraDataInicio").value,
+    orcamento: Number(document.getElementById("obraOrcamento").value)
+  };
+
+  const obras = obraId
+    ? getObras().map((item) => {
+        if (item.id !== obraId) {
+          return item;
+        }
+
+        return {
+          ...item,
+          ...obra
+        };
+      })
+    : [...getObras(), obra];
+
+  writeJson(OBRAS_KEY, obras);
+
+  resetObraForm();
+  renderAll();
+  activatePage("obras");
+});
+
+obraCancelEditBtn.addEventListener("click", () => {
+  resetObraForm();
+});
+
+finalizacaoForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+
+  const obraId = finalizacaoObraSelect.value;
+  if (!obraId) {
+    alert("Selecione uma obra para finalizar.");
+    return;
+  }
+
+  if (isObraFinalizada(obraId) && !confirmarAutorizacaoGerente("alteração em obra finalizada")) {
+    return;
+  }
+
+  const dataEntrega = document.getElementById("finalizacaoDataEntrega").value;
+  const aditivosInfo = document.getElementById("finalizacaoAditivosInfo").value.trim();
+  const aditivosValor = Number(document.getElementById("finalizacaoAditivosValor").value || 0);
+
+  const obras = getObras().map((obra) => {
+    if (obra.id !== obraId) {
+      return obra;
+    }
+
+    return {
+      ...obra,
+      finalizacao: {
+        dataEntrega,
+        aditivosInfo,
+        aditivosValor,
+        atualizadoEm: new Date().toISOString()
+      }
+    };
+  });
+
+  writeJson(OBRAS_KEY, obras);
+  finalizacaoForm.reset();
+  document.getElementById("finalizacaoDataEntrega").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("finalizacaoAditivosValor").value = "0";
+  renderAll();
+  activatePage("finalizacao");
+});
+
+compraForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+
+  const obraId = compraObraSelect.value;
+  if (!obraId) {
+    alert("Cadastre uma obra antes de lançar compras.");
+    return;
+  }
+
+  if (isObraFinalizada(obraId) && !confirmarAutorizacaoGerente("lançamento em obra finalizada")) {
+    return;
+  }
+
+  const quantidade = Number(document.getElementById("compraQuantidade").value);
+  const precoUnitario = Number(document.getElementById("compraPrecoUnitario").value);
+  const precoTotal = quantidade * precoUnitario;
+
+  const compra = {
+    id: crypto.randomUUID(),
+    obraId,
+    createdAt: new Date().toISOString(),
+    data: document.getElementById("compraData").value,
+    descricao: compraDescricaoInput.value.trim(),
+    categoria: compraCategoriaInput.value.trim(),
+    fornecedor: compraFornecedorInput.value.trim(),
+    unidade: compraUnidadeInput.value.trim(),
+    quantidade,
+    precoUnitario,
+    precoTotal,
+    valor: precoTotal,
+    pago: document.getElementById("compraPago").checked
+  };
+
+  const compras = getCompras();
+  compras.push(compra);
+  writeJson(COMPRAS_KEY, compras);
+
+  compraForm.reset();
+  compraObraSelect.value = obraId;
+  document.getElementById("compraData").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("obraDataInicio").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("finalizacaoDataEntrega").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("finalizacaoAditivosValor").value = "0";
+  atualizarPrecoTotalCompraForm();
+  renderAll();
+  activatePage("compras");
+});
+
+compraQuantidadeInput.addEventListener("input", atualizarPrecoTotalCompraForm);
+compraPrecoUnitarioInput.addEventListener("input", atualizarPrecoTotalCompraForm);
+compraDescricaoInput.addEventListener("input", preencherCamposPorDescricao);
+compraDescricaoInput.addEventListener("change", preencherCamposPorDescricao);
+compraDescricaoInput.addEventListener("blur", preencherCamposPorDescricao);
+
+obrasTableBody.addEventListener("click", (event) => {
+  const editButton = event.target.closest("[data-obra-edit]");
+  if (editButton) {
+    const id = editButton.getAttribute("data-obra-edit");
+    const obra = getObraById(id);
+    if (!obra) {
+      return;
+    }
+
+    if (isObraFinalizada(id) && !confirmarAutorizacaoGerente("edição de obra finalizada")) {
+      return;
+    }
+
+    preencherFormularioObra(obra);
+    activatePage("obras");
+    return;
+  }
+
+  const button = event.target.closest("[data-obra-delete]");
+  if (!button) {
+    return;
+  }
+
+  if (!confirmarExclusaoObraComSenhaGerente()) {
+    return;
+  }
+
+  const id = button.getAttribute("data-obra-delete");
+  const obras = getObras().filter((obra) => obra.id !== id);
+  const compras = getCompras().filter((compra) => compra.obraId !== id);
+  writeJson(OBRAS_KEY, obras);
+  writeJson(COMPRAS_KEY, compras);
+
+  renderAll();
+});
+
+comprasTableBody.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-compra-delete]");
+  if (!button) {
+    return;
+  }
+
+  const id = button.getAttribute("data-compra-delete");
+  const compra = getCompras().find((item) => item.id === id);
+  if (compra && isObraFinalizada(compra.obraId)) {
+    if (!confirmarAutorizacaoGerente("exclusão de compra de obra finalizada")) {
+      return;
+    }
+  }
+
+  const compras = getCompras().filter((compra) => compra.id !== id);
+  writeJson(COMPRAS_KEY, compras);
+
+  renderAll();
+});
+
+aplicarRelatorioBtn.addEventListener("click", () => {
+  renderRelatorios();
+});
+
+imprimirRelatorioBtn.addEventListener("click", () => {
+  renderRelatorios();
+  window.print();
+});
+
+relatorioTodasComprasInput.addEventListener("change", () => {
+  atualizarEstadoPeriodoRelatorio();
+  renderRelatorios();
+});
+
+relatorioTipoSelect.addEventListener("change", () => {
+  atualizarEstadoCurvaAbc();
+  renderRelatorios();
+});
+
+relatorioObraSelect.addEventListener("change", () => {
+  renderRelatorios();
+});
+
+relatorioCurvaAbcInput.addEventListener("change", () => {
+  renderRelatorios();
+});
+
+document.getElementById("relatorioDataInicio").addEventListener("change", () => {
+  renderRelatorios();
+});
+
+document.getElementById("relatorioDataFim").addEventListener("change", () => {
+  renderRelatorios();
+});
+
+function initializeApp() {
+  if (!isLoggedIn()) {
+    showLogin();
+    return;
+  }
+
+  const sessionUser = getSessionUser();
+  welcomeText.textContent = `Bem-vindo, ${sessionUser?.name || "Usuário"}`;
+  showApp();
+
+  document.getElementById("compraData").value = new Date().toISOString().slice(0, 10);
+  atualizarPrecoTotalCompraForm();
+  resetObraForm();
+  atualizarEstadoPeriodoRelatorio();
+  atualizarEstadoCurvaAbc();
+  renderAll();
+  activatePage("dashboard");
+}
+
+seedData();
+initializeApp();
