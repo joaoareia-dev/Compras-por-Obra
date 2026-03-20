@@ -407,6 +407,33 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  if (req.method === "POST" && pathname === "/api/change-password") {
+    const body = await parseRequestBody(req);
+    const currentPassword = String(body.currentPassword || "");
+    const newPassword = String(body.newPassword || "");
+
+    if (!currentPassword || !newPassword) {
+      sendJson(res, 400, { error: "Informe a senha atual e a nova senha." });
+      return true;
+    }
+
+    if (newPassword.length < 6) {
+      sendJson(res, 400, { error: "A nova senha deve ter pelo menos 6 caracteres." });
+      return true;
+    }
+
+    const result = await pool.query("SELECT password FROM users WHERE id = $1 LIMIT 1", [user.id]);
+    if (!result.rows.length || !verifyPassword(currentPassword, result.rows[0].password)) {
+      sendJson(res, 400, { error: "Senha atual invalida." });
+      return true;
+    }
+
+    await pool.query("UPDATE users SET password = $2 WHERE id = $1", [user.id, hashPassword(newPassword)]);
+    await pool.query("DELETE FROM sessions WHERE user_id = $1 AND token <> $2", [user.id, parseCookies(req)[SESSION_COOKIE] || ""]);
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
   if (req.method === "GET" && pathname === "/api/bootstrap") {
     sendJson(res, 200, await getBootstrapPayload());
     return true;

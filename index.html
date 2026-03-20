@@ -19,11 +19,11 @@
       <form id="loginForm" class="form-grid">
         <label>
           E-mail
-          <input type="email" id="loginEmail" required placeholder="admin@obra.local" />
+          <input type="email" id="loginEmail" required placeholder="usuario@empresa.com" />
         </label>
         <label>
           Senha
-          <input type="password" id="loginPassword" required placeholder="123456" />
+          <input type="password" id="loginPassword" required placeholder="Digite sua senha" />
         </label>
         <button type="submit" class="btn primary">Entrar</button>
       </form>
@@ -45,6 +45,7 @@
         <button class="menu-btn" data-section="compras">Lançamento de Compras</button>
         <button class="menu-btn admin-only" data-section="finalizacao">Finalização de Obra</button>
         <button class="menu-btn" data-section="relatorios">Relatórios</button>
+        <button class="menu-btn" data-section="senha">Trocar Senha</button>
         <button class="menu-btn admin-only" data-section="usuarios">Usuários</button>
       </nav>
 
@@ -252,6 +253,26 @@
             </table>
           </div>
         </div>
+      </section>
+
+      <section id="senha" class="page card hidden">
+        <h3>Trocar Senha</h3>
+        <form id="senhaForm" class="form-grid cols-2">
+          <label>
+            Senha atual
+            <input type="password" id="senhaAtual" required />
+          </label>
+          <label>
+            Nova senha
+            <input type="password" id="senhaNova" required />
+          </label>
+          <label>
+            Confirmar nova senha
+            <input type="password" id="senhaNovaConfirmacao" required />
+          </label>
+          <button type="submit" class="btn primary">Atualizar Senha</button>
+        </form>
+        <p id="senhaFeedback" class="subtitle hidden"></p>
       </section>
 
       <section id="usuarios" class="page card hidden admin-only">

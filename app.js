@@ -49,6 +49,8 @@ const relatorioTableBody = document.getElementById("relatorioTableBody");
 const resumoRelatorio = document.getElementById("resumoRelatorio");
 const aplicarRelatorioBtn = document.getElementById("aplicarRelatorio");
 const imprimirRelatorioBtn = document.getElementById("imprimirRelatorio");
+const senhaForm = document.getElementById("senhaForm");
+const senhaFeedback = document.getElementById("senhaFeedback");
 const usuarioForm = document.getElementById("usuarioForm");
 const usuariosTableBody = document.getElementById("usuariosTableBody");
 
@@ -1128,6 +1130,40 @@ if (usuariosTableBody) {
       renderUsuarios();
     } catch (error) {
       alert(error.message);
+    }
+  });
+}
+
+if (senhaForm) {
+  senhaForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    senhaFeedback.classList.add("hidden");
+
+    const currentPassword = document.getElementById("senhaAtual").value;
+    const newPassword = document.getElementById("senhaNova").value;
+    const confirmPassword = document.getElementById("senhaNovaConfirmacao").value;
+
+    if (newPassword !== confirmPassword) {
+      senhaFeedback.textContent = "A confirmacao da nova senha nao confere.";
+      senhaFeedback.classList.remove("hidden");
+      return;
+    }
+
+    try {
+      await apiFetch("/api/change-password", {
+        method: "POST",
+        body: JSON.stringify({
+          currentPassword,
+          newPassword
+        })
+      });
+
+      senhaForm.reset();
+      senhaFeedback.textContent = "Senha atualizada com sucesso.";
+      senhaFeedback.classList.remove("hidden");
+    } catch (error) {
+      senhaFeedback.textContent = error.message;
+      senhaFeedback.classList.remove("hidden");
     }
   });
 }
