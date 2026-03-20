@@ -22,6 +22,8 @@ const pool = new Pool({
 
 const SESSION_COOKIE = "gc_session";
 const SESSION_TTL_DAYS = 7;
+const JSON_BODY_LIMIT_BYTES = 1024 * 1024;
+const noCacheExtensions = new Set([".html", ".js", ".css"]);
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -52,8 +54,18 @@ function verifyPassword(password, storedValue) {
   }
 
   const [, salt, hash] = storedValue.split(":");
+  if (!salt || !hash) {
+    return false;
+  }
+
   const candidate = crypto.scryptSync(password, salt, 64).toString("hex");
-  return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(candidate, "hex"));
+  const hashBuffer = Buffer.from(hash, "hex");
+  const candidateBuffer = Buffer.from(candidate, "hex");
+  if (hashBuffer.length !== candidateBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(hashBuffer, candidateBuffer);
 }
 
 function sendJson(res, statusCode, payload, extraHeaders = {}) {
@@ -65,29 +77,53 @@ function sendJson(res, statusCode, payload, extraHeaders = {}) {
 }
 
 function sendFile(res, filePath) {
-  fs.readFile(filePath, (error, content) => {
-    if (error) {
-      sendJson(res, error.code === "ENOENT" ? 404 : 500, {
-        error: error.code === "ENOENT" ? "Arquivo nao encontrado." : "Erro interno no servidor."
-      });
-      return;
-    }
+  const extension = path.extname(filePath).toLowerCase();
+  const stream = fs.createReadStream(filePath);
 
-    const extension = path.extname(filePath).toLowerCase();
-    const noCacheExtensions = new Set([".html", ".js", ".css"]);
+  stream.on("open", () => {
     res.writeHead(200, {
       "Content-Type": mimeTypes[extension] || "application/octet-stream",
       "Cache-Control": noCacheExtensions.has(extension) ? "no-store, must-revalidate" : "public, max-age=86400"
     });
-    res.end(content);
+    stream.pipe(res);
+  });
+
+  stream.on("error", (error) => {
+    if (res.headersSent) {
+      res.destroy(error);
+      return;
+    }
+
+    sendJson(res, error.code === "ENOENT" ? 404 : 500, {
+      error: error.code === "ENOENT" ? "Arquivo nao encontrado." : "Erro interno no servidor."
+    });
   });
 }
 
 function parseRequestBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on("data", (chunk) => chunks.push(chunk));
+    let totalBytes = 0;
+    let settled = false;
+
+    req.on("data", (chunk) => {
+      if (settled) {
+        return;
+      }
+
+      chunks.push(chunk);
+      totalBytes += chunk.length;
+      if (totalBytes > JSON_BODY_LIMIT_BYTES) {
+        settled = true;
+        reject(new Error("Corpo da requisicao excede o limite permitido."));
+        req.destroy();
+      }
+    });
     req.on("end", () => {
+      if (settled) {
+        return;
+      }
+
       if (!chunks.length) {
         resolve({});
         return;
@@ -99,22 +135,34 @@ function parseRequestBody(req) {
         reject(new Error("JSON invalido."));
       }
     });
-    req.on("error", reject);
+    req.on("error", (error) => {
+      if (!settled) {
+        reject(error);
+      }
+    });
   });
 }
 
 function parseCookies(req) {
   const header = req.headers.cookie || "";
-  return Object.fromEntries(
-    header
-      .split(";")
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .map((item) => {
-        const index = item.indexOf("=");
-        return [item.slice(0, index), decodeURIComponent(item.slice(index + 1))];
-      })
-  );
+  const cookies = {};
+
+  header
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .forEach((item) => {
+      const index = item.indexOf("=");
+      if (index <= 0) {
+        return;
+      }
+
+      const key = item.slice(0, index);
+      const value = item.slice(index + 1);
+      cookies[key] = decodeURIComponent(value);
+    });
+
+  return cookies;
 }
 
 function buildSessionCookie(token, expiresAt) {
@@ -155,6 +203,31 @@ function requireFields(body, fields) {
       throw new Error(`Campo obrigatorio: ${field}.`);
     }
   }
+}
+
+function validateNewPassword(newPassword) {
+  if (!newPassword) {
+    throw new Error("Informe a nova senha.");
+  }
+
+  if (newPassword.length < 6) {
+    throw new Error("A nova senha deve ter pelo menos 6 caracteres.");
+  }
+}
+
+function getResourceId(pathname) {
+  return pathname.split("/")[3];
+}
+
+async function updateUserPasswordAndSessions(userId, newPassword, currentToken = "", keepCurrentSession = true) {
+  await pool.query("UPDATE users SET password = $2 WHERE id = $1", [userId, hashPassword(newPassword)]);
+
+  if (keepCurrentSession) {
+    await pool.query("DELETE FROM sessions WHERE user_id = $1 AND token <> $2", [userId, currentToken]);
+    return;
+  }
+
+  await pool.query("DELETE FROM sessions WHERE user_id = $1", [userId]);
 }
 
 function mapUser(row) {
@@ -417,8 +490,10 @@ async function handleApi(req, res, pathname) {
       return true;
     }
 
-    if (newPassword.length < 6) {
-      sendJson(res, 400, { error: "A nova senha deve ter pelo menos 6 caracteres." });
+    try {
+      validateNewPassword(newPassword);
+    } catch (error) {
+      sendJson(res, 400, { error: error.message });
       return true;
     }
 
@@ -428,14 +503,13 @@ async function handleApi(req, res, pathname) {
       return true;
     }
 
-    await pool.query("UPDATE users SET password = $2 WHERE id = $1", [user.id, hashPassword(newPassword)]);
-    await pool.query("DELETE FROM sessions WHERE user_id = $1 AND token <> $2", [user.id, parseCookies(req)[SESSION_COOKIE] || ""]);
+    await updateUserPasswordAndSessions(user.id, newPassword, parseCookies(req)[SESSION_COOKIE] || "", true);
     sendJson(res, 200, { ok: true });
     return true;
   }
 
   if (req.method === "POST" && pathname.startsWith("/api/users/") && pathname.endsWith("/change-password")) {
-    const targetUserId = pathname.split("/")[3];
+    const targetUserId = getResourceId(pathname);
     const body = await parseRequestBody(req);
     const currentPassword = String(body.currentPassword || "");
     const newPassword = String(body.newPassword || "");
@@ -446,13 +520,10 @@ async function handleApi(req, res, pathname) {
       return true;
     }
 
-    if (!newPassword) {
-      sendJson(res, 400, { error: "Informe a nova senha." });
-      return true;
-    }
-
-    if (newPassword.length < 6) {
-      sendJson(res, 400, { error: "A nova senha deve ter pelo menos 6 caracteres." });
+    try {
+      validateNewPassword(newPassword);
+    } catch (error) {
+      sendJson(res, 400, { error: error.message });
       return true;
     }
 
@@ -472,13 +543,12 @@ async function handleApi(req, res, pathname) {
       return true;
     }
 
-    await pool.query("UPDATE users SET password = $2 WHERE id = $1", [targetUserId, hashPassword(newPassword)]);
-
-    if (isOwnUser) {
-      await pool.query("DELETE FROM sessions WHERE user_id = $1 AND token <> $2", [user.id, parseCookies(req)[SESSION_COOKIE] || ""]);
-    } else {
-      await pool.query("DELETE FROM sessions WHERE user_id = $1", [targetUserId]);
-    }
+    await updateUserPasswordAndSessions(
+      targetUserId,
+      newPassword,
+      parseCookies(req)[SESSION_COOKIE] || "",
+      isOwnUser
+    );
 
     sendJson(res, 200, { ok: true });
     return true;
@@ -519,7 +589,7 @@ async function handleApi(req, res, pathname) {
     if (!requireAdmin(res, user)) {
       return true;
     }
-    const userId = pathname.split("/")[3];
+    const userId = getResourceId(pathname);
     if (userId === user.id) {
       sendJson(res, 400, { error: "Voce nao pode excluir o proprio usuario." });
       return true;
@@ -548,7 +618,7 @@ async function handleApi(req, res, pathname) {
     if (!requireAdmin(res, user)) {
       return true;
     }
-    const obraId = pathname.split("/")[3];
+    const obraId = getResourceId(pathname);
     const body = await parseRequestBody(req);
     await pool.query(
       `UPDATE obras SET nome = $2, local = $3, responsavel = $4, data_inicio = $5, orcamento = $6 WHERE id = $1`,
@@ -562,7 +632,7 @@ async function handleApi(req, res, pathname) {
     if (!requireAdmin(res, user)) {
       return true;
     }
-    const obraId = pathname.split("/")[3];
+    const obraId = getResourceId(pathname);
     const body = await parseRequestBody(req);
     await pool.query(
       `
@@ -583,7 +653,7 @@ async function handleApi(req, res, pathname) {
     if (!requireAdmin(res, user)) {
       return true;
     }
-    const obraId = pathname.split("/")[3];
+    const obraId = getResourceId(pathname);
     await pool.query("DELETE FROM obras WHERE id = $1", [obraId]);
     sendJson(res, 200, { ok: true });
     return true;
@@ -620,7 +690,7 @@ async function handleApi(req, res, pathname) {
   }
 
   if (req.method === "PUT" && pathname.startsWith("/api/compras/")) {
-    const compraId = pathname.split("/")[3];
+    const compraId = getResourceId(pathname);
     const body = await parseRequestBody(req);
     await pool.query(
       `
@@ -656,7 +726,7 @@ async function handleApi(req, res, pathname) {
   }
 
   if (req.method === "DELETE" && pathname.startsWith("/api/compras/")) {
-    const compraId = pathname.split("/")[3];
+    const compraId = getResourceId(pathname);
     await pool.query("DELETE FROM compras WHERE id = $1", [compraId]);
     sendJson(res, 200, { ok: true });
     return true;

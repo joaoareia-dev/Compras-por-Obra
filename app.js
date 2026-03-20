@@ -73,6 +73,18 @@ const usuarioClosePanelBtn = document.getElementById("usuarioClosePanelBtn");
 
 const menuButtons = Array.from(document.querySelectorAll(".menu-btn"));
 const pages = Array.from(document.querySelectorAll(".page"));
+const relatorioDataInicioInput = document.getElementById("relatorioDataInicio");
+const relatorioDataFimInput = document.getElementById("relatorioDataFim");
+
+const currencyFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL"
+});
+const monthFormatter = new Intl.DateTimeFormat("pt-BR", {
+  month: "long",
+  year: "numeric"
+});
+const numberFormatter = new Intl.NumberFormat("pt-BR");
 
 function clearLegacyBrowserData() {
   const legacyKeys = ["gc_users", "gc_obras", "gc_compras", "gc_session"];
@@ -131,10 +143,15 @@ function getUsuarios() {
 }
 
 function formatCurrency(value) {
-  return Number(value || 0).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL"
-  });
+  return currencyFormatter.format(Number(value || 0));
+}
+
+function formatNumber(value) {
+  return numberFormatter.format(Number(value || 0));
+}
+
+function getTodayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function formatDate(isoDate) {
@@ -160,10 +177,7 @@ function formatDate(isoDate) {
 function formatMonthLabel(monthKey) {
   const [year, month] = monthKey.split("-");
   const date = new Date(Number(year), Number(month) - 1, 1);
-  return date.toLocaleDateString("pt-BR", {
-    month: "long",
-    year: "numeric"
-  });
+  return monthFormatter.format(date);
 }
 
 function calcularClasseCurvaAbc(percentualAcumulado) {
@@ -228,6 +242,34 @@ function getAditivosValor(obra) {
 
 function getOrcamentoComAditivos(obra) {
   return Number(obra.orcamento || 0) + getAditivosValor(obra);
+}
+
+function buildCompraStats(compras) {
+  const totaisPorObra = new Map();
+  let totalGasto = 0;
+  let totalPago = 0;
+
+  compras.forEach((compra) => {
+    const totalCompra = getCompraTotal(compra);
+    totalGasto += totalCompra;
+    totalPago += compra.pago ? totalCompra : 0;
+    totaisPorObra.set(compra.obraId, (totaisPorObra.get(compra.obraId) || 0) + totalCompra);
+  });
+
+  return {
+    totaisPorObra,
+    totalGasto,
+    totalPago,
+    totalAberto: totalGasto - totalPago
+  };
+}
+
+function buildObraNameMap(obras) {
+  return new Map(obras.map((obra) => [obra.id, obra.nome]));
+}
+
+function compareIsoDatesDesc(left, right) {
+  return String(right || "").localeCompare(String(left || ""));
 }
 
 function normalizeValue(value) {
@@ -385,12 +427,12 @@ function resetObraForm() {
   obraEditIdInput.value = "";
   obraSubmitBtn.textContent = "Salvar Obra";
   obraCancelEditBtn.classList.add("hidden");
-  document.getElementById("obraDataInicio").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("obraDataInicio").value = getTodayIsoDate();
 }
 
 function resetFinalizacaoForm() {
   finalizacaoForm.reset();
-  document.getElementById("finalizacaoDataEntrega").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("finalizacaoDataEntrega").value = getTodayIsoDate();
   document.getElementById("finalizacaoAditivosValor").value = "0";
 }
 
@@ -403,7 +445,7 @@ function openObraEditor(obra = null) {
     preencherFormularioObra(obra);
     finalizacaoPanel.classList.remove("hidden");
     finalizacaoObraSelect.value = obra.id;
-    document.getElementById("finalizacaoDataEntrega").value = obra.finalizacao?.dataEntrega || new Date().toISOString().slice(0, 10);
+    document.getElementById("finalizacaoDataEntrega").value = obra.finalizacao?.dataEntrega || getTodayIsoDate();
     document.getElementById("finalizacaoAditivosInfo").value = obra.finalizacao?.aditivosInfo || "";
     document.getElementById("finalizacaoAditivosValor").value = Number(obra.finalizacao?.aditivosValor || 0);
     return;
@@ -428,7 +470,7 @@ function resetCompraForm() {
   compraEditIdInput.value = "";
   compraSubmitBtn.textContent = "Registrar Compra";
   compraCancelEditBtn.classList.add("hidden");
-  document.getElementById("compraData").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("compraData").value = getTodayIsoDate();
   const ultimaObra = getUltimaObraLancadaId();
   if (ultimaObra) {
     compraObraSelect.value = ultimaObra;
@@ -602,14 +644,10 @@ function renderDashboard() {
   const obras = getObras();
   const compras = getCompras();
   const obrasFinalizadas = obras.filter((obra) => obra.finalizacao?.dataEntrega).length;
-  const totalGasto = compras.reduce((sum, compra) => sum + getCompraTotal(compra), 0);
-  const totalPago = compras.filter((compra) => compra.pago).reduce((sum, compra) => sum + getCompraTotal(compra), 0);
-  const totalAberto = totalGasto - totalPago;
+  const { totaisPorObra, totalGasto, totalAberto } = buildCompraStats(compras);
   const resumoObras = obras
     .map((obra) => {
-      const totalObra = compras
-        .filter((compra) => compra.obraId === obra.id)
-        .reduce((sum, compra) => sum + getCompraTotal(compra), 0);
+      const totalObra = totaisPorObra.get(obra.id) || 0;
       const orcamentoTotal = getOrcamentoComAditivos(obra);
       const saldo = orcamentoTotal - totalObra;
       const percentualConsumido = orcamentoTotal > 0 ? (totalObra / orcamentoTotal) * 100 : 0;
@@ -729,14 +767,14 @@ function renderObras() {
 function renderCompras() {
   const compras = getCompras();
   const obras = getObras();
-  const obraMap = new Map(obras.map((obra) => [obra.id, obra.nome]));
+  const obraMap = buildObraNameMap(obras);
 
   if (!compras.length) {
     comprasTableBody.innerHTML = `<tr><td colspan="11" class="empty">Nenhuma compra lancada.</td></tr>`;
     return;
   }
 
-  const sorted = [...compras].sort((a, b) => new Date(b.data) - new Date(a.data));
+  const sorted = [...compras].sort((a, b) => compareIsoDatesDesc(a.data, b.data));
 
   comprasTableBody.innerHTML = sorted
     .map(
@@ -748,7 +786,7 @@ function renderCompras() {
         <td>${compra.fornecedor}</td>
         <td>${compra.categoria}</td>
         <td>${compra.unidade || "-"}</td>
-        <td>${Number(compra.quantidade || 0).toLocaleString("pt-BR")}</td>
+        <td>${formatNumber(compra.quantidade || 0)}</td>
         <td>${formatCurrency(compra.precoUnitario || 0)}</td>
         <td>${formatCurrency(getCompraTotal(compra))}</td>
         <td class="${compra.pago ? "status-pago" : "status-aberto"}">${compra.pago ? "Pago" : "Em aberto"}</td>
@@ -764,8 +802,8 @@ function renderCompras() {
 
 function filtrarComprasParaRelatorio() {
   const obraId = relatorioObraSelect.value;
-  const dataInicio = document.getElementById("relatorioDataInicio").value;
-  const dataFim = document.getElementById("relatorioDataFim").value;
+  const dataInicio = relatorioDataInicioInput.value;
+  const dataFim = relatorioDataFimInput.value;
   const todasComprasDaObra = relatorioTodasComprasInput.checked;
 
   return getCompras().filter((compra) => {
@@ -801,7 +839,7 @@ function montarCabecalhoRelatorio(comprasFiltradas) {
 
 function renderRelatorioPorDescricao(comprasFiltradas) {
   const obras = getObras();
-  const obraMap = new Map(obras.map((obra) => [obra.id, obra.nome]));
+  const obraMap = buildObraNameMap(obras);
   const grupos = new Map();
 
   comprasFiltradas.forEach((compra) => {
@@ -865,7 +903,7 @@ function renderRelatorioPorDescricao(comprasFiltradas) {
           <td>${linha.descricao}</td>
           ${relatorioObraSelect.value ? "" : `<td>${linha.obraNome}</td>`}
           <td>${linha.unidade}</td>
-          <td>${linha.quantidade.toLocaleString("pt-BR")}</td>
+          <td>${formatNumber(linha.quantidade)}</td>
           <td>${formatCurrency(linha.total)}</td>
           ${usarCurvaAbc ? `<td>${linha.participacao.toFixed(1)}%</td><td>${linha.curvaAbc}</td>` : ""}
         </tr>
@@ -984,8 +1022,8 @@ function atualizarPrecoTotalCompraForm() {
 
 function atualizarEstadoPeriodoRelatorio() {
   const disabled = relatorioTodasComprasInput.checked;
-  document.getElementById("relatorioDataInicio").disabled = disabled;
-  document.getElementById("relatorioDataFim").disabled = disabled;
+  relatorioDataInicioInput.disabled = disabled;
+  relatorioDataFimInput.disabled = disabled;
 }
 
 function atualizarEstadoCurvaAbc() {
@@ -1397,11 +1435,11 @@ relatorioCurvaAbcInput.addEventListener("change", () => {
   renderRelatorios();
 });
 
-document.getElementById("relatorioDataInicio").addEventListener("change", () => {
+relatorioDataInicioInput.addEventListener("change", () => {
   renderRelatorios();
 });
 
-document.getElementById("relatorioDataFim").addEventListener("change", () => {
+relatorioDataFimInput.addEventListener("change", () => {
   renderRelatorios();
 });
 
@@ -1429,7 +1467,7 @@ async function initializeApp() {
   welcomeText.textContent = `Bem-vindo, ${sessionUser?.name || "Usuario"}`;
   showApp();
 
-  document.getElementById("finalizacaoDataEntrega").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("finalizacaoDataEntrega").value = getTodayIsoDate();
   document.getElementById("finalizacaoAditivosValor").value = "0";
   resetCompraForm();
   resetObraForm();
