@@ -143,18 +143,15 @@ function formatDate(isoDate) {
   }
 
   const normalized = String(isoDate).trim();
-  const date = normalized.includes("T")
-    ? new Date(normalized)
-    : new Date(`${normalized}T00:00:00`);
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, year, month, day] = match;
+    return `${day}/${month}/${year}`;
+  }
 
+  const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) {
-    const dateOnly = normalized.slice(0, 10);
-    const fallback = dateOnly ? new Date(`${dateOnly}T00:00:00`) : null;
-    if (!fallback || Number.isNaN(fallback.getTime())) {
-      return "-";
-    }
-
-    return fallback.toLocaleDateString("pt-BR");
+    return "-";
   }
 
   return date.toLocaleDateString("pt-BR");
