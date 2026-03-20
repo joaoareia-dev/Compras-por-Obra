@@ -337,6 +337,7 @@ async function handleApi(req, res, pathname) {
     const body = await parseRequestBody(req);
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "");
+    const force = Boolean(body.force);
     const result = await pool.query(
       "SELECT id, name, email, role, password FROM users WHERE email = $1 LIMIT 1",
       [email]
@@ -348,6 +349,23 @@ async function handleApi(req, res, pathname) {
     }
 
     const user = mapUser(result.rows[0]);
+    const activeSessions = await pool.query(
+      "SELECT token FROM sessions WHERE user_id = $1 AND expires_at > NOW()",
+      [user.id]
+    );
+
+    if (activeSessions.rows.length > 0 && !force) {
+      sendJson(res, 409, {
+        error: "Este usuario ja esta logado em outro aparelho. Repita o login para encerrar a outra sessao.",
+        code: "SESSION_ACTIVE"
+      });
+      return true;
+    }
+
+    if (activeSessions.rows.length > 0 && force) {
+      await pool.query("DELETE FROM sessions WHERE user_id = $1", [user.id]);
+    }
+
     const token = randomId();
     const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
     await pool.query("INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)", [token, user.id, expiresAt.toISOString()]);

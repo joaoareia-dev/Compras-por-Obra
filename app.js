@@ -2,7 +2,8 @@ const state = {
   obras: [],
   compras: [],
   usuarios: [],
-  sessionUser: null
+  sessionUser: null,
+  loginTakeoverEmail: null
 };
 
 const loginSection = document.getElementById("loginSection");
@@ -78,7 +79,10 @@ async function apiFetch(path, options = {}) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || "Falha na comunicacao com o servidor.");
+    const error = new Error(data.error || "Falha na comunicacao com o servidor.");
+    error.status = response.status;
+    error.code = data.code;
+    throw error;
   }
 
   return data;
@@ -853,19 +857,29 @@ function atualizarEstadoCurvaAbc() {
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   loginError.classList.add("hidden");
+  const email = document.getElementById("loginEmail").value.trim().toLowerCase();
+  const password = document.getElementById("loginPassword").value;
 
   try {
     const result = await apiFetch("/api/login", {
       method: "POST",
       body: JSON.stringify({
-        email: document.getElementById("loginEmail").value.trim().toLowerCase(),
-        password: document.getElementById("loginPassword").value
+        email,
+        password,
+        force: state.loginTakeoverEmail === email
       })
     });
 
+    state.loginTakeoverEmail = null;
     setSession(result.user);
     await initializeApp();
   } catch (error) {
+    if (error.code === "SESSION_ACTIVE") {
+      state.loginTakeoverEmail = email;
+    } else {
+      state.loginTakeoverEmail = null;
+    }
+
     loginError.textContent = error.message || "Usuario ou senha invalidos.";
     loginError.classList.remove("hidden");
   }
