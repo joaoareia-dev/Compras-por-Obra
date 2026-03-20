@@ -74,9 +74,10 @@ function sendFile(res, filePath) {
     }
 
     const extension = path.extname(filePath).toLowerCase();
+    const noCacheExtensions = new Set([".html", ".js", ".css"]);
     res.writeHead(200, {
       "Content-Type": mimeTypes[extension] || "application/octet-stream",
-      "Cache-Control": extension === ".html" ? "no-cache" : "public, max-age=86400"
+      "Cache-Control": noCacheExtensions.has(extension) ? "no-store, must-revalidate" : "public, max-age=86400"
     });
     res.end(content);
   });
