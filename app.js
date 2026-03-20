@@ -142,7 +142,21 @@ function formatDate(isoDate) {
     return "-";
   }
 
-  const date = new Date(`${isoDate}T00:00:00`);
+  const normalized = String(isoDate).trim();
+  const date = normalized.includes("T")
+    ? new Date(normalized)
+    : new Date(`${normalized}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    const dateOnly = normalized.slice(0, 10);
+    const fallback = dateOnly ? new Date(`${dateOnly}T00:00:00`) : null;
+    if (!fallback || Number.isNaN(fallback.getTime())) {
+      return "-";
+    }
+
+    return fallback.toLocaleDateString("pt-BR");
+  }
+
   return date.toLocaleDateString("pt-BR");
 }
 
