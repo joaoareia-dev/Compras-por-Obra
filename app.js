@@ -54,6 +54,18 @@ const usuariosTableBody = document.getElementById("usuariosTableBody");
 const menuButtons = Array.from(document.querySelectorAll(".menu-btn"));
 const pages = Array.from(document.querySelectorAll(".page"));
 
+function clearLegacyBrowserData() {
+  const legacyKeys = ["gc_users", "gc_obras", "gc_compras", "gc_session"];
+  legacyKeys.forEach((key) => {
+    try {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    } catch (error) {
+      // Ignore browser storage cleanup failures and continue booting the app.
+    }
+  });
+}
+
 async function apiFetch(path, options = {}) {
   const response = await fetch(path, {
     headers: {
@@ -1180,4 +1192,5 @@ async function initializeApp() {
   activatePage("dashboard");
 }
 
+clearLegacyBrowserData();
 initializeApp();
