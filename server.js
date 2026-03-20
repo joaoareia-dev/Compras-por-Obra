@@ -434,16 +434,65 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  if (req.method === "POST" && pathname.startsWith("/api/users/") && pathname.endsWith("/change-password")) {
+    const targetUserId = pathname.split("/")[3];
+    const body = await parseRequestBody(req);
+    const currentPassword = String(body.currentPassword || "");
+    const newPassword = String(body.newPassword || "");
+    const isOwnUser = targetUserId === user.id;
+
+    if (!isOwnUser && user.role !== "administrador") {
+      sendJson(res, 403, { error: "Voce so pode alterar a propria senha." });
+      return true;
+    }
+
+    if (!newPassword) {
+      sendJson(res, 400, { error: "Informe a nova senha." });
+      return true;
+    }
+
+    if (newPassword.length < 6) {
+      sendJson(res, 400, { error: "A nova senha deve ter pelo menos 6 caracteres." });
+      return true;
+    }
+
+    const result = await pool.query("SELECT password FROM users WHERE id = $1 LIMIT 1", [targetUserId]);
+    if (!result.rows.length) {
+      sendJson(res, 404, { error: "Usuario nao encontrado." });
+      return true;
+    }
+
+    if (isOwnUser && user.role !== "administrador" && !verifyPassword(currentPassword, result.rows[0].password)) {
+      sendJson(res, 400, { error: "Senha atual invalida." });
+      return true;
+    }
+
+    if (isOwnUser && user.role === "administrador" && currentPassword && !verifyPassword(currentPassword, result.rows[0].password)) {
+      sendJson(res, 400, { error: "Senha atual invalida." });
+      return true;
+    }
+
+    await pool.query("UPDATE users SET password = $2 WHERE id = $1", [targetUserId, hashPassword(newPassword)]);
+
+    if (isOwnUser) {
+      await pool.query("DELETE FROM sessions WHERE user_id = $1 AND token <> $2", [user.id, parseCookies(req)[SESSION_COOKIE] || ""]);
+    } else {
+      await pool.query("DELETE FROM sessions WHERE user_id = $1", [targetUserId]);
+    }
+
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
   if (req.method === "GET" && pathname === "/api/bootstrap") {
     sendJson(res, 200, await getBootstrapPayload());
     return true;
   }
 
   if (req.method === "GET" && pathname === "/api/users") {
-    if (!requireAdmin(res, user)) {
-      return true;
-    }
-    const result = await pool.query("SELECT id, name, email, role FROM users ORDER BY name ASC");
+    const result = user.role === "administrador"
+      ? await pool.query("SELECT id, name, email, role FROM users ORDER BY name ASC")
+      : await pool.query("SELECT id, name, email, role FROM users WHERE id = $1", [user.id]);
     sendJson(res, 200, { users: result.rows.map(mapUser) });
     return true;
   }

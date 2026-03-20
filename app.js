@@ -19,10 +19,15 @@ const obrasTableBody = document.getElementById("obrasTableBody");
 const obraEditIdInput = document.getElementById("obraEditId");
 const obraSubmitBtn = document.getElementById("obraSubmitBtn");
 const obraCancelEditBtn = document.getElementById("obraCancelEditBtn");
+const obraNewBtn = document.getElementById("obraNewBtn");
+const obraEditorPanel = document.getElementById("obraEditorPanel");
+const obraEditorTitle = document.getElementById("obraEditorTitle");
+const obraEditorSubtitle = document.getElementById("obraEditorSubtitle");
+const obraCloseEditorBtn = document.getElementById("obraCloseEditorBtn");
+const finalizacaoPanel = document.getElementById("finalizacaoPanel");
 
 const finalizacaoForm = document.getElementById("finalizacaoForm");
 const finalizacaoObraSelect = document.getElementById("finalizacaoObra");
-const finalizacaoTableBody = document.getElementById("finalizacaoTableBody");
 
 const compraForm = document.getElementById("compraForm");
 const comprasTableBody = document.getElementById("comprasTableBody");
@@ -54,8 +59,17 @@ const aplicarRelatorioBtn = document.getElementById("aplicarRelatorio");
 const imprimirRelatorioBtn = document.getElementById("imprimirRelatorio");
 const senhaForm = document.getElementById("senhaForm");
 const senhaFeedback = document.getElementById("senhaFeedback");
+const senhaPanel = document.getElementById("senhaPanel");
+const senhaPanelTitle = document.getElementById("senhaPanelTitle");
+const senhaPanelSubtitle = document.getElementById("senhaPanelSubtitle");
+const senhaTargetUserIdInput = document.getElementById("senhaTargetUserId");
+const senhaAtualGroup = document.getElementById("senhaAtualGroup");
+const senhaClosePanelBtn = document.getElementById("senhaClosePanelBtn");
 const usuarioForm = document.getElementById("usuarioForm");
 const usuariosTableBody = document.getElementById("usuariosTableBody");
+const usuarioNewBtn = document.getElementById("usuarioNewBtn");
+const usuarioFormPanel = document.getElementById("usuarioFormPanel");
+const usuarioClosePanelBtn = document.getElementById("usuarioClosePanelBtn");
 
 const menuButtons = Array.from(document.querySelectorAll(".menu-btn"));
 const pages = Array.from(document.querySelectorAll(".page"));
@@ -347,6 +361,10 @@ function getObraById(obraId) {
   return getObras().find((obra) => obra.id === obraId) || null;
 }
 
+function getUsuarioById(userId) {
+  return getUsuarios().find((usuario) => usuario.id === userId) || null;
+}
+
 function isObraFinalizada(obraId) {
   return Boolean(getObraById(obraId)?.finalizacao?.dataEntrega);
 }
@@ -357,6 +375,41 @@ function resetObraForm() {
   obraSubmitBtn.textContent = "Salvar Obra";
   obraCancelEditBtn.classList.add("hidden");
   document.getElementById("obraDataInicio").value = new Date().toISOString().slice(0, 10);
+}
+
+function resetFinalizacaoForm() {
+  finalizacaoForm.reset();
+  document.getElementById("finalizacaoDataEntrega").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("finalizacaoAditivosValor").value = "0";
+}
+
+function openObraEditor(obra = null) {
+  obraEditorPanel.classList.remove("hidden");
+
+  if (obra) {
+    obraEditorTitle.textContent = "Editar Obra";
+    obraEditorSubtitle.textContent = "Atualize os dados da obra e, se necessário, finalize a entrega.";
+    preencherFormularioObra(obra);
+    finalizacaoPanel.classList.remove("hidden");
+    finalizacaoObraSelect.value = obra.id;
+    document.getElementById("finalizacaoDataEntrega").value = obra.finalizacao?.dataEntrega || new Date().toISOString().slice(0, 10);
+    document.getElementById("finalizacaoAditivosInfo").value = obra.finalizacao?.aditivosInfo || "";
+    document.getElementById("finalizacaoAditivosValor").value = Number(obra.finalizacao?.aditivosValor || 0);
+    return;
+  }
+
+  obraEditorTitle.textContent = "Cadastrar nova Obra";
+  obraEditorSubtitle.textContent = "Preencha os dados da obra para salvar o cadastro.";
+  resetObraForm();
+  resetFinalizacaoForm();
+  finalizacaoPanel.classList.add("hidden");
+}
+
+function closeObraEditor() {
+  obraEditorPanel.classList.add("hidden");
+  resetObraForm();
+  resetFinalizacaoForm();
+  finalizacaoPanel.classList.add("hidden");
 }
 
 function resetCompraForm() {
@@ -399,6 +452,74 @@ function preencherFormularioObra(obra) {
   obraCancelEditBtn.classList.remove("hidden");
 }
 
+function resetUsuarioForm() {
+  if (!usuarioForm) {
+    return;
+  }
+
+  usuarioForm.reset();
+}
+
+function openUsuarioFormPanel() {
+  if (!usuarioFormPanel) {
+    return;
+  }
+
+  resetUsuarioForm();
+  usuarioFormPanel.classList.remove("hidden");
+}
+
+function closeUsuarioFormPanel() {
+  if (!usuarioFormPanel) {
+    return;
+  }
+
+  usuarioFormPanel.classList.add("hidden");
+  resetUsuarioForm();
+}
+
+function resetSenhaForm() {
+  if (!senhaForm) {
+    return;
+  }
+
+  senhaForm.reset();
+  senhaTargetUserIdInput.value = "";
+  senhaFeedback.textContent = "";
+  senhaFeedback.classList.add("hidden");
+  senhaAtualGroup.classList.remove("hidden");
+  document.getElementById("senhaAtual").required = true;
+}
+
+function openSenhaPanel(usuario) {
+  if (!usuario) {
+    return;
+  }
+
+  const currentUser = getSessionUser();
+  const isOwnUser = usuario.id === currentUser?.id;
+  const exigeSenhaAtual = !isAdmin() || isOwnUser;
+
+  resetSenhaForm();
+  senhaTargetUserIdInput.value = usuario.id;
+  senhaPanelTitle.textContent = isOwnUser ? "Trocar minha Senha" : `Trocar senha de ${usuario.name}`;
+  senhaPanelSubtitle.textContent = exigeSenhaAtual
+    ? "Confirme a senha atual para concluir a alteração."
+    : "Como gerente, você pode definir uma nova senha para este usuário.";
+  senhaAtualGroup.classList.toggle("hidden", !exigeSenhaAtual);
+  document.getElementById("senhaAtual").required = exigeSenhaAtual;
+  senhaPanel.classList.remove("hidden");
+}
+
+function closeSenhaPanel() {
+  if (!senhaPanel) {
+    return;
+  }
+
+  senhaPanel.classList.add("hidden");
+  resetSenhaForm();
+}
+
 function showLogin() {
   loginSection.classList.remove("hidden");
   appSection.classList.add("hidden");
@@ -428,11 +549,6 @@ function renderUsuarios() {
     return;
   }
 
-  if (!isAdmin()) {
-    usuariosTableBody.innerHTML = `<tr><td colspan="4" class="empty">Apenas administradores podem visualizar usuarios.</td></tr>`;
-    return;
-  }
-
   const usuarios = getUsuarios();
   if (!usuarios.length) {
     usuariosTableBody.innerHTML = `<tr><td colspan="4" class="empty">Nenhum usuario cadastrado.</td></tr>`;
@@ -446,8 +562,11 @@ function renderUsuarios() {
       <tr>
         <td>${usuario.name}</td>
         <td>${usuario.email}</td>
-        <td>${usuario.role === "administrador" ? "Administrador" : "Usuario"}</td>
-        <td>${usuario.id === currentUserId ? "-" : `<button class="btn delete" data-usuario-delete="${usuario.id}">Excluir</button>`}</td>
+        <td>${usuario.role === "administrador" ? "Gerente" : "Usuario"}</td>
+        <td>
+          ${isAdmin() || usuario.id === currentUserId ? `<button class="btn ghost" data-usuario-password="${usuario.id}">Trocar senha</button>` : ""}
+          ${isAdmin() && usuario.id !== currentUserId ? `<button class="btn delete" data-usuario-delete="${usuario.id}">Excluir</button>` : ""}
+        </td>
       </tr>
     `
     )
@@ -590,29 +709,6 @@ function renderObras() {
           <button class="btn ghost" data-obra-edit="${obra.id}">Editar</button>
           <button class="btn delete" data-obra-delete="${obra.id}">Excluir</button>
         </td>
-      </tr>
-    `
-    )
-    .join("");
-}
-
-function renderFinalizacoes() {
-  const obras = getObras();
-
-  if (!obras.length) {
-    finalizacaoTableBody.innerHTML = `<tr><td colspan="5" class="empty">Nenhuma obra cadastrada.</td></tr>`;
-    return;
-  }
-
-  finalizacaoTableBody.innerHTML = obras
-    .map(
-      (obra) => `
-      <tr>
-        <td>${obra.nome}</td>
-        <td>${formatDate(obra.finalizacao?.dataEntrega)}</td>
-        <td>${obra.finalizacao?.aditivosInfo || "-"}</td>
-        <td>${formatCurrency(getAditivosValor(obra))}</td>
-        <td>${obra.finalizacao?.dataEntrega ? "Finalizada" : "Em andamento"}</td>
       </tr>
     `
     )
@@ -864,7 +960,6 @@ function renderAll() {
   populateObraSelects();
   refreshCompraAutocomplete();
   renderObras();
-  renderFinalizacoes();
   renderCompras();
   renderUsuarios();
   renderRelatorios();
@@ -937,6 +1032,18 @@ menuButtons.forEach((button) => {
   });
 });
 
+if (obraNewBtn) {
+  obraNewBtn.addEventListener("click", () => {
+    openObraEditor();
+  });
+}
+
+if (obraCloseEditorBtn) {
+  obraCloseEditorBtn.addEventListener("click", () => {
+    closeObraEditor();
+  });
+}
+
 obraForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -960,7 +1067,7 @@ obraForm.addEventListener("submit", async (event) => {
     });
 
     await refreshData();
-    resetObraForm();
+    closeObraEditor();
     renderAll();
     activatePage("obras");
   } catch (error) {
@@ -969,7 +1076,7 @@ obraForm.addEventListener("submit", async (event) => {
 });
 
 obraCancelEditBtn.addEventListener("click", () => {
-  resetObraForm();
+  closeObraEditor();
 });
 
 finalizacaoForm.addEventListener("submit", async (event) => {
@@ -996,10 +1103,8 @@ finalizacaoForm.addEventListener("submit", async (event) => {
     });
 
     await refreshData();
-    finalizacaoForm.reset();
-    document.getElementById("finalizacaoDataEntrega").value = new Date().toISOString().slice(0, 10);
-    document.getElementById("finalizacaoAditivosValor").value = "0";
     renderAll();
+    openObraEditor(getObraById(obraId));
     activatePage("obras");
   } catch (error) {
     alert(error.message);
@@ -1073,7 +1178,7 @@ obrasTableBody.addEventListener("click", async (event) => {
       return;
     }
 
-    preencherFormularioObra(obra);
+    openObraEditor(obra);
     activatePage("obras");
     return;
   }
@@ -1091,6 +1196,9 @@ obrasTableBody.addEventListener("click", async (event) => {
     const id = deleteButton.getAttribute("data-obra-delete");
     await apiFetch(`/api/obras/${id}`, { method: "DELETE" });
     await refreshData();
+    if (obraEditIdInput.value === id) {
+      closeObraEditor();
+    }
     renderAll();
   } catch (error) {
     alert(error.message);
@@ -1152,7 +1260,7 @@ if (usuarioForm) {
         })
       });
 
-      usuarioForm.reset();
+      closeUsuarioFormPanel();
       await refreshUsers();
       renderUsuarios();
       activatePage("conta");
@@ -1162,8 +1270,31 @@ if (usuarioForm) {
   });
 }
 
+if (usuarioNewBtn) {
+  usuarioNewBtn.addEventListener("click", () => {
+    openUsuarioFormPanel();
+  });
+}
+
+if (usuarioClosePanelBtn) {
+  usuarioClosePanelBtn.addEventListener("click", () => {
+    closeUsuarioFormPanel();
+  });
+}
+
 if (usuariosTableBody) {
   usuariosTableBody.addEventListener("click", async (event) => {
+    const passwordButton = event.target.closest("[data-usuario-password]");
+    if (passwordButton) {
+      const usuario = getUsuarioById(passwordButton.getAttribute("data-usuario-password"));
+      if (!usuario) {
+        return;
+      }
+
+      openSenhaPanel(usuario);
+      return;
+    }
+
     const button = event.target.closest("[data-usuario-delete]");
     if (!button) {
       return;
@@ -1190,6 +1321,9 @@ if (senhaForm) {
     event.preventDefault();
     senhaFeedback.classList.add("hidden");
 
+    const targetUserId = senhaTargetUserIdInput.value;
+    const targetUser = getUsuarioById(targetUserId) || getSessionUser();
+    const isOwnUser = targetUserId === getSessionUser()?.id;
     const currentPassword = document.getElementById("senhaAtual").value;
     const newPassword = document.getElementById("senhaNova").value;
     const confirmPassword = document.getElementById("senhaNovaConfirmacao").value;
@@ -1201,7 +1335,7 @@ if (senhaForm) {
     }
 
     try {
-      await apiFetch("/api/change-password", {
+      await apiFetch(`/api/users/${targetUserId}/change-password`, {
         method: "POST",
         body: JSON.stringify({
           currentPassword,
@@ -1209,13 +1343,19 @@ if (senhaForm) {
         })
       });
 
-      senhaForm.reset();
-      senhaFeedback.textContent = "Senha atualizada com sucesso.";
+      resetSenhaForm();
+      senhaFeedback.textContent = isOwnUser ? "Senha atualizada com sucesso." : `Senha de ${targetUser?.name || "usuario"} atualizada com sucesso.`;
       senhaFeedback.classList.remove("hidden");
     } catch (error) {
       senhaFeedback.textContent = error.message;
       senhaFeedback.classList.remove("hidden");
     }
+  });
+}
+
+if (senhaClosePanelBtn) {
+  senhaClosePanelBtn.addEventListener("click", () => {
+    closeSenhaPanel();
   });
 }
 
@@ -1266,11 +1406,7 @@ async function initializeApp() {
 
   try {
     await refreshData();
-    if (isAdmin()) {
-      await refreshUsers();
-    } else {
-      state.usuarios = [];
-    }
+    await refreshUsers();
   } catch (error) {
     clearSession();
     showLogin();
@@ -1286,6 +1422,9 @@ async function initializeApp() {
   document.getElementById("finalizacaoAditivosValor").value = "0";
   resetCompraForm();
   resetObraForm();
+  closeObraEditor();
+  closeUsuarioFormPanel();
+  closeSenhaPanel();
   atualizarEstadoPeriodoRelatorio();
   atualizarEstadoCurvaAbc();
   renderAll();
