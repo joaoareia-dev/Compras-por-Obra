@@ -151,7 +151,34 @@ function formatNumber(value) {
 }
 
 function getTodayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeDateInputValue(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  const normalized = String(value).trim();
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return `${match[1]}-${match[2]}-${match[3]}`;
+  }
+
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return parsed.toISOString().slice(0, 10);
 }
 
 function formatDate(isoDate) {
@@ -445,7 +472,7 @@ function openObraEditor(obra = null) {
     preencherFormularioObra(obra);
     finalizacaoPanel.classList.remove("hidden");
     finalizacaoObraSelect.value = obra.id;
-    document.getElementById("finalizacaoDataEntrega").value = obra.finalizacao?.dataEntrega || getTodayIsoDate();
+    document.getElementById("finalizacaoDataEntrega").value = normalizeDateInputValue(obra.finalizacao?.dataEntrega) || getTodayIsoDate();
     document.getElementById("finalizacaoAditivosInfo").value = obra.finalizacao?.aditivosInfo || "";
     document.getElementById("finalizacaoAditivosValor").value = Number(obra.finalizacao?.aditivosValor || 0);
     return;
@@ -481,7 +508,7 @@ function resetCompraForm() {
 function preencherFormularioCompra(compra) {
   compraEditIdInput.value = compra.id;
   compraObraSelect.value = compra.obraId;
-  document.getElementById("compraData").value = compra.data || "";
+  document.getElementById("compraData").value = normalizeDateInputValue(compra.data);
   compraDescricaoInput.value = compra.descricao || "";
   compraCategoriaInput.value = compra.categoria || "";
   compraFornecedorInput.value = compra.fornecedor || "";
@@ -499,7 +526,7 @@ function preencherFormularioObra(obra) {
   document.getElementById("obraNome").value = obra.nome || "";
   document.getElementById("obraLocal").value = obra.local || "";
   document.getElementById("obraResponsavel").value = obra.responsavel || "";
-  document.getElementById("obraDataInicio").value = obra.dataInicio || "";
+  document.getElementById("obraDataInicio").value = normalizeDateInputValue(obra.dataInicio);
   document.getElementById("obraOrcamento").value = Number(obra.orcamento || 0);
   obraSubmitBtn.textContent = "Atualizar Obra";
   obraCancelEditBtn.classList.remove("hidden");

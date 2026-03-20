@@ -239,17 +239,40 @@ function mapUser(row) {
   };
 }
 
+function toDateOnlyString(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  const normalized = String(value).trim();
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return `${match[1]}-${match[2]}-${match[3]}`;
+  }
+
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString().slice(0, 10);
+}
+
 function mapObra(row) {
   return {
     id: row.id,
     nome: row.nome,
     local: row.local,
     responsavel: row.responsavel,
-    dataInicio: row.data_inicio,
+    dataInicio: toDateOnlyString(row.data_inicio),
     orcamento: Number(row.orcamento || 0),
     finalizacao: row.finalizacao_data_entrega || row.finalizacao_aditivos_info || Number(row.finalizacao_aditivos_valor || 0) > 0
       ? {
-          dataEntrega: row.finalizacao_data_entrega,
+          dataEntrega: toDateOnlyString(row.finalizacao_data_entrega),
           aditivosInfo: row.finalizacao_aditivos_info || "",
           aditivosValor: Number(row.finalizacao_aditivos_valor || 0),
           atualizadoEm: row.finalizacao_atualizado_em
@@ -263,7 +286,7 @@ function mapCompra(row) {
     id: row.id,
     obraId: row.obra_id,
     createdAt: row.created_at,
-    data: row.data,
+    data: toDateOnlyString(row.data),
     descricao: row.descricao,
     categoria: row.categoria,
     fornecedor: row.fornecedor,
