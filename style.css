@@ -186,6 +186,12 @@ select:focus {
   padding: 18px;
 }
 
+.section-divider {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
 .cards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

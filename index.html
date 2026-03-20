@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260320-2" />
+  <link rel="stylesheet" href="style.css?v=20260320-3" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -41,18 +41,16 @@
 
       <nav class="menu card">
         <button class="menu-btn active" data-section="dashboard">Dashboard</button>
-        <button class="menu-btn admin-only" data-section="obras">Cadastro de Obras</button>
+        <button class="menu-btn admin-only" data-section="obras">Obras</button>
         <button class="menu-btn" data-section="compras">Lançamento de Compras</button>
-        <button class="menu-btn admin-only" data-section="finalizacao">Finalização de Obra</button>
         <button class="menu-btn" data-section="relatorios">Relatórios</button>
-        <button class="menu-btn" data-section="senha">Trocar Senha</button>
-        <button class="menu-btn admin-only" data-section="usuarios">Usuários</button>
+        <button class="menu-btn" data-section="conta">Conta e Usuários</button>
       </nav>
 
       <section id="dashboard" class="page card"></section>
 
       <section id="obras" class="page card hidden admin-only">
-        <h3>Cadastro de Obras</h3>
+        <h3>Gestão de Obras</h3>
         <form id="obraForm" class="form-grid cols-2">
           <input type="hidden" id="obraEditId" />
           <label>
@@ -95,10 +93,8 @@
             <tbody id="obrasTableBody"></tbody>
           </table>
         </div>
-      </section>
 
-      <section id="finalizacao" class="page card hidden admin-only">
-        <h3>Finalização de Obra</h3>
+        <h3 class="section-divider">Finalização de Obra</h3>
         <form id="finalizacaoForm" class="form-grid cols-2">
           <label>
             Obra
@@ -138,6 +134,7 @@
       <section id="compras" class="page card hidden">
         <h3>Lançamento de Compras</h3>
         <form id="compraForm" class="form-grid cols-2">
+          <input type="hidden" id="compraEditId" />
           <label>
             Obra
             <select id="compraObra" required></select>
@@ -178,7 +175,8 @@
             <input type="checkbox" id="compraPago" />
             Compra já paga
           </label>
-          <button type="submit" class="btn primary">Registrar Compra</button>
+          <button type="submit" id="compraSubmitBtn" class="btn primary">Registrar Compra</button>
+          <button type="button" id="compraCancelEditBtn" class="btn ghost hidden">Cancelar edição</button>
         </form>
         <datalist id="descricaoOptions"></datalist>
         <datalist id="categoriaOptions"></datalist>
@@ -255,8 +253,8 @@
         </div>
       </section>
 
-      <section id="senha" class="page card hidden">
-        <h3>Trocar Senha</h3>
+      <section id="conta" class="page card hidden">
+        <h3>Conta e Usuários</h3>
         <form id="senhaForm" class="form-grid cols-2">
           <label>
             Senha atual
@@ -273,10 +271,9 @@
           <button type="submit" class="btn primary">Atualizar Senha</button>
         </form>
         <p id="senhaFeedback" class="subtitle hidden"></p>
-      </section>
 
-      <section id="usuarios" class="page card hidden admin-only">
-        <h3>Cadastro de Usuários</h3>
+        <div class="admin-only">
+          <h3 class="section-divider">Cadastro de Usuários</h3>
         <form id="usuarioForm" class="form-grid cols-2">
           <label>
             Nome
@@ -313,10 +310,11 @@
             <tbody id="usuariosTableBody"></tbody>
           </table>
         </div>
+        </div>
       </section>
     </section>
   </main>
 
-  <script src="app.js?v=20260320-2"></script>
+  <script src="app.js?v=20260320-3"></script>
 </body>
 </html>

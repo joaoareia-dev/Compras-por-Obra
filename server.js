@@ -570,6 +570,42 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  if (req.method === "PUT" && pathname.startsWith("/api/compras/")) {
+    const compraId = pathname.split("/")[3];
+    const body = await parseRequestBody(req);
+    await pool.query(
+      `
+        UPDATE compras
+        SET obra_id = $2,
+            data = $3,
+            descricao = $4,
+            categoria = $5,
+            fornecedor = $6,
+            unidade = $7,
+            quantidade = $8,
+            preco_unitario = $9,
+            preco_total = $10,
+            pago = $11
+        WHERE id = $1
+      `,
+      [
+        compraId,
+        body.obraId,
+        body.data,
+        body.descricao,
+        body.categoria,
+        body.fornecedor,
+        body.unidade,
+        Number(body.quantidade || 0),
+        Number(body.precoUnitario || 0),
+        Number(body.precoTotal || 0),
+        Boolean(body.pago)
+      ]
+    );
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
   if (req.method === "DELETE" && pathname.startsWith("/api/compras/")) {
     const compraId = pathname.split("/")[3];
     await pool.query("DELETE FROM compras WHERE id = $1", [compraId]);

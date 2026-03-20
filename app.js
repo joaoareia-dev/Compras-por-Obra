@@ -26,6 +26,9 @@ const finalizacaoTableBody = document.getElementById("finalizacaoTableBody");
 
 const compraForm = document.getElementById("compraForm");
 const comprasTableBody = document.getElementById("comprasTableBody");
+const compraEditIdInput = document.getElementById("compraEditId");
+const compraSubmitBtn = document.getElementById("compraSubmitBtn");
+const compraCancelEditBtn = document.getElementById("compraCancelEditBtn");
 const compraObraSelect = document.getElementById("compraObra");
 const compraDescricaoInput = document.getElementById("compraDescricao");
 const compraCategoriaInput = document.getElementById("compraCategoria");
@@ -356,6 +359,35 @@ function resetObraForm() {
   document.getElementById("obraDataInicio").value = new Date().toISOString().slice(0, 10);
 }
 
+function resetCompraForm() {
+  compraForm.reset();
+  compraEditIdInput.value = "";
+  compraSubmitBtn.textContent = "Registrar Compra";
+  compraCancelEditBtn.classList.add("hidden");
+  document.getElementById("compraData").value = new Date().toISOString().slice(0, 10);
+  const ultimaObra = getUltimaObraLancadaId();
+  if (ultimaObra) {
+    compraObraSelect.value = ultimaObra;
+  }
+  atualizarPrecoTotalCompraForm();
+}
+
+function preencherFormularioCompra(compra) {
+  compraEditIdInput.value = compra.id;
+  compraObraSelect.value = compra.obraId;
+  document.getElementById("compraData").value = compra.data || "";
+  compraDescricaoInput.value = compra.descricao || "";
+  compraCategoriaInput.value = compra.categoria || "";
+  compraFornecedorInput.value = compra.fornecedor || "";
+  compraUnidadeInput.value = compra.unidade || "";
+  compraQuantidadeInput.value = Number(compra.quantidade || 0);
+  compraPrecoUnitarioInput.value = Number(compra.precoUnitario || 0);
+  document.getElementById("compraPago").checked = Boolean(compra.pago);
+  compraSubmitBtn.textContent = "Atualizar Compra";
+  compraCancelEditBtn.classList.remove("hidden");
+  atualizarPrecoTotalCompraForm();
+}
+
 function preencherFormularioObra(obra) {
   obraEditIdInput.value = obra.id;
   document.getElementById("obraNome").value = obra.nome || "";
@@ -386,7 +418,7 @@ function syncPermissionsUI() {
     element.classList.toggle("hidden", !isAdmin());
   });
 
-  if (!isAdmin() && ["obras", "finalizacao", "usuarios"].includes(document.querySelector(".menu-btn.active")?.dataset.section)) {
+  if (!isAdmin() && ["obras"].includes(document.querySelector(".menu-btn.active")?.dataset.section)) {
     activatePage("dashboard");
   }
 }
@@ -613,7 +645,10 @@ function renderCompras() {
         <td>${formatCurrency(compra.precoUnitario || 0)}</td>
         <td>${formatCurrency(getCompraTotal(compra))}</td>
         <td class="${compra.pago ? "status-pago" : "status-aberto"}">${compra.pago ? "Pago" : "Em aberto"}</td>
-        <td><button class="btn delete" data-compra-delete="${compra.id}">Excluir</button></td>
+        <td>
+          <button class="btn ghost" data-compra-edit="${compra.id}">Editar</button>
+          <button class="btn delete" data-compra-delete="${compra.id}">Excluir</button>
+        </td>
       </tr>
     `
     )
@@ -965,7 +1000,7 @@ finalizacaoForm.addEventListener("submit", async (event) => {
     document.getElementById("finalizacaoDataEntrega").value = new Date().toISOString().slice(0, 10);
     document.getElementById("finalizacaoAditivosValor").value = "0";
     renderAll();
-    activatePage("finalizacao");
+    activatePage("obras");
   } catch (error) {
     alert(error.message);
   }
@@ -985,12 +1020,13 @@ compraForm.addEventListener("submit", async (event) => {
       return;
     }
 
+    const compraId = compraEditIdInput.value;
     const quantidade = Number(compraQuantidadeInput.value);
     const precoUnitario = Number(compraPrecoUnitarioInput.value);
     const precoTotal = quantidade * precoUnitario;
 
-    await apiFetch("/api/compras", {
-      method: "POST",
+    await apiFetch(compraId ? `/api/compras/${compraId}` : "/api/compras", {
+      method: compraId ? "PUT" : "POST",
       body: JSON.stringify({
         obraId,
         data: document.getElementById("compraData").value,
@@ -1006,18 +1042,16 @@ compraForm.addEventListener("submit", async (event) => {
     });
 
     await refreshData();
-    compraForm.reset();
-    compraObraSelect.value = obraId;
-    document.getElementById("compraData").value = new Date().toISOString().slice(0, 10);
-    document.getElementById("obraDataInicio").value = new Date().toISOString().slice(0, 10);
-    document.getElementById("finalizacaoDataEntrega").value = new Date().toISOString().slice(0, 10);
-    document.getElementById("finalizacaoAditivosValor").value = "0";
-    atualizarPrecoTotalCompraForm();
+    resetCompraForm();
     renderAll();
     activatePage("compras");
   } catch (error) {
     alert(error.message);
   }
+});
+
+compraCancelEditBtn.addEventListener("click", () => {
+  resetCompraForm();
 });
 
 compraQuantidadeInput.addEventListener("input", atualizarPrecoTotalCompraForm);
@@ -1064,13 +1098,30 @@ obrasTableBody.addEventListener("click", async (event) => {
 });
 
 comprasTableBody.addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-compra-delete]");
-  if (!button) {
+  const editButton = event.target.closest("[data-compra-edit]");
+  if (editButton) {
+    const id = editButton.getAttribute("data-compra-edit");
+    const compra = getCompras().find((item) => item.id === id);
+    if (!compra) {
+      return;
+    }
+
+    if (isObraFinalizada(compra.obraId) && !(await confirmarAutorizacaoGerente("edicao de compra de obra finalizada"))) {
+      return;
+    }
+
+    preencherFormularioCompra(compra);
+    activatePage("compras");
+    return;
+  }
+
+  const deleteButton = event.target.closest("[data-compra-delete]");
+  if (!deleteButton) {
     return;
   }
 
   try {
-    const id = button.getAttribute("data-compra-delete");
+    const id = deleteButton.getAttribute("data-compra-delete");
     const compra = getCompras().find((item) => item.id === id);
     if (compra && isObraFinalizada(compra.obraId)) {
       if (!(await confirmarAutorizacaoGerente("exclusao de compra de obra finalizada"))) {
@@ -1104,7 +1155,7 @@ if (usuarioForm) {
       usuarioForm.reset();
       await refreshUsers();
       renderUsuarios();
-      activatePage("usuarios");
+      activatePage("conta");
     } catch (error) {
       alert(error.message);
     }
@@ -1231,10 +1282,9 @@ async function initializeApp() {
   welcomeText.textContent = `Bem-vindo, ${sessionUser?.name || "Usuario"}`;
   showApp();
 
-  document.getElementById("compraData").value = new Date().toISOString().slice(0, 10);
   document.getElementById("finalizacaoDataEntrega").value = new Date().toISOString().slice(0, 10);
   document.getElementById("finalizacaoAditivosValor").value = "0";
-  atualizarPrecoTotalCompraForm();
+  resetCompraForm();
   resetObraForm();
   atualizarEstadoPeriodoRelatorio();
   atualizarEstadoCurvaAbc();
