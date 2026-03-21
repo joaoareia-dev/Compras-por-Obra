@@ -103,6 +103,11 @@ select {
   background: #fff;
 }
 
+select[multiple] {
+  min-height: 108px;
+  padding-block: 8px;
+}
+
 input:focus,
 select:focus {
   outline: 2px solid rgba(31, 138, 112, 0.28);

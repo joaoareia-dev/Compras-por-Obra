@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260320-5" />
+  <link rel="stylesheet" href="style.css?v=20260320-6" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -264,13 +264,19 @@
           <label>
             Tipo de relatório
             <select id="relatorioTipo">
-              <option value="descricao">Por descrição de material</option>
+              <option value="descricao">Por descrição</option>
               <option value="mensal">Totais em intervalos mensais</option>
             </select>
           </label>
           <label class="checkbox-label report-toggle">
             <input type="checkbox" id="relatorioTodasCompras" />
-            Todas as compras da obra
+            Todos os lançamentos da obra
+          </label>
+          <label>
+            Categorias
+            <select id="relatorioCategorias" multiple size="4">
+              <option value="">Todas as categorias</option>
+            </select>
           </label>
           <label>
             Data Inicial
@@ -386,6 +392,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=20260320-5"></script>
+  <script src="app.js?v=20260320-6"></script>
 </body>
 </html>

@@ -65,6 +65,7 @@ const relatorioObraSelect = document.getElementById("relatorioObra");
 const relatorioTipoSelect = document.getElementById("relatorioTipo");
 const relatorioTodasComprasInput = document.getElementById("relatorioTodasCompras");
 const relatorioCurvaAbcInput = document.getElementById("relatorioCurvaAbc");
+const relatorioCategoriasSelect = document.getElementById("relatorioCategorias");
 const relatorioCabecalho = document.getElementById("relatorioCabecalho");
 const relatorioTableHead = document.getElementById("relatorioTableHead");
 const relatorioTableBody = document.getElementById("relatorioTableBody");
@@ -240,7 +241,7 @@ function calcularClasseCurvaAbc(percentualAcumulado) {
 
 function getPeriodoRelatorioTexto() {
   if (relatorioTodasComprasInput.checked) {
-    return "Todas as compras da obra";
+    return "Todos os lançamentos da obra";
   }
 
   const dataInicio = document.getElementById("relatorioDataInicio").value;
@@ -329,6 +330,45 @@ function compareIsoDatesDesc(left, right) {
   return String(right || "").localeCompare(String(left || ""));
 }
 
+function getCategoriaLancamentoDisplay(categoria) {
+  const normalized = normalizeValue(categoria);
+  if (normalized === "mao de obra" || normalized === "mão de obra") {
+    return "Mão de Obra";
+  }
+
+  return String(categoria || "").trim() || "Sem categoria";
+}
+
+function getLancamentosRelatorio() {
+  const compras = getCompras().map((compra) => ({
+    tipo: "compra",
+    id: compra.id,
+    obraId: compra.obraId,
+    dataReferencia: compra.data,
+    descricao: compra.descricao,
+    categoria: getCategoriaLancamentoDisplay(compra.categoria),
+    unidade: compra.unidade || "-",
+    quantidade: Number(compra.quantidade || 0),
+    total: getCompraTotal(compra),
+    pago: Boolean(compra.pago)
+  }));
+
+  const maoDeObra = getPagamentosMaoDeObra().map((pagamento) => ({
+    tipo: "maoDeObra",
+    id: pagamento.id,
+    obraId: pagamento.obraId,
+    dataReferencia: pagamento.dataPagamento,
+    descricao: pagamento.descricao,
+    categoria: "Mão de Obra",
+    unidade: "-",
+    quantidade: 1,
+    total: getPagamentoMaoDeObraTotal(pagamento),
+    pago: true
+  }));
+
+  return [...compras, ...maoDeObra];
+}
+
 function normalizeValue(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -369,6 +409,27 @@ function refreshCompraAutocomplete() {
   updateDatalist(categoriaOptions, buildUniqueValues(compras.map((compra) => compra.categoria)));
   updateDatalist(fornecedorOptions, buildUniqueValues(compras.map((compra) => compra.fornecedor)));
   updateDatalist(unidadeOptions, buildUniqueValues(compras.map((compra) => compra.unidade)));
+}
+
+function populateRelatorioCategorias() {
+  const categorias = buildUniqueValues([
+    ...getCompras().map((compra) => getCategoriaLancamentoDisplay(compra.categoria)),
+    ...getPagamentosMaoDeObra().map(() => "Mão de Obra"),
+    "Mão de Obra"
+  ]);
+  const selectedValues = new Set(Array.from(relatorioCategoriasSelect.selectedOptions).map((option) => option.value));
+
+  relatorioCategoriasSelect.innerHTML = categorias
+    .map((categoria) => `<option value="${escapeHtml(categoria)}">${categoria}</option>`)
+    .join("");
+
+  Array.from(relatorioCategoriasSelect.options).forEach((option) => {
+    option.selected = selectedValues.has(option.value);
+  });
+}
+
+function getSelectedRelatorioCategorias() {
+  return Array.from(relatorioCategoriasSelect.selectedOptions).map((option) => option.value);
 }
 
 function findLastCompraByDescricao(descricao) {
@@ -918,31 +979,35 @@ function renderMaoDeObra() {
     .join("");
 }
 
-function filtrarComprasParaRelatorio() {
+function filtrarLancamentosParaRelatorio() {
   const obraId = relatorioObraSelect.value;
   const dataInicio = relatorioDataInicioInput.value;
   const dataFim = relatorioDataFimInput.value;
   const todasComprasDaObra = relatorioTodasComprasInput.checked;
+  const categoriasSelecionadas = getSelectedRelatorioCategorias();
 
-  return getCompras().filter((compra) => {
-    const matchObra = !obraId || compra.obraId === obraId;
-    const matchInicio = todasComprasDaObra || !dataInicio || compra.data >= dataInicio;
-    const matchFim = todasComprasDaObra || !dataFim || compra.data <= dataFim;
-    return matchObra && matchInicio && matchFim;
+  return getLancamentosRelatorio().filter((lancamento) => {
+    const matchObra = !obraId || lancamento.obraId === obraId;
+    const matchInicio = todasComprasDaObra || !dataInicio || lancamento.dataReferencia >= dataInicio;
+    const matchFim = todasComprasDaObra || !dataFim || lancamento.dataReferencia <= dataFim;
+    const matchCategoria = !categoriasSelecionadas.length || categoriasSelecionadas.includes(lancamento.categoria);
+    return matchObra && matchInicio && matchFim && matchCategoria;
   });
 }
 
-function montarCabecalhoRelatorio(comprasFiltradas) {
+function montarCabecalhoRelatorio(lancamentosFiltrados) {
   const obras = getObras();
   const obraSelecionada = obras.find((obra) => obra.id === relatorioObraSelect.value) || null;
-  const tipo = relatorioTipoSelect.value === "mensal" ? "Totais em intervalos mensais" : "Por descricao de material";
+  const tipo = relatorioTipoSelect.value === "mensal" ? "Totais em intervalos mensais" : "Por descrição";
+  const categoriasSelecionadas = getSelectedRelatorioCategorias();
   const meta = [
     `<span><strong>Tipo:</strong> ${tipo}</span>`,
     obraSelecionada ? `<span><strong>Obra:</strong> ${obraSelecionada.nome}</span>` : "",
+    categoriasSelecionadas.length ? `<span><strong>Categorias:</strong> ${categoriasSelecionadas.join(", ")}</span>` : "",
     getPeriodoRelatorioTexto() !== "Sem periodo informado"
       ? `<span><strong>Periodo:</strong> ${getPeriodoRelatorioTexto()}</span>`
       : "",
-    comprasFiltradas.length ? `<span><strong>Registros:</strong> ${comprasFiltradas.length}</span>` : ""
+    lancamentosFiltrados.length ? `<span><strong>Registros:</strong> ${lancamentosFiltrados.length}</span>` : ""
   ].filter(Boolean);
 
   relatorioCabecalho.innerHTML = `
@@ -955,30 +1020,39 @@ function montarCabecalhoRelatorio(comprasFiltradas) {
   `;
 }
 
-function renderRelatorioPorDescricao(comprasFiltradas) {
+function renderRelatorioPorDescricao(lancamentosFiltrados) {
   const obras = getObras();
   const obraMap = buildObraNameMap(obras);
   const grupos = new Map();
+  const agruparPorObra = !relatorioObraSelect.value;
 
-  comprasFiltradas.forEach((compra) => {
-    const chave = normalizeValue(compra.descricao);
+  lancamentosFiltrados.forEach((lancamento) => {
+    const chave = [
+      normalizeValue(lancamento.categoria),
+      normalizeValue(lancamento.descricao),
+      agruparPorObra ? lancamento.obraId : ""
+    ].join("|");
     if (!chave) {
       return;
     }
 
     if (!grupos.has(chave)) {
       grupos.set(chave, {
-        descricao: compra.descricao,
-        obraNome: obraMap.get(compra.obraId) || "Obra removida",
-        unidade: compra.unidade || "-",
+        descricao: lancamento.descricao,
+        categoria: lancamento.categoria,
+        obraNome: obraMap.get(lancamento.obraId) || "Obra removida",
+        unidade: lancamento.unidade || "-",
         quantidade: 0,
         total: 0
       });
     }
 
     const grupo = grupos.get(chave);
-    grupo.quantidade += Number(compra.quantidade || 0);
-    grupo.total += getCompraTotal(compra);
+    grupo.quantidade += Number(lancamento.quantidade || 0);
+    grupo.total += Number(lancamento.total || 0);
+    if (grupo.unidade !== (lancamento.unidade || "-")) {
+      grupo.unidade = "-";
+    }
   });
 
   const totalGeral = Array.from(grupos.values()).reduce((sum, linha) => sum + linha.total, 0);
@@ -1005,6 +1079,7 @@ function renderRelatorioPorDescricao(comprasFiltradas) {
   relatorioTableHead.innerHTML = `
     <tr>
       <th>Descricao</th>
+      <th>Categoria</th>
       ${relatorioObraSelect.value ? "" : "<th>Obra</th>"}
       <th>Unidade</th>
       <th>Qtd.</th>
@@ -1019,6 +1094,7 @@ function renderRelatorioPorDescricao(comprasFiltradas) {
           (linha) => `
         <tr>
           <td>${linha.descricao}</td>
+          <td>${linha.categoria}</td>
           ${relatorioObraSelect.value ? "" : `<td>${linha.obraNome}</td>`}
           <td>${linha.unidade}</td>
           <td>${formatNumber(linha.quantidade)}</td>
@@ -1028,14 +1104,14 @@ function renderRelatorioPorDescricao(comprasFiltradas) {
       `
         )
         .join("")
-    : `<tr><td colspan="${relatorioObraSelect.value ? (usarCurvaAbc ? 6 : 4) : (usarCurvaAbc ? 7 : 5)}" class="empty">Nenhuma compra encontrada para os filtros selecionados.</td></tr>`;
+    : `<tr><td colspan="${relatorioObraSelect.value ? (usarCurvaAbc ? 7 : 5) : (usarCurvaAbc ? 8 : 6)}" class="empty">Nenhum lançamento encontrado para os filtros selecionados.</td></tr>`;
 }
 
-function renderRelatorioMensal(comprasFiltradas) {
+function renderRelatorioMensal(lancamentosFiltrados) {
   const grupos = new Map();
 
-  comprasFiltradas.forEach((compra) => {
-    const monthKey = String(compra.data || "").slice(0, 7);
+  lancamentosFiltrados.forEach((lancamento) => {
+    const monthKey = String(lancamento.dataReferencia || "").slice(0, 7);
     if (!monthKey) {
       return;
     }
@@ -1043,17 +1119,17 @@ function renderRelatorioMensal(comprasFiltradas) {
     if (!grupos.has(monthKey)) {
       grupos.set(monthKey, {
         mes: monthKey,
-        quantidadeCompras: 0,
+        quantidadeLancamentos: 0,
         total: 0,
         pago: 0
       });
     }
 
     const grupo = grupos.get(monthKey);
-    const totalCompra = getCompraTotal(compra);
-    grupo.quantidadeCompras += 1;
-    grupo.total += totalCompra;
-    grupo.pago += compra.pago ? totalCompra : 0;
+    const totalLancamento = Number(lancamento.total || 0);
+    grupo.quantidadeLancamentos += 1;
+    grupo.total += totalLancamento;
+    grupo.pago += lancamento.pago ? totalLancamento : 0;
   });
 
   const linhas = Array.from(grupos.values()).sort((a, b) => a.mes.localeCompare(b.mes));
@@ -1061,7 +1137,7 @@ function renderRelatorioMensal(comprasFiltradas) {
   relatorioTableHead.innerHTML = `
     <tr>
       <th>Mes</th>
-      <th>Quantidade de compras</th>
+      <th>Quantidade de lançamentos</th>
       <th>Total do mes</th>
       <th>Total pago</th>
       <th>Total em aberto</th>
@@ -1074,7 +1150,7 @@ function renderRelatorioMensal(comprasFiltradas) {
           (linha) => `
         <tr>
           <td>${formatMonthLabel(linha.mes)}</td>
-          <td>${linha.quantidadeCompras}</td>
+          <td>${linha.quantidadeLancamentos}</td>
           <td>${formatCurrency(linha.total)}</td>
           <td>${formatCurrency(linha.pago)}</td>
           <td>${formatCurrency(linha.total - linha.pago)}</td>
@@ -1082,20 +1158,20 @@ function renderRelatorioMensal(comprasFiltradas) {
       `
         )
         .join("")
-    : `<tr><td colspan="5" class="empty">Nenhuma compra encontrada para os filtros selecionados.</td></tr>`;
+    : `<tr><td colspan="5" class="empty">Nenhum lançamento encontrado para os filtros selecionados.</td></tr>`;
 }
 
 function renderRelatorios() {
-  const comprasFiltradas = filtrarComprasParaRelatorio();
+  const lancamentosFiltrados = filtrarLancamentosParaRelatorio();
   const tipo = relatorioTipoSelect.value;
-  const totalCompras = comprasFiltradas.reduce((sum, compra) => sum + getCompraTotal(compra), 0);
-  const totalPago = comprasFiltradas.filter((compra) => compra.pago).reduce((sum, compra) => sum + getCompraTotal(compra), 0);
-  const ticketMedio = comprasFiltradas.length ? totalCompras / comprasFiltradas.length : 0;
+  const totalCompras = lancamentosFiltrados.reduce((sum, lancamento) => sum + Number(lancamento.total || 0), 0);
+  const totalPago = lancamentosFiltrados.filter((lancamento) => lancamento.pago).reduce((sum, lancamento) => sum + Number(lancamento.total || 0), 0);
+  const ticketMedio = lancamentosFiltrados.length ? totalCompras / lancamentosFiltrados.length : 0;
   const resumoItems = [
-    { titulo: "Total", valor: totalCompras, mostrar: totalCompras > 0 || comprasFiltradas.length > 0 },
+    { titulo: "Total", valor: totalCompras, mostrar: totalCompras > 0 || lancamentosFiltrados.length > 0 },
     { titulo: "Pago", valor: totalPago, mostrar: totalPago > 0 },
     { titulo: "Em aberto", valor: totalCompras - totalPago, mostrar: totalCompras - totalPago > 0 },
-    { titulo: "Ticket medio", valor: ticketMedio, mostrar: ticketMedio > 0 && comprasFiltradas.length > 1 }
+    { titulo: "Ticket medio", valor: ticketMedio, mostrar: ticketMedio > 0 && lancamentosFiltrados.length > 1 }
   ].filter((item) => item.mostrar);
 
   resumoRelatorio.innerHTML = resumoItems.length
@@ -1111,20 +1187,21 @@ function renderRelatorios() {
         .join("")
     : "";
 
-  montarCabecalhoRelatorio(comprasFiltradas);
+  montarCabecalhoRelatorio(lancamentosFiltrados);
 
   if (tipo === "mensal") {
-    renderRelatorioMensal(comprasFiltradas);
+    renderRelatorioMensal(lancamentosFiltrados);
     return;
   }
 
-  renderRelatorioPorDescricao(comprasFiltradas);
+  renderRelatorioPorDescricao(lancamentosFiltrados);
 }
 
 function renderAll() {
   syncPermissionsUI();
   renderDashboard();
   populateObraSelects();
+  populateRelatorioCategorias();
   refreshCompraAutocomplete();
   renderObras();
   renderCompras();
@@ -1636,6 +1713,10 @@ relatorioObraSelect.addEventListener("change", () => {
 });
 
 relatorioCurvaAbcInput.addEventListener("change", () => {
+  renderRelatorios();
+});
+
+relatorioCategoriasSelect.addEventListener("change", () => {
   renderRelatorios();
 });
 
