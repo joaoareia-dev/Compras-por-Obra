@@ -299,6 +299,20 @@ function mapCompra(row) {
   };
 }
 
+function mapMaoDeObra(row) {
+  return {
+    id: row.id,
+    obraId: row.obra_id,
+    createdAt: row.created_at,
+    descricao: row.descricao,
+    categoria: "Mao de Obra",
+    periodoInicio: toDateOnlyString(row.periodo_inicio),
+    periodoFim: toDateOnlyString(row.periodo_fim),
+    dataPagamento: toDateOnlyString(row.data_pagamento),
+    valor: Number(row.valor || 0)
+  };
+}
+
 async function ensureDatabase() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -351,6 +365,19 @@ async function ensureDatabase() {
     );
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS mao_obra_pagamentos (
+      id TEXT PRIMARY KEY,
+      obra_id TEXT NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL,
+      descricao TEXT NOT NULL,
+      periodo_inicio DATE NOT NULL,
+      periodo_fim DATE NOT NULL,
+      data_pagamento DATE NOT NULL,
+      valor NUMERIC(14, 2) NOT NULL
+    );
+  `);
+
   await pool.query(`UPDATE users SET role = 'administrador' WHERE role NOT IN ('administrador', 'usuario')`);
   const adminEmail = process.env.ADMIN_EMAIL || "admin@obra.local";
   const adminPassword = process.env.ADMIN_PASSWORD || "123456";
@@ -368,14 +395,16 @@ async function ensureDatabase() {
 }
 
 async function getBootstrapPayload() {
-  const [obrasResult, comprasResult] = await Promise.all([
+  const [obrasResult, comprasResult, maoDeObraResult] = await Promise.all([
     pool.query("SELECT * FROM obras ORDER BY nome ASC"),
-    pool.query("SELECT * FROM compras ORDER BY created_at ASC")
+    pool.query("SELECT * FROM compras ORDER BY created_at ASC"),
+    pool.query("SELECT * FROM mao_obra_pagamentos ORDER BY created_at ASC")
   ]);
 
   return {
     obras: obrasResult.rows.map(mapObra),
-    compras: comprasResult.rows.map(mapCompra)
+    compras: comprasResult.rows.map(mapCompra),
+    maoDeObra: maoDeObraResult.rows.map(mapMaoDeObra)
   };
 }
 
@@ -751,6 +780,67 @@ async function handleApi(req, res, pathname) {
   if (req.method === "DELETE" && pathname.startsWith("/api/compras/")) {
     const compraId = getResourceId(pathname);
     await pool.query("DELETE FROM compras WHERE id = $1", [compraId]);
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  if (req.method === "POST" && pathname === "/api/mao-de-obra") {
+    const body = await parseRequestBody(req);
+    requireFields(body, ["obraId", "descricao", "periodoInicio", "periodoFim", "dataPagamento"]);
+    const id = randomId();
+    await pool.query(
+      `
+        INSERT INTO mao_obra_pagamentos (
+          id, obra_id, created_at, descricao, periodo_inicio, periodo_fim, data_pagamento, valor
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `,
+      [
+        id,
+        body.obraId,
+        new Date().toISOString(),
+        body.descricao,
+        body.periodoInicio,
+        body.periodoFim,
+        body.dataPagamento,
+        Number(body.valor || 0)
+      ]
+    );
+    sendJson(res, 201, { ok: true, id });
+    return true;
+  }
+
+  if (req.method === "PUT" && pathname.startsWith("/api/mao-de-obra/")) {
+    const pagamentoId = getResourceId(pathname);
+    const body = await parseRequestBody(req);
+    await pool.query(
+      `
+        UPDATE mao_obra_pagamentos
+        SET obra_id = $2,
+            descricao = $3,
+            periodo_inicio = $4,
+            periodo_fim = $5,
+            data_pagamento = $6,
+            valor = $7
+        WHERE id = $1
+      `,
+      [
+        pagamentoId,
+        body.obraId,
+        body.descricao,
+        body.periodoInicio,
+        body.periodoFim,
+        body.dataPagamento,
+        Number(body.valor || 0)
+      ]
+    );
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  if (req.method === "DELETE" && pathname.startsWith("/api/mao-de-obra/")) {
+    const pagamentoId = getResourceId(pathname);
+    await pool.query("DELETE FROM mao_obra_pagamentos WHERE id = $1", [pagamentoId]);
     sendJson(res, 200, { ok: true });
     return true;
   }

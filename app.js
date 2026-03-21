@@ -1,6 +1,7 @@
 const state = {
   obras: [],
   compras: [],
+  maoDeObra: [],
   usuarios: [],
   sessionUser: null,
   loginTakeoverEmail: null
@@ -35,6 +36,7 @@ const compraEditIdInput = document.getElementById("compraEditId");
 const compraSubmitBtn = document.getElementById("compraSubmitBtn");
 const compraCancelEditBtn = document.getElementById("compraCancelEditBtn");
 const compraObraSelect = document.getElementById("compraObra");
+const compraPagoInput = document.getElementById("compraPago");
 const compraDescricaoInput = document.getElementById("compraDescricao");
 const compraCategoriaInput = document.getElementById("compraCategoria");
 const compraFornecedorInput = document.getElementById("compraFornecedor");
@@ -46,6 +48,18 @@ const descricaoOptions = document.getElementById("descricaoOptions");
 const categoriaOptions = document.getElementById("categoriaOptions");
 const fornecedorOptions = document.getElementById("fornecedorOptions");
 const unidadeOptions = document.getElementById("unidadeOptions");
+
+const maoDeObraForm = document.getElementById("maoDeObraForm");
+const maoDeObraTableBody = document.getElementById("maoDeObraTableBody");
+const maoDeObraEditIdInput = document.getElementById("maoDeObraEditId");
+const maoDeObraSubmitBtn = document.getElementById("maoDeObraSubmitBtn");
+const maoDeObraCancelEditBtn = document.getElementById("maoDeObraCancelEditBtn");
+const maoDeObraObraSelect = document.getElementById("maoDeObraObra");
+const maoDeObraDescricaoInput = document.getElementById("maoDeObraDescricao");
+const maoDeObraPeriodoInicioInput = document.getElementById("maoDeObraPeriodoInicio");
+const maoDeObraPeriodoFimInput = document.getElementById("maoDeObraPeriodoFim");
+const maoDeObraDataPagamentoInput = document.getElementById("maoDeObraDataPagamento");
+const maoDeObraValorInput = document.getElementById("maoDeObraValor");
 
 const relatorioObraSelect = document.getElementById("relatorioObra");
 const relatorioTipoSelect = document.getElementById("relatorioTipo");
@@ -123,6 +137,7 @@ async function refreshData() {
   const payload = await apiFetch("/api/bootstrap");
   state.obras = payload.obras || [];
   state.compras = payload.compras || [];
+  state.maoDeObra = payload.maoDeObra || [];
 }
 
 async function refreshUsers() {
@@ -140,6 +155,10 @@ function getCompras() {
 
 function getUsuarios() {
   return state.usuarios;
+}
+
+function getPagamentosMaoDeObra() {
+  return state.maoDeObra;
 }
 
 function formatCurrency(value) {
@@ -254,6 +273,10 @@ function getCompraTotal(compra) {
   return Number(compra.valor || 0);
 }
 
+function getPagamentoMaoDeObraTotal(pagamento) {
+  return Number(pagamento?.valor || 0);
+}
+
 function getUltimaObraLancadaId() {
   const compras = getCompras();
   if (!compras.length) {
@@ -271,7 +294,7 @@ function getOrcamentoComAditivos(obra) {
   return Number(obra.orcamento || 0) + getAditivosValor(obra);
 }
 
-function buildCompraStats(compras) {
+function buildDespesaStats(compras, pagamentosMaoDeObra) {
   const totaisPorObra = new Map();
   let totalGasto = 0;
   let totalPago = 0;
@@ -281,6 +304,13 @@ function buildCompraStats(compras) {
     totalGasto += totalCompra;
     totalPago += compra.pago ? totalCompra : 0;
     totaisPorObra.set(compra.obraId, (totaisPorObra.get(compra.obraId) || 0) + totalCompra);
+  });
+
+  pagamentosMaoDeObra.forEach((pagamento) => {
+    const totalPagamento = getPagamentoMaoDeObraTotal(pagamento);
+    totalGasto += totalPagamento;
+    totalPago += totalPagamento;
+    totaisPorObra.set(pagamento.obraId, (totaisPorObra.get(pagamento.obraId) || 0) + totalPagamento);
   });
 
   return {
@@ -497,6 +527,7 @@ function resetCompraForm() {
   compraEditIdInput.value = "";
   compraSubmitBtn.textContent = "Registrar Compra";
   compraCancelEditBtn.classList.add("hidden");
+  compraPagoInput.value = "true";
   document.getElementById("compraData").value = getTodayIsoDate();
   const ultimaObra = getUltimaObraLancadaId();
   if (ultimaObra) {
@@ -505,9 +536,20 @@ function resetCompraForm() {
   atualizarPrecoTotalCompraForm();
 }
 
+function resetMaoDeObraForm() {
+  maoDeObraForm.reset();
+  maoDeObraEditIdInput.value = "";
+  maoDeObraSubmitBtn.textContent = "Registrar Pagamento";
+  maoDeObraCancelEditBtn.classList.add("hidden");
+  maoDeObraPeriodoInicioInput.value = getTodayIsoDate();
+  maoDeObraPeriodoFimInput.value = getTodayIsoDate();
+  maoDeObraDataPagamentoInput.value = getTodayIsoDate();
+}
+
 function preencherFormularioCompra(compra) {
   compraEditIdInput.value = compra.id;
   compraObraSelect.value = compra.obraId;
+  compraPagoInput.value = String(Boolean(compra.pago));
   document.getElementById("compraData").value = normalizeDateInputValue(compra.data);
   compraDescricaoInput.value = compra.descricao || "";
   compraCategoriaInput.value = compra.categoria || "";
@@ -515,10 +557,21 @@ function preencherFormularioCompra(compra) {
   compraUnidadeInput.value = compra.unidade || "";
   compraQuantidadeInput.value = Number(compra.quantidade || 0);
   compraPrecoUnitarioInput.value = Number(compra.precoUnitario || 0);
-  document.getElementById("compraPago").checked = Boolean(compra.pago);
   compraSubmitBtn.textContent = "Atualizar Compra";
   compraCancelEditBtn.classList.remove("hidden");
   atualizarPrecoTotalCompraForm();
+}
+
+function preencherFormularioMaoDeObra(pagamento) {
+  maoDeObraEditIdInput.value = pagamento.id;
+  maoDeObraObraSelect.value = pagamento.obraId;
+  maoDeObraDescricaoInput.value = pagamento.descricao || "";
+  maoDeObraPeriodoInicioInput.value = normalizeDateInputValue(pagamento.periodoInicio);
+  maoDeObraPeriodoFimInput.value = normalizeDateInputValue(pagamento.periodoFim);
+  maoDeObraDataPagamentoInput.value = normalizeDateInputValue(pagamento.dataPagamento);
+  maoDeObraValorInput.value = Number(pagamento.valor || 0);
+  maoDeObraSubmitBtn.textContent = "Atualizar Pagamento";
+  maoDeObraCancelEditBtn.classList.remove("hidden");
 }
 
 function preencherFormularioObra(obra) {
@@ -670,8 +723,9 @@ function activatePage(pageId) {
 function renderDashboard() {
   const obras = getObras();
   const compras = getCompras();
+  const pagamentosMaoDeObra = getPagamentosMaoDeObra();
   const obrasFinalizadas = obras.filter((obra) => obra.finalizacao?.dataEntrega).length;
-  const { totaisPorObra, totalGasto, totalAberto } = buildCompraStats(compras);
+  const { totaisPorObra, totalGasto, totalAberto } = buildDespesaStats(compras, pagamentosMaoDeObra);
   const resumoObras = obras
     .map((obra) => {
       const totalObra = totaisPorObra.get(obra.id) || 0;
@@ -717,16 +771,20 @@ function renderDashboard() {
         <p class="metric-value">${compras.length}</p>
       </article>
       <article class="metric-card">
+        <p class="metric-title">Mão de obra lançada</p>
+        <p class="metric-value">${pagamentosMaoDeObra.length}</p>
+      </article>
+      <article class="metric-card">
         <p class="metric-title">Obras finalizadas</p>
         <p class="metric-value">${obrasFinalizadas}</p>
       </article>
       <article class="metric-card">
-        <p class="metric-title">Total gasto</p>
-        <p class="metric-value">${formatCurrency(totalGasto)}</p>
-      </article>
-      <article class="metric-card">
         <p class="metric-title">Total em aberto</p>
         <p class="metric-value">${formatCurrency(totalAberto)}</p>
+      </article>
+      <article class="metric-card">
+        <p class="metric-title">Total gasto</p>
+        <p class="metric-value">${formatCurrency(totalGasto)}</p>
       </article>
     </div>
     <div class="dashboard-obras-header">
@@ -745,6 +803,7 @@ function populateObraSelects() {
 
   if (!obras.length) {
     compraObraSelect.innerHTML = `<option value="">Cadastre uma obra antes</option>`;
+    maoDeObraObraSelect.innerHTML = `<option value="">Cadastre uma obra antes</option>`;
     finalizacaoObraSelect.innerHTML = `<option value="">Cadastre uma obra antes</option>`;
     relatorioObraSelect.innerHTML = `<option value="">Todas as obras</option>`;
     return;
@@ -754,6 +813,8 @@ function populateObraSelects() {
   if (ultimaObraLancadaId && obras.some((obra) => obra.id === ultimaObraLancadaId)) {
     compraObraSelect.value = ultimaObraLancadaId;
   }
+
+  maoDeObraObraSelect.innerHTML = obras.map((obra) => `<option value="${obra.id}">${obra.nome}</option>`).join("");
 
   finalizacaoObraSelect.innerHTML = obras.map((obra) => `<option value="${obra.id}">${obra.nome}</option>`).join("");
 
@@ -820,6 +881,36 @@ function renderCompras() {
         <td>
           <button class="btn ghost" data-compra-edit="${compra.id}">Editar</button>
           <button class="btn delete" data-compra-delete="${compra.id}">Excluir</button>
+        </td>
+      </tr>
+    `
+    )
+    .join("");
+}
+
+function renderMaoDeObra() {
+  const pagamentos = getPagamentosMaoDeObra();
+  const obraMap = buildObraNameMap(getObras());
+
+  if (!pagamentos.length) {
+    maoDeObraTableBody.innerHTML = `<tr><td colspan="6" class="empty">Nenhum pagamento de mão de obra lançado.</td></tr>`;
+    return;
+  }
+
+  const sorted = [...pagamentos].sort((a, b) => compareIsoDatesDesc(a.dataPagamento, b.dataPagamento));
+
+  maoDeObraTableBody.innerHTML = sorted
+    .map(
+      (pagamento) => `
+      <tr>
+        <td>${formatDate(pagamento.dataPagamento)}</td>
+        <td>${obraMap.get(pagamento.obraId) || "Obra removida"}</td>
+        <td>${pagamento.descricao}</td>
+        <td>${formatDate(pagamento.periodoInicio)} a ${formatDate(pagamento.periodoFim)}</td>
+        <td>${formatCurrency(getPagamentoMaoDeObraTotal(pagamento))}</td>
+        <td>
+          <button class="btn ghost" data-mao-de-obra-edit="${pagamento.id}">Editar</button>
+          <button class="btn delete" data-mao-de-obra-delete="${pagamento.id}">Excluir</button>
         </td>
       </tr>
     `
@@ -1037,6 +1128,7 @@ function renderAll() {
   refreshCompraAutocomplete();
   renderObras();
   renderCompras();
+  renderMaoDeObra();
   renderUsuarios();
   renderRelatorios();
 }
@@ -1218,7 +1310,7 @@ compraForm.addEventListener("submit", async (event) => {
         quantidade,
         precoUnitario,
         precoTotal,
-        pago: document.getElementById("compraPago").checked
+        pago: compraPagoInput.value === "true"
       })
     });
 
@@ -1233,6 +1325,51 @@ compraForm.addEventListener("submit", async (event) => {
 
 compraCancelEditBtn.addEventListener("click", () => {
   resetCompraForm();
+});
+
+maoDeObraForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const obraId = maoDeObraObraSelect.value;
+  if (!obraId) {
+    alert("Cadastre uma obra antes de lançar pagamentos de mão de obra.");
+    return;
+  }
+
+  if (maoDeObraPeriodoFimInput.value < maoDeObraPeriodoInicioInput.value) {
+    alert("A data final do período trabalhado não pode ser anterior à data inicial.");
+    return;
+  }
+
+  try {
+    if (isObraFinalizada(obraId) && !(await confirmarAutorizacaoGerente("lancamento de mão de obra em obra finalizada"))) {
+      return;
+    }
+
+    const pagamentoId = maoDeObraEditIdInput.value;
+    await apiFetch(pagamentoId ? `/api/mao-de-obra/${pagamentoId}` : "/api/mao-de-obra", {
+      method: pagamentoId ? "PUT" : "POST",
+      body: JSON.stringify({
+        obraId,
+        descricao: maoDeObraDescricaoInput.value.trim(),
+        periodoInicio: maoDeObraPeriodoInicioInput.value,
+        periodoFim: maoDeObraPeriodoFimInput.value,
+        dataPagamento: maoDeObraDataPagamentoInput.value,
+        valor: Number(maoDeObraValorInput.value || 0)
+      })
+    });
+
+    await refreshData();
+    resetMaoDeObraForm();
+    renderAll();
+    activatePage("maoDeObra");
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+maoDeObraCancelEditBtn.addEventListener("click", () => {
+  resetMaoDeObraForm();
 });
 
 compraQuantidadeInput.addEventListener("input", atualizarPrecoTotalCompraForm);
@@ -1314,6 +1451,46 @@ comprasTableBody.addEventListener("click", async (event) => {
     }
 
     await apiFetch(`/api/compras/${id}`, { method: "DELETE" });
+    await refreshData();
+    renderAll();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+maoDeObraTableBody.addEventListener("click", async (event) => {
+  const editButton = event.target.closest("[data-mao-de-obra-edit]");
+  if (editButton) {
+    const id = editButton.getAttribute("data-mao-de-obra-edit");
+    const pagamento = getPagamentosMaoDeObra().find((item) => item.id === id);
+    if (!pagamento) {
+      return;
+    }
+
+    if (isObraFinalizada(pagamento.obraId) && !(await confirmarAutorizacaoGerente("edicao de mão de obra de obra finalizada"))) {
+      return;
+    }
+
+    preencherFormularioMaoDeObra(pagamento);
+    activatePage("maoDeObra");
+    return;
+  }
+
+  const deleteButton = event.target.closest("[data-mao-de-obra-delete]");
+  if (!deleteButton) {
+    return;
+  }
+
+  try {
+    const id = deleteButton.getAttribute("data-mao-de-obra-delete");
+    const pagamento = getPagamentosMaoDeObra().find((item) => item.id === id);
+    if (pagamento && isObraFinalizada(pagamento.obraId)) {
+      if (!(await confirmarAutorizacaoGerente("exclusao de mão de obra de obra finalizada"))) {
+        return;
+      }
+    }
+
+    await apiFetch(`/api/mao-de-obra/${id}`, { method: "DELETE" });
     await refreshData();
     renderAll();
   } catch (error) {
@@ -1497,6 +1674,7 @@ async function initializeApp() {
   document.getElementById("finalizacaoDataEntrega").value = getTodayIsoDate();
   document.getElementById("finalizacaoAditivosValor").value = "0";
   resetCompraForm();
+  resetMaoDeObraForm();
   resetObraForm();
   closeObraEditor();
   closeUsuarioFormPanel();
