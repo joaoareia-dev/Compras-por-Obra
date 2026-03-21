@@ -24,6 +24,7 @@ const logoutBtn = document.getElementById("logoutBtn");
 const obraForm = document.getElementById("obraForm");
 const obrasTableBody = document.getElementById("obrasTableBody");
 const obraEditIdInput = document.getElementById("obraEditId");
+const obraOrcamentoInput = document.getElementById("obraOrcamento");
 const obraSubmitBtn = document.getElementById("obraSubmitBtn");
 const obraCancelEditBtn = document.getElementById("obraCancelEditBtn");
 const obraNewBtn = document.getElementById("obraNewBtn");
@@ -35,6 +36,7 @@ const finalizacaoPanel = document.getElementById("finalizacaoPanel");
 
 const finalizacaoForm = document.getElementById("finalizacaoForm");
 const finalizacaoObraSelect = document.getElementById("finalizacaoObra");
+const finalizacaoAditivosValorInput = document.getElementById("finalizacaoAditivosValor");
 
 const compraForm = document.getElementById("compraForm");
 const comprasTableBody = document.getElementById("comprasTableBody");
@@ -106,6 +108,10 @@ const monthFormatter = new Intl.DateTimeFormat("pt-BR", {
   year: "numeric"
 });
 const numberFormatter = new Intl.NumberFormat("pt-BR");
+const currencyInputFormatter = new Intl.NumberFormat("pt-BR", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
 
 function clearLegacyBrowserData() {
   const legacyKeys = ["gc_users", "gc_obras", "gc_compras", "gc_session"];
@@ -174,6 +180,33 @@ function formatCurrency(value) {
 
 function formatNumber(value) {
   return numberFormatter.format(Number(value || 0));
+}
+
+function formatCurrencyInputValue(value) {
+  return currencyInputFormatter.format(Number(value || 0));
+}
+
+function parseCurrencyInputValue(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  return digits ? Number(digits) / 100 : 0;
+}
+
+function setCurrencyInputValue(input, value) {
+  input.value = formatCurrencyInputValue(value);
+}
+
+function bindCurrencyInput(input) {
+  if (!input || input.readOnly) {
+    return;
+  }
+
+  input.addEventListener("input", () => {
+    input.value = formatCurrencyInputValue(parseCurrencyInputValue(input.value));
+  });
+
+  input.addEventListener("blur", () => {
+    input.value = formatCurrencyInputValue(parseCurrencyInputValue(input.value));
+  });
 }
 
 function getTodayIsoDate() {
@@ -577,12 +610,13 @@ function resetObraForm() {
   obraSubmitBtn.textContent = "Salvar Obra";
   obraCancelEditBtn.classList.add("hidden");
   document.getElementById("obraDataInicio").value = getTodayIsoDate();
+  setCurrencyInputValue(obraOrcamentoInput, 0);
 }
 
 function resetFinalizacaoForm() {
   finalizacaoForm.reset();
   document.getElementById("finalizacaoDataEntrega").value = getTodayIsoDate();
-  document.getElementById("finalizacaoAditivosValor").value = "0";
+  setCurrencyInputValue(finalizacaoAditivosValorInput, 0);
 }
 
 function openObraEditor(obra = null) {
@@ -596,7 +630,7 @@ function openObraEditor(obra = null) {
     finalizacaoObraSelect.value = obra.id;
     document.getElementById("finalizacaoDataEntrega").value = normalizeDateInputValue(obra.finalizacao?.dataEntrega) || getTodayIsoDate();
     document.getElementById("finalizacaoAditivosInfo").value = obra.finalizacao?.aditivosInfo || "";
-    document.getElementById("finalizacaoAditivosValor").value = Number(obra.finalizacao?.aditivosValor || 0);
+    setCurrencyInputValue(finalizacaoAditivosValorInput, Number(obra.finalizacao?.aditivosValor || 0));
     return;
   }
 
@@ -625,6 +659,7 @@ function resetCompraForm() {
   if (ultimaObra) {
     compraObraSelect.value = ultimaObra;
   }
+  setCurrencyInputValue(compraPrecoUnitarioInput, 0);
   atualizarPrecoTotalCompraForm();
 }
 
@@ -637,6 +672,7 @@ function resetMaoDeObraForm() {
   maoDeObraPeriodoInicioInput.value = lastDates.periodoInicio;
   maoDeObraPeriodoFimInput.value = lastDates.periodoFim;
   maoDeObraDataPagamentoInput.value = lastDates.dataPagamento;
+  setCurrencyInputValue(maoDeObraValorInput, 0);
 }
 
 function preencherFormularioCompra(compra) {
@@ -649,7 +685,7 @@ function preencherFormularioCompra(compra) {
   compraFornecedorInput.value = compra.fornecedor || "";
   compraUnidadeInput.value = compra.unidade || "";
   compraQuantidadeInput.value = Number(compra.quantidade || 0);
-  compraPrecoUnitarioInput.value = Number(compra.precoUnitario || 0);
+  setCurrencyInputValue(compraPrecoUnitarioInput, Number(compra.precoUnitario || 0));
   compraSubmitBtn.textContent = "Atualizar Compra";
   compraCancelEditBtn.classList.remove("hidden");
   atualizarPrecoTotalCompraForm();
@@ -662,7 +698,7 @@ function preencherFormularioMaoDeObra(pagamento) {
   maoDeObraPeriodoInicioInput.value = normalizeDateInputValue(pagamento.periodoInicio);
   maoDeObraPeriodoFimInput.value = normalizeDateInputValue(pagamento.periodoFim);
   maoDeObraDataPagamentoInput.value = normalizeDateInputValue(pagamento.dataPagamento);
-  maoDeObraValorInput.value = Number(pagamento.valor || 0);
+  setCurrencyInputValue(maoDeObraValorInput, Number(pagamento.valor || 0));
   maoDeObraSubmitBtn.textContent = "Atualizar Pagamento";
   maoDeObraCancelEditBtn.classList.remove("hidden");
 }
@@ -673,7 +709,7 @@ function preencherFormularioObra(obra) {
   document.getElementById("obraLocal").value = obra.local || "";
   document.getElementById("obraResponsavel").value = obra.responsavel || "";
   document.getElementById("obraDataInicio").value = normalizeDateInputValue(obra.dataInicio);
-  document.getElementById("obraOrcamento").value = Number(obra.orcamento || 0);
+  setCurrencyInputValue(obraOrcamentoInput, Number(obra.orcamento || 0));
   obraSubmitBtn.textContent = "Atualizar Obra";
   obraCancelEditBtn.classList.remove("hidden");
 }
@@ -1151,8 +1187,7 @@ function renderRelatorioMensal(lancamentosFiltrados) {
       grupos.set(monthKey, {
         mes: monthKey,
         quantidadeLancamentos: 0,
-        total: 0,
-        pago: 0
+        total: 0
       });
     }
 
@@ -1160,7 +1195,6 @@ function renderRelatorioMensal(lancamentosFiltrados) {
     const totalLancamento = Number(lancamento.total || 0);
     grupo.quantidadeLancamentos += 1;
     grupo.total += totalLancamento;
-    grupo.pago += lancamento.pago ? totalLancamento : 0;
   });
 
   const linhas = Array.from(grupos.values()).sort((a, b) => a.mes.localeCompare(b.mes));
@@ -1170,8 +1204,6 @@ function renderRelatorioMensal(lancamentosFiltrados) {
       <th>Mes</th>
       <th>Quantidade de lançamentos</th>
       <th>Total do mes</th>
-      <th>Total pago</th>
-      <th>Total em aberto</th>
     </tr>
   `;
 
@@ -1183,26 +1215,19 @@ function renderRelatorioMensal(lancamentosFiltrados) {
           <td>${formatMonthLabel(linha.mes)}</td>
           <td>${linha.quantidadeLancamentos}</td>
           <td>${formatCurrency(linha.total)}</td>
-          <td>${formatCurrency(linha.pago)}</td>
-          <td>${formatCurrency(linha.total - linha.pago)}</td>
         </tr>
       `
         )
         .join("")
-    : `<tr><td colspan="5" class="empty">Nenhum lançamento encontrado para os filtros selecionados.</td></tr>`;
+    : `<tr><td colspan="3" class="empty">Nenhum lançamento encontrado para os filtros selecionados.</td></tr>`;
 }
 
 function renderRelatorios() {
   const lancamentosFiltrados = filtrarLancamentosParaRelatorio();
   const tipo = relatorioTipoSelect.value;
   const totalCompras = lancamentosFiltrados.reduce((sum, lancamento) => sum + Number(lancamento.total || 0), 0);
-  const totalPago = lancamentosFiltrados.filter((lancamento) => lancamento.pago).reduce((sum, lancamento) => sum + Number(lancamento.total || 0), 0);
-  const ticketMedio = lancamentosFiltrados.length ? totalCompras / lancamentosFiltrados.length : 0;
   const resumoItems = [
-    { titulo: "Total", valor: totalCompras, mostrar: totalCompras > 0 || lancamentosFiltrados.length > 0 },
-    { titulo: "Pago", valor: totalPago, mostrar: totalPago > 0 },
-    { titulo: "Em aberto", valor: totalCompras - totalPago, mostrar: totalCompras - totalPago > 0 },
-    { titulo: "Ticket medio", valor: ticketMedio, mostrar: ticketMedio > 0 && lancamentosFiltrados.length > 1 }
+    { titulo: "Total", valor: totalCompras, mostrar: totalCompras > 0 || lancamentosFiltrados.length > 0 }
   ].filter((item) => item.mostrar);
 
   resumoRelatorio.innerHTML = resumoItems.length
@@ -1243,8 +1268,8 @@ function renderAll() {
 
 function atualizarPrecoTotalCompraForm() {
   const quantidade = Number(compraQuantidadeInput.value || 0);
-  const precoUnitario = Number(compraPrecoUnitarioInput.value || 0);
-  compraPrecoTotalInput.value = (quantidade * precoUnitario).toFixed(2);
+  const precoUnitario = parseCurrencyInputValue(compraPrecoUnitarioInput.value);
+  setCurrencyInputValue(compraPrecoTotalInput, quantidade * precoUnitario);
 }
 
 function atualizarEstadoPeriodoRelatorio() {
@@ -1334,7 +1359,7 @@ obraForm.addEventListener("submit", async (event) => {
       local: document.getElementById("obraLocal").value.trim(),
       responsavel: document.getElementById("obraResponsavel").value.trim(),
       dataInicio: document.getElementById("obraDataInicio").value,
-      orcamento: Number(document.getElementById("obraOrcamento").value)
+      orcamento: parseCurrencyInputValue(obraOrcamentoInput.value)
     };
 
     await apiFetch(obraId ? `/api/obras/${obraId}` : "/api/obras", {
@@ -1374,7 +1399,7 @@ finalizacaoForm.addEventListener("submit", async (event) => {
       body: JSON.stringify({
         dataEntrega: document.getElementById("finalizacaoDataEntrega").value,
         aditivosInfo: document.getElementById("finalizacaoAditivosInfo").value.trim(),
-        aditivosValor: Number(document.getElementById("finalizacaoAditivosValor").value || 0)
+        aditivosValor: parseCurrencyInputValue(finalizacaoAditivosValorInput.value)
       })
     });
 
@@ -1404,7 +1429,7 @@ compraForm.addEventListener("submit", async (event) => {
 
     const compraId = compraEditIdInput.value;
     const quantidade = Number(compraQuantidadeInput.value);
-    const precoUnitario = Number(compraPrecoUnitarioInput.value);
+    const precoUnitario = parseCurrencyInputValue(compraPrecoUnitarioInput.value);
     const precoTotal = quantidade * precoUnitario;
 
     await apiFetch(compraId ? `/api/compras/${compraId}` : "/api/compras", {
@@ -1468,7 +1493,7 @@ maoDeObraForm.addEventListener("submit", async (event) => {
         periodoInicio: periodoInicioValue,
         periodoFim: periodoFimValue,
         dataPagamento: dataPagamentoValue,
-        valor: Number(maoDeObraValorInput.value || 0)
+        valor: parseCurrencyInputValue(maoDeObraValorInput.value)
       })
     });
 
@@ -1769,6 +1794,13 @@ relatorioDataFimInput.addEventListener("change", () => {
   renderRelatorios();
 });
 
+[
+  obraOrcamentoInput,
+  finalizacaoAditivosValorInput,
+  compraPrecoUnitarioInput,
+  maoDeObraValorInput
+].forEach(bindCurrencyInput);
+
 async function initializeApp() {
   try {
     const me = await apiFetch("/api/me");
@@ -1794,7 +1826,7 @@ async function initializeApp() {
   showApp();
 
   document.getElementById("finalizacaoDataEntrega").value = getTodayIsoDate();
-  document.getElementById("finalizacaoAditivosValor").value = "0";
+  setCurrencyInputValue(finalizacaoAditivosValorInput, 0);
   resetCompraForm();
   resetMaoDeObraForm();
   resetObraForm();

@@ -108,6 +108,10 @@ select[multiple] {
   padding-block: 8px;
 }
 
+input[data-currency="true"] {
+  text-align: right;
+}
+
 input:focus,
 select:focus {
   outline: 2px solid rgba(31, 138, 112, 0.28);

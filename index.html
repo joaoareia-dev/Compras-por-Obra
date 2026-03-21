@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260320-7" />
+  <link rel="stylesheet" href="style.css?v=20260320-8" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -84,8 +84,8 @@
               <input type="date" id="obraDataInicio" required />
             </label>
             <label>
-              Orçamento Previsto (R$)
-              <input type="number" id="obraOrcamento" min="0" step="0.01" required />
+            Orçamento Previsto (R$)
+            <input type="text" id="obraOrcamento" inputmode="decimal" autocomplete="off" data-currency="true" required />
             </label>
             <button type="submit" id="obraSubmitBtn" class="btn primary">Salvar Obra</button>
             <button type="button" id="obraCancelEditBtn" class="btn ghost">Cancelar</button>
@@ -109,7 +109,7 @@
               </label>
               <label>
                 Valor total de aditivos (R$)
-                <input type="number" id="finalizacaoAditivosValor" min="0" step="0.01" value="0" />
+                <input type="text" id="finalizacaoAditivosValor" inputmode="decimal" autocomplete="off" data-currency="true" value="0,00" />
               </label>
               <button type="submit" class="btn primary">Salvar Finalização</button>
             </form>
@@ -169,11 +169,11 @@
           </label>
           <label>
             Preço unitário (R$)
-            <input type="number" id="compraPrecoUnitario" min="0" step="0.01" required />
+            <input type="text" id="compraPrecoUnitario" inputmode="decimal" autocomplete="off" data-currency="true" required />
           </label>
           <label>
             Preço total (R$)
-            <input type="number" id="compraPrecoTotal" min="0" step="0.01" readonly />
+            <input type="text" id="compraPrecoTotal" inputmode="decimal" autocomplete="off" data-currency="true" readonly />
           </label>
           <button type="submit" id="compraSubmitBtn" class="btn primary">Registrar Compra</button>
           <button type="button" id="compraCancelEditBtn" class="btn ghost hidden">Cancelar edição</button>
@@ -230,7 +230,7 @@
           </label>
           <label>
             Valor (R$)
-            <input type="number" id="maoDeObraValor" min="0" step="0.01" required />
+            <input type="text" id="maoDeObraValor" inputmode="decimal" autocomplete="off" data-currency="true" required />
           </label>
           <button type="submit" id="maoDeObraSubmitBtn" class="btn primary">Registrar Pagamento</button>
           <button type="button" id="maoDeObraCancelEditBtn" class="btn ghost hidden">Cancelar edição</button>
@@ -393,6 +393,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=20260320-7"></script>
+  <script src="app.js?v=20260320-8"></script>
 </body>
 </html>
