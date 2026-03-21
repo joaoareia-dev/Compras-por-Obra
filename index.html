@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260320-6" />
+  <link rel="stylesheet" href="style.css?v=20260320-7" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -196,7 +196,6 @@
                 <th>Qtd.</th>
                 <th>Preço unit.</th>
                 <th>Preço total</th>
-                <th>Status</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -256,7 +255,7 @@
 
       <section id="relatorios" class="page card hidden">
         <h3>Relatórios</h3>
-        <div class="form-grid cols-3">
+        <div class="form-grid cols-3 report-filters">
           <label>
             Obra
             <select id="relatorioObra"></select>
@@ -267,10 +266,6 @@
               <option value="descricao">Por descrição</option>
               <option value="mensal">Totais em intervalos mensais</option>
             </select>
-          </label>
-          <label class="checkbox-label report-toggle">
-            <input type="checkbox" id="relatorioTodasCompras" />
-            Todos os lançamentos da obra
           </label>
           <label>
             Categorias
@@ -286,10 +281,16 @@
             Data Final
             <input type="date" id="relatorioDataFim" />
           </label>
-          <label class="checkbox-label report-toggle">
-            <input type="checkbox" id="relatorioCurvaAbc" />
-            Ordenar por Curva ABC
-          </label>
+          <div class="report-toggle-group">
+            <label class="checkbox-label report-toggle">
+              <input type="checkbox" id="relatorioTodasCompras" />
+              Todos os lançamentos da obra
+            </label>
+            <label class="checkbox-label report-toggle">
+              <input type="checkbox" id="relatorioCurvaAbc" />
+              Ordenar por Curva ABC
+            </label>
+          </div>
         </div>
         <div class="report-actions">
           <button id="aplicarRelatorio" class="btn primary">Gerar Relatório</button>
@@ -392,6 +393,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=20260320-6"></script>
+  <script src="app.js?v=20260320-7"></script>
 </body>
 </html>

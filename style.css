@@ -363,6 +363,17 @@ select:focus {
   min-height: 42px;
 }
 
+.report-filters .report-toggle-group {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.report-filters .report-toggle-group .report-toggle {
+  margin: 0;
+}
+
 .metric-card.compact {
   padding: 10px 12px;
 }

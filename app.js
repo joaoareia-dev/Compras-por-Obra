@@ -4,7 +4,13 @@ const state = {
   maoDeObra: [],
   usuarios: [],
   sessionUser: null,
-  loginTakeoverEmail: null
+  loginTakeoverEmail: null,
+  lastCompraDate: "",
+  lastMaoDeObraDates: {
+    periodoInicio: "",
+    periodoFim: "",
+    dataPagamento: ""
+  }
 };
 
 const loginSection = document.getElementById("loginSection");
@@ -285,6 +291,31 @@ function getUltimaObraLancadaId() {
   }
 
   return compras[compras.length - 1]?.obraId || "";
+}
+
+function getLastCompraDateValue() {
+  return state.lastCompraDate || getCompras()[getCompras().length - 1]?.data || getTodayIsoDate();
+}
+
+function getLastMaoDeObraDateValues() {
+  const ultimoPagamento = getPagamentosMaoDeObra()[getPagamentosMaoDeObra().length - 1];
+  return {
+    periodoInicio: state.lastMaoDeObraDates.periodoInicio || ultimoPagamento?.periodoInicio || getTodayIsoDate(),
+    periodoFim: state.lastMaoDeObraDates.periodoFim || ultimoPagamento?.periodoFim || getTodayIsoDate(),
+    dataPagamento: state.lastMaoDeObraDates.dataPagamento || ultimoPagamento?.dataPagamento || getTodayIsoDate()
+  };
+}
+
+function rememberCompraDate(dateValue) {
+  state.lastCompraDate = normalizeDateInputValue(dateValue) || getTodayIsoDate();
+}
+
+function rememberMaoDeObraDates(values) {
+  state.lastMaoDeObraDates = {
+    periodoInicio: normalizeDateInputValue(values?.periodoInicio) || getTodayIsoDate(),
+    periodoFim: normalizeDateInputValue(values?.periodoFim) || getTodayIsoDate(),
+    dataPagamento: normalizeDateInputValue(values?.dataPagamento) || getTodayIsoDate()
+  };
 }
 
 function getAditivosValor(obra) {
@@ -589,7 +620,7 @@ function resetCompraForm() {
   compraSubmitBtn.textContent = "Registrar Compra";
   compraCancelEditBtn.classList.add("hidden");
   compraPagoInput.value = "true";
-  document.getElementById("compraData").value = getTodayIsoDate();
+  document.getElementById("compraData").value = getLastCompraDateValue();
   const ultimaObra = getUltimaObraLancadaId();
   if (ultimaObra) {
     compraObraSelect.value = ultimaObra;
@@ -602,9 +633,10 @@ function resetMaoDeObraForm() {
   maoDeObraEditIdInput.value = "";
   maoDeObraSubmitBtn.textContent = "Registrar Pagamento";
   maoDeObraCancelEditBtn.classList.add("hidden");
-  maoDeObraPeriodoInicioInput.value = getTodayIsoDate();
-  maoDeObraPeriodoFimInput.value = getTodayIsoDate();
-  maoDeObraDataPagamentoInput.value = getTodayIsoDate();
+  const lastDates = getLastMaoDeObraDateValues();
+  maoDeObraPeriodoInicioInput.value = lastDates.periodoInicio;
+  maoDeObraPeriodoFimInput.value = lastDates.periodoFim;
+  maoDeObraDataPagamentoInput.value = lastDates.dataPagamento;
 }
 
 function preencherFormularioCompra(compra) {
@@ -919,7 +951,7 @@ function renderCompras() {
   const obraMap = buildObraNameMap(obras);
 
   if (!compras.length) {
-    comprasTableBody.innerHTML = `<tr><td colspan="11" class="empty">Nenhuma compra lancada.</td></tr>`;
+    comprasTableBody.innerHTML = `<tr><td colspan="10" class="empty">Nenhuma compra lancada.</td></tr>`;
     return;
   }
 
@@ -938,7 +970,6 @@ function renderCompras() {
         <td>${formatNumber(compra.quantidade || 0)}</td>
         <td>${formatCurrency(compra.precoUnitario || 0)}</td>
         <td>${formatCurrency(getCompraTotal(compra))}</td>
-        <td class="${compra.pago ? "status-pago" : "status-aberto"}">${compra.pago ? "Pago" : "Em aberto"}</td>
         <td>
           <button class="btn ghost" data-compra-edit="${compra.id}">Editar</button>
           <button class="btn delete" data-compra-delete="${compra.id}">Excluir</button>
@@ -1360,6 +1391,7 @@ compraForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const obraId = compraObraSelect.value;
+  const compraDataValue = document.getElementById("compraData").value;
   if (!obraId) {
     alert("Cadastre uma obra antes de lancar compras.");
     return;
@@ -1379,7 +1411,7 @@ compraForm.addEventListener("submit", async (event) => {
       method: compraId ? "PUT" : "POST",
       body: JSON.stringify({
         obraId,
-        data: document.getElementById("compraData").value,
+        data: compraDataValue,
         descricao: compraDescricaoInput.value.trim(),
         categoria: compraCategoriaInput.value.trim(),
         fornecedor: compraFornecedorInput.value.trim(),
@@ -1391,6 +1423,7 @@ compraForm.addEventListener("submit", async (event) => {
       })
     });
 
+    rememberCompraDate(compraDataValue);
     await refreshData();
     resetCompraForm();
     renderAll();
@@ -1408,12 +1441,15 @@ maoDeObraForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const obraId = maoDeObraObraSelect.value;
+  const periodoInicioValue = maoDeObraPeriodoInicioInput.value;
+  const periodoFimValue = maoDeObraPeriodoFimInput.value;
+  const dataPagamentoValue = maoDeObraDataPagamentoInput.value;
   if (!obraId) {
     alert("Cadastre uma obra antes de lançar pagamentos de mão de obra.");
     return;
   }
 
-  if (maoDeObraPeriodoFimInput.value < maoDeObraPeriodoInicioInput.value) {
+  if (periodoFimValue < periodoInicioValue) {
     alert("A data final do período trabalhado não pode ser anterior à data inicial.");
     return;
   }
@@ -1429,13 +1465,18 @@ maoDeObraForm.addEventListener("submit", async (event) => {
       body: JSON.stringify({
         obraId,
         descricao: maoDeObraDescricaoInput.value.trim(),
-        periodoInicio: maoDeObraPeriodoInicioInput.value,
-        periodoFim: maoDeObraPeriodoFimInput.value,
-        dataPagamento: maoDeObraDataPagamentoInput.value,
+        periodoInicio: periodoInicioValue,
+        periodoFim: periodoFimValue,
+        dataPagamento: dataPagamentoValue,
         valor: Number(maoDeObraValorInput.value || 0)
       })
     });
 
+    rememberMaoDeObraDates({
+      periodoInicio: periodoInicioValue,
+      periodoFim: periodoFimValue,
+      dataPagamento: dataPagamentoValue
+    });
     await refreshData();
     resetMaoDeObraForm();
     renderAll();
