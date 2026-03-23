@@ -227,10 +227,10 @@ textarea:focus {
 
 .subpanel {
   margin-bottom: 18px;
-  padding: 16px;
+  padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #fbfcff;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fbfcff 0%, #f7fbff 100%);
 }
 
 .subpanel-header {
@@ -246,6 +246,37 @@ textarea:focus {
 
 .subpanel-header p {
   margin: 0;
+}
+
+.obra-form-layout {
+  gap: 16px;
+}
+
+.obra-form-section {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #dbe4f2;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.obra-form-section-head h4 {
+  margin: 0 0 4px;
+}
+
+.obra-form-section-head p {
+  margin: 0;
+}
+
+.compact-grid {
+  margin: 0;
+}
+
+.obra-form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-start;
 }
 
 .dynamic-block {
@@ -372,6 +403,32 @@ textarea:focus {
 
 .logo-preview.empty {
   color: var(--muted);
+}
+
+.file-preview {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  min-height: 76px;
+  border: 1px dashed #c9d6ea;
+  border-radius: 12px;
+  background: #f9fbff;
+}
+
+.file-preview.empty {
+  color: var(--muted);
+}
+
+.file-preview-info {
+  display: grid;
+  gap: 6px;
+}
+
+.file-preview-info strong,
+.file-preview-info a {
+  overflow-wrap: anywhere;
 }
 
 .logo-preview img {
@@ -887,6 +944,12 @@ th {
 
   .obra-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .obra-form-actions,
+  .file-preview {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .dynamic-input-row,

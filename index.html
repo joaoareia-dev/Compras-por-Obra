@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260323-8" />
+  <link rel="stylesheet" href="style.css?v=20260323-9" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -67,60 +67,115 @@
             <button type="button" id="obraCloseEditorBtn" class="btn ghost">Fechar</button>
           </div>
 
-          <form id="obraForm" class="form-grid cols-2">
+          <form id="obraForm" class="form-grid obra-form-layout">
             <input type="hidden" id="obraEditId" />
-            <label>
-              Nome da Obra
-              <input type="text" id="obraNome" required />
-            </label>
-            <label>
-              Local
-              <input type="text" id="obraLocal" required />
-            </label>
-            <label>
-              Responsável
-              <input type="text" id="obraResponsavel" required />
-            </label>
-            <label>
-              Data de início da obra
-              <input type="date" id="obraDataInicio" required />
-            </label>
-            <label>
-            Orçamento Previsto (R$)
-            <input type="text" id="obraOrcamento" inputmode="decimal" autocomplete="off" data-currency="true" required />
-            </label>
-            <label>
-              Nome da Contratante
-              <input type="text" id="obraContratanteNome" placeholder="Empresa contratante" />
-            </label>
-            <label>
-              Nome da Contratada
-              <input type="text" id="obraContratadaNome" placeholder="Empresa contratada" />
-            </label>
-            <div class="full-width logo-upload-grid">
-              <div class="logo-upload-card">
-                <div class="dynamic-block-header">
-                  <div>
-                    <h4>Logotipo da Contratante</h4>
-                    <p class="subtitle">Será usado no cabeçalho do RDO quando disponível.</p>
-                  </div>
+            <section class="obra-form-section full-width">
+              <div class="obra-form-section-head">
+                <div>
+                  <h4>Dados Básicos</h4>
+                  <p class="subtitle">Informações principais da obra para identificação e controle financeiro.</p>
                 </div>
-                <input type="file" id="obraContratanteLogoInput" accept="image/*" />
-                <div id="obraContratanteLogoPreview" class="logo-preview empty">Nenhum logotipo carregado.</div>
               </div>
-              <div class="logo-upload-card">
-                <div class="dynamic-block-header">
-                  <div>
-                    <h4>Logotipo da Contratada</h4>
-                    <p class="subtitle">Será usado no cabeçalho do RDO quando disponível.</p>
-                  </div>
+              <div class="form-grid cols-2 compact-grid">
+                <label>
+                  Nome da Obra
+                  <input type="text" id="obraNome" required />
+                </label>
+                <label>
+                  Local
+                  <input type="text" id="obraLocal" required />
+                </label>
+                <label>
+                  Responsável
+                  <input type="text" id="obraResponsavel" required />
+                </label>
+                <label>
+                  Data de início da obra
+                  <input type="date" id="obraDataInicio" required />
+                </label>
+                <label class="full-width">
+                  Orçamento Previsto (R$)
+                  <input type="text" id="obraOrcamento" inputmode="decimal" autocomplete="off" data-currency="true" required />
+                </label>
+              </div>
+            </section>
+
+            <section class="obra-form-section full-width">
+              <div class="obra-form-section-head">
+                <div>
+                  <h4>Partes Envolvidas</h4>
+                  <p class="subtitle">Dados das empresas e identidades visuais para uso no sistema e nos RDOs.</p>
                 </div>
-                <input type="file" id="obraContratadaLogoInput" accept="image/*" />
-                <div id="obraContratadaLogoPreview" class="logo-preview empty">Nenhum logotipo carregado.</div>
               </div>
+              <div class="form-grid cols-2 compact-grid">
+                <label>
+                  Nome da Contratante
+                  <input type="text" id="obraContratanteNome" placeholder="Empresa contratante" />
+                </label>
+                <label>
+                  Nome da Contratada
+                  <input type="text" id="obraContratadaNome" placeholder="Empresa contratada" />
+                </label>
+              </div>
+              <div class="full-width logo-upload-grid">
+                <div class="logo-upload-card">
+                  <div class="dynamic-block-header">
+                    <div>
+                      <h4>Logotipo da Contratante</h4>
+                      <p class="subtitle">Será usado no cabeçalho do RDO quando disponível.</p>
+                    </div>
+                  </div>
+                  <input type="file" id="obraContratanteLogoInput" accept="image/*" />
+                  <div id="obraContratanteLogoPreview" class="logo-preview empty">Nenhum logotipo carregado.</div>
+                </div>
+                <div class="logo-upload-card">
+                  <div class="dynamic-block-header">
+                    <div>
+                      <h4>Logotipo da Contratada</h4>
+                      <p class="subtitle">Será usado no cabeçalho do RDO quando disponível.</p>
+                    </div>
+                  </div>
+                  <input type="file" id="obraContratadaLogoInput" accept="image/*" />
+                  <div id="obraContratadaLogoPreview" class="logo-preview empty">Nenhum logotipo carregado.</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="obra-form-section full-width">
+              <div class="obra-form-section-head">
+                <div>
+                  <h4>Planilhas de Orçamento</h4>
+                  <p class="subtitle">Anexe os arquivos sintético e analítico, se quiser manter tudo centralizado na obra.</p>
+                </div>
+              </div>
+              <div class="logo-upload-grid">
+                <div class="logo-upload-card">
+                  <div class="dynamic-block-header">
+                    <div>
+                      <h4>Orçamento Sintético</h4>
+                      <p class="subtitle">Campo opcional para upload da planilha sintética.</p>
+                    </div>
+                  </div>
+                  <input type="file" id="obraOrcamentoSinteticoInput" accept=".xlsx,.xls,.csv,.ods" />
+                  <div id="obraOrcamentoSinteticoPreview" class="file-preview empty">Nenhuma planilha sintética anexada.</div>
+                </div>
+                <div class="logo-upload-card">
+                  <div class="dynamic-block-header">
+                    <div>
+                      <h4>Orçamento Analítico</h4>
+                      <p class="subtitle">Campo opcional para upload da planilha analítica.</p>
+                    </div>
+                  </div>
+                  <input type="file" id="obraOrcamentoAnaliticoInput" accept=".xlsx,.xls,.csv,.ods" />
+                  <div id="obraOrcamentoAnaliticoPreview" class="file-preview empty">Nenhuma planilha analítica anexada.</div>
+                </div>
+              </div>
+            </section>
+
+            <div class="full-width obra-form-actions">
+              <button type="submit" id="obraSubmitBtn" class="btn primary">Salvar Obra</button>
+              <button type="button" id="obraCancelEditBtn" class="btn ghost">Cancelar</button>
             </div>
-            <button type="submit" id="obraSubmitBtn" class="btn primary">Salvar Obra</button>
-            <button type="button" id="obraCancelEditBtn" class="btn ghost">Cancelar</button>
           </form>
 
           <div id="finalizacaoPanel" class="subpanel section-divider hidden">
@@ -585,8 +640,8 @@
     </section>
   </main>
 
-  <script src="node_modules/html2canvas/dist/html2canvas.min.js?v=20260323-8"></script>
-  <script src="node_modules/jspdf/dist/jspdf.umd.min.js?v=20260323-8"></script>
-  <script src="app.js?v=20260323-8"></script>
+  <script src="node_modules/html2canvas/dist/html2canvas.min.js?v=20260323-9"></script>
+  <script src="node_modules/jspdf/dist/jspdf.umd.min.js?v=20260323-9"></script>
+  <script src="app.js?v=20260323-9"></script>
 </body>
 </html>

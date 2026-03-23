@@ -274,6 +274,34 @@ function mapUser(row) {
   };
 }
 
+function parseStoredAttachment(value) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+
+    const name = String(parsed.name || "").trim();
+    const dataUrl = String(parsed.dataUrl || "").trim();
+    const mimeType = String(parsed.mimeType || "").trim();
+    if (!name || !dataUrl) {
+      return null;
+    }
+
+    return {
+      name,
+      dataUrl,
+      mimeType
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
 function toDateOnlyString(value) {
   if (!value) {
     return null;
@@ -313,6 +341,8 @@ function mapObra(row) {
       nome: String(row.contratada_nome || "").trim(),
       logo: String(row.contratada_logo || "").trim()
     },
+    orcamentoSinteticoArquivo: parseStoredAttachment(row.orcamento_sintetico_arquivo),
+    orcamentoAnaliticoArquivo: parseStoredAttachment(row.orcamento_analitico_arquivo),
     finalizacao: row.finalizacao_data_entrega || row.finalizacao_aditivos_info || Number(row.finalizacao_aditivos_valor || 0) > 0
       ? {
           dataEntrega: toDateOnlyString(row.finalizacao_data_entrega),
@@ -566,6 +596,8 @@ async function ensureDatabase() {
       contratante_logo TEXT,
       contratada_nome TEXT,
       contratada_logo TEXT,
+      orcamento_sintetico_arquivo TEXT,
+      orcamento_analitico_arquivo TEXT,
       finalizacao_data_entrega DATE,
       finalizacao_aditivos_info TEXT,
       finalizacao_aditivos_valor NUMERIC(14, 2) DEFAULT 0,
@@ -577,6 +609,8 @@ async function ensureDatabase() {
   await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS contratante_logo TEXT");
   await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS contratada_nome TEXT");
   await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS contratada_logo TEXT");
+  await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS orcamento_sintetico_arquivo TEXT");
+  await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS orcamento_analitico_arquivo TEXT");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS compras (
@@ -1070,9 +1104,10 @@ async function handleApi(req, res, pathname) {
       `
         INSERT INTO obras (
           id, nome, local, responsavel, data_inicio, orcamento,
-          contratante_nome, contratante_logo, contratada_nome, contratada_logo
+          contratante_nome, contratante_logo, contratada_nome, contratada_logo,
+          orcamento_sintetico_arquivo, orcamento_analitico_arquivo
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       `,
       [
         id,
@@ -1084,7 +1119,9 @@ async function handleApi(req, res, pathname) {
         String(body.contratanteNome || "").trim(),
         String(body.contratanteLogo || "").trim(),
         String(body.contratadaNome || "").trim(),
-        String(body.contratadaLogo || "").trim()
+        String(body.contratadaLogo || "").trim(),
+        body.orcamentoSinteticoArquivo ? JSON.stringify(body.orcamentoSinteticoArquivo) : null,
+        body.orcamentoAnaliticoArquivo ? JSON.stringify(body.orcamentoAnaliticoArquivo) : null
       ]
     );
     await createAuditLog(req, user, "cadastro", "obra", id, `Obra ${String(body.nome).trim()} cadastrada.`, {
@@ -1113,7 +1150,9 @@ async function handleApi(req, res, pathname) {
             contratante_nome = $7,
             contratante_logo = $8,
             contratada_nome = $9,
-            contratada_logo = $10
+            contratada_logo = $10,
+            orcamento_sintetico_arquivo = $11,
+            orcamento_analitico_arquivo = $12
         WHERE id = $1
       `,
       [
@@ -1126,7 +1165,9 @@ async function handleApi(req, res, pathname) {
         String(body.contratanteNome || "").trim(),
         String(body.contratanteLogo || "").trim(),
         String(body.contratadaNome || "").trim(),
-        String(body.contratadaLogo || "").trim()
+        String(body.contratadaLogo || "").trim(),
+        body.orcamentoSinteticoArquivo ? JSON.stringify(body.orcamentoSinteticoArquivo) : null,
+        body.orcamentoAnaliticoArquivo ? JSON.stringify(body.orcamentoAnaliticoArquivo) : null
       ]
     );
     await createAuditLog(req, user, "edicao", "obra", obraId, `Obra ${String(body.nome || "").trim() || obraId} atualizada.`, {

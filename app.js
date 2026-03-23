@@ -21,6 +21,10 @@ const state = {
     contratante: "",
     contratada: ""
   },
+  obraArquivoDrafts: {
+    orcamentoSintetico: null,
+    orcamentoAnalitico: null
+  },
   rdoDraftPhotos: [],
   selectedRdoIds: new Set()
 };
@@ -43,6 +47,10 @@ const obraContratanteLogoInput = document.getElementById("obraContratanteLogoInp
 const obraContratadaLogoInput = document.getElementById("obraContratadaLogoInput");
 const obraContratanteLogoPreview = document.getElementById("obraContratanteLogoPreview");
 const obraContratadaLogoPreview = document.getElementById("obraContratadaLogoPreview");
+const obraOrcamentoSinteticoInput = document.getElementById("obraOrcamentoSinteticoInput");
+const obraOrcamentoAnaliticoInput = document.getElementById("obraOrcamentoAnaliticoInput");
+const obraOrcamentoSinteticoPreview = document.getElementById("obraOrcamentoSinteticoPreview");
+const obraOrcamentoAnaliticoPreview = document.getElementById("obraOrcamentoAnaliticoPreview");
 const obraSubmitBtn = document.getElementById("obraSubmitBtn");
 const obraCancelEditBtn = document.getElementById("obraCancelEditBtn");
 const obraNewBtn = document.getElementById("obraNewBtn");
@@ -640,6 +648,33 @@ function setObraLogoDraft(type, dataUrl) {
   renderObraLogoPreviews();
 }
 
+function normalizeObraArquivoDraft(fileDraft) {
+  if (!fileDraft || typeof fileDraft !== "object") {
+    return null;
+  }
+
+  const name = String(fileDraft.name || "").trim();
+  const dataUrl = String(fileDraft.dataUrl || "").trim();
+  const mimeType = String(fileDraft.mimeType || "").trim();
+  if (!name || !dataUrl) {
+    return null;
+  }
+
+  return {
+    name,
+    dataUrl,
+    mimeType
+  };
+}
+
+function setObraArquivoDraft(type, fileDraft) {
+  state.obraArquivoDrafts = {
+    ...state.obraArquivoDrafts,
+    [type]: normalizeObraArquivoDraft(fileDraft)
+  };
+  renderObraArquivoPreviews();
+}
+
 function renderObraLogoPreview(container, label, dataUrl, type) {
   if (!container) {
     return;
@@ -661,6 +696,42 @@ function renderObraLogoPreview(container, label, dataUrl, type) {
 function renderObraLogoPreviews() {
   renderObraLogoPreview(obraContratanteLogoPreview, "Contratante", state.obraLogoDrafts.contratante, "contratante");
   renderObraLogoPreview(obraContratadaLogoPreview, "Contratada", state.obraLogoDrafts.contratada, "contratada");
+}
+
+function renderObraArquivoPreview(container, label, fileDraft, type) {
+  if (!container) {
+    return;
+  }
+
+  if (!fileDraft) {
+    container.className = "file-preview empty";
+    container.innerHTML = `Nenhuma ${label.toLowerCase()} anexada.`;
+    return;
+  }
+
+  container.className = "file-preview";
+  container.innerHTML = `
+    <div class="file-preview-info">
+      <strong>${escapeHtml(fileDraft.name)}</strong>
+      <a href="${fileDraft.dataUrl}" download="${escapeHtml(fileDraft.name)}">Baixar arquivo</a>
+    </div>
+    <button type="button" class="btn ghost" data-obra-arquivo-clear="${type}">Remover arquivo</button>
+  `;
+}
+
+function renderObraArquivoPreviews() {
+  renderObraArquivoPreview(
+    obraOrcamentoSinteticoPreview,
+    "planilha sintética",
+    state.obraArquivoDrafts.orcamentoSintetico,
+    "orcamentoSintetico"
+  );
+  renderObraArquivoPreview(
+    obraOrcamentoAnaliticoPreview,
+    "planilha analítica",
+    state.obraArquivoDrafts.orcamentoAnalitico,
+    "orcamentoAnalitico"
+  );
 }
 
 function populateRdoAutocomplete() {
@@ -1031,7 +1102,7 @@ async function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Nao foi possivel ler a foto selecionada."));
+    reader.onerror = () => reject(new Error("Nao foi possivel ler o arquivo selecionado."));
     reader.readAsDataURL(file);
   });
 }
@@ -1088,6 +1159,25 @@ async function handleObraLogoFileInput(input, type) {
   try {
     const dataUrl = await readFileAsDataUrl(file);
     setObraLogoDraft(type, dataUrl);
+    input.value = "";
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function handleObraArquivoFileInput(input, type) {
+  const file = input?.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  try {
+    const dataUrl = await readFileAsDataUrl(file);
+    setObraArquivoDraft(type, {
+      name: file.name,
+      mimeType: file.type || "",
+      dataUrl
+    });
     input.value = "";
   } catch (error) {
     alert(error.message);
@@ -1349,11 +1439,22 @@ function resetObraForm() {
   if (obraContratadaLogoInput) {
     obraContratadaLogoInput.value = "";
   }
+  if (obraOrcamentoSinteticoInput) {
+    obraOrcamentoSinteticoInput.value = "";
+  }
+  if (obraOrcamentoAnaliticoInput) {
+    obraOrcamentoAnaliticoInput.value = "";
+  }
   state.obraLogoDrafts = {
     contratante: "",
     contratada: ""
   };
+  state.obraArquivoDrafts = {
+    orcamentoSintetico: null,
+    orcamentoAnalitico: null
+  };
   renderObraLogoPreviews();
+  renderObraArquivoPreviews();
 }
 
 function resetFinalizacaoForm() {
@@ -1459,13 +1560,24 @@ function preencherFormularioObra(obra) {
     contratante: obra.contratante?.logo || "",
     contratada: obra.contratada?.logo || ""
   };
+  state.obraArquivoDrafts = {
+    orcamentoSintetico: normalizeObraArquivoDraft(obra.orcamentoSinteticoArquivo),
+    orcamentoAnalitico: normalizeObraArquivoDraft(obra.orcamentoAnaliticoArquivo)
+  };
   if (obraContratanteLogoInput) {
     obraContratanteLogoInput.value = "";
   }
   if (obraContratadaLogoInput) {
     obraContratadaLogoInput.value = "";
   }
+  if (obraOrcamentoSinteticoInput) {
+    obraOrcamentoSinteticoInput.value = "";
+  }
+  if (obraOrcamentoAnaliticoInput) {
+    obraOrcamentoAnaliticoInput.value = "";
+  }
   renderObraLogoPreviews();
+  renderObraArquivoPreviews();
   obraSubmitBtn.textContent = "Atualizar Obra";
   obraCancelEditBtn.classList.remove("hidden");
 }
@@ -2697,6 +2809,18 @@ if (obraContratadaLogoInput) {
   });
 }
 
+if (obraOrcamentoSinteticoInput) {
+  obraOrcamentoSinteticoInput.addEventListener("change", () => {
+    handleObraArquivoFileInput(obraOrcamentoSinteticoInput, "orcamentoSintetico");
+  });
+}
+
+if (obraOrcamentoAnaliticoInput) {
+  obraOrcamentoAnaliticoInput.addEventListener("change", () => {
+    handleObraArquivoFileInput(obraOrcamentoAnaliticoInput, "orcamentoAnalitico");
+  });
+}
+
 [obraContratanteLogoPreview, obraContratadaLogoPreview].forEach((container) => {
   if (!container) {
     return;
@@ -2712,6 +2836,21 @@ if (obraContratadaLogoInput) {
   });
 });
 
+[obraOrcamentoSinteticoPreview, obraOrcamentoAnaliticoPreview].forEach((container) => {
+  if (!container) {
+    return;
+  }
+
+  container.addEventListener("click", (event) => {
+    const clearButton = event.target.closest("[data-obra-arquivo-clear]");
+    if (!clearButton) {
+      return;
+    }
+
+    setObraArquivoDraft(clearButton.getAttribute("data-obra-arquivo-clear"), null);
+  });
+});
+
 obraForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -2721,17 +2860,19 @@ obraForm.addEventListener("submit", async (event) => {
       return;
     }
 
-    const payload = {
-      nome: document.getElementById("obraNome").value.trim(),
-      local: document.getElementById("obraLocal").value.trim(),
-      responsavel: document.getElementById("obraResponsavel").value.trim(),
-      dataInicio: document.getElementById("obraDataInicio").value,
-      orcamento: parseCurrencyInputValue(obraOrcamentoInput.value),
-      contratanteNome: obraContratanteNomeInput.value.trim(),
-      contratanteLogo: state.obraLogoDrafts.contratante || "",
-      contratadaNome: obraContratadaNomeInput.value.trim(),
-      contratadaLogo: state.obraLogoDrafts.contratada || ""
-    };
+      const payload = {
+        nome: document.getElementById("obraNome").value.trim(),
+        local: document.getElementById("obraLocal").value.trim(),
+        responsavel: document.getElementById("obraResponsavel").value.trim(),
+        dataInicio: document.getElementById("obraDataInicio").value,
+        orcamento: parseCurrencyInputValue(obraOrcamentoInput.value),
+        contratanteNome: obraContratanteNomeInput.value.trim(),
+        contratanteLogo: state.obraLogoDrafts.contratante || "",
+        contratadaNome: obraContratadaNomeInput.value.trim(),
+        contratadaLogo: state.obraLogoDrafts.contratada || "",
+        orcamentoSinteticoArquivo: state.obraArquivoDrafts.orcamentoSintetico,
+        orcamentoAnaliticoArquivo: state.obraArquivoDrafts.orcamentoAnalitico
+      };
 
     await apiFetch(obraId ? `/api/obras/${obraId}` : "/api/obras", {
       method: obraId ? "PUT" : "POST",
@@ -3426,6 +3567,7 @@ bindStructuredContainer(rdoMateriaisRecebidosContainer, RDO_STRUCTURED_FIELD_CON
 bindStructuredContainer(rdoMateriaisConsumidosContainer, RDO_STRUCTURED_FIELD_CONFIGS.materiais);
 bindStructuredContainer(rdoMaoDeObraPresenteContainer, RDO_STRUCTURED_FIELD_CONFIGS.equipe);
 renderObraLogoPreviews();
+renderObraArquivoPreviews();
 renderRdoFotos();
 window.addEventListener("afterprint", clearPrintMode);
 
