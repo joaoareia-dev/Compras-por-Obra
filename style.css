@@ -82,6 +82,10 @@ h3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.form-grid .full-width {
+  grid-column: 1 / -1;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -136,6 +140,11 @@ select:focus {
   padding: 10px 14px;
   cursor: pointer;
   transition: 0.2s ease;
+}
+
+.btn:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
 }
 
 .btn.primary {
@@ -229,6 +238,86 @@ select:focus {
 
 .subpanel-header p {
   margin: 0;
+}
+
+.dynamic-block {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.dynamic-block-header h4 {
+  margin: 0 0 4px;
+}
+
+.dynamic-block-header p {
+  margin: 0;
+}
+
+.dynamic-input-list {
+  display: grid;
+  gap: 10px;
+}
+
+.dynamic-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.dynamic-input-row.is-empty .dynamic-remove-btn {
+  opacity: 0.7;
+}
+
+.dynamic-photo-container {
+  display: grid;
+  gap: 12px;
+}
+
+.photo-list {
+  display: grid;
+  gap: 12px;
+}
+
+.photo-card {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fbfcff;
+}
+
+.photo-card img {
+  width: 132px;
+  height: 92px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid #d5deee;
+}
+
+.photo-card-info {
+  display: grid;
+  gap: 8px;
+}
+
+.photo-upload-field {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed #b7c6df;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.photo-upload-field input {
+  padding: 8px;
 }
 
 .cards-grid {
@@ -339,6 +428,68 @@ select:focus {
 
 .report-print-area {
   margin-top: 10px;
+}
+
+.rdo-print-area {
+  display: none;
+}
+
+.rdo-print-document {
+  display: grid;
+  gap: 14px;
+  padding: 16px 0;
+}
+
+.rdo-print-document + .rdo-print-document {
+  border-top: 1px solid var(--line);
+}
+
+.rdo-print-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.rdo-print-header h4 {
+  margin: 0;
+}
+
+.rdo-print-section h5 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.rdo-print-section ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.rdo-print-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.rdo-print-photo {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.rdo-print-photo img {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid #d5deee;
+}
+
+.rdo-print-photo figcaption {
+  font-size: 0.84rem;
+  color: var(--muted);
 }
 
 .report-header {
@@ -457,6 +608,15 @@ th {
   .obra-summary-grid {
     grid-template-columns: 1fr;
   }
+
+  .dynamic-input-row,
+  .photo-card {
+    grid-template-columns: 1fr;
+  }
+
+  .rdo-print-header {
+    flex-direction: column;
+  }
 }
 
 @media print {
@@ -473,25 +633,17 @@ th {
   .app-bg,
   .topbar,
   .menu,
-  #dashboard,
-  #obras,
-  #compras,
-  #finalizacao,
+  #loginSection,
   .report-actions {
     display: none !important;
   }
 
-  #relatorios {
-    display: block !important;
-    border: none;
-    box-shadow: none;
-    margin: 0;
-    padding: 0;
+  .page {
+    display: none !important;
   }
 
   .container,
-  .card,
-  .report-print-area {
+  .card {
     max-width: none;
     margin: 0;
     padding: 0;
@@ -500,16 +652,48 @@ th {
     background: #fff;
   }
 
-  #relatorios > h3,
-  #relatorios > .form-grid {
+  body.printing-relatorios #relatorios,
+  body.printing-rdos #rdos {
+    display: block !important;
+    border: none;
+    box-shadow: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  body.printing-relatorios .report-print-area,
+  body.printing-rdos .rdo-print-area {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    background: #fff;
+  }
+
+  body.printing-relatorios #relatorios > h3,
+  body.printing-relatorios #relatorios > .form-grid {
     display: none !important;
   }
 
-  .report-print-area {
+  body.printing-rdos #rdos > h3,
+  body.printing-rdos #rdos > .form-grid,
+  body.printing-rdos #rdos > .section-actions,
+  body.printing-rdos #rdos > .subpanel,
+  body.printing-rdos #rdos > .table-wrap {
+    display: none !important;
+  }
+
+  body.printing-relatorios .report-print-area {
     margin-top: 0;
   }
 
-  .report-header {
+  body.printing-rdos .rdo-print-area {
+    display: block !important;
+  }
+
+  .report-header,
+  .rdo-print-header {
     margin-bottom: 4px;
     gap: 8px;
   }
@@ -523,23 +707,23 @@ th {
     font-size: 9px;
   }
 
-  .cards-grid {
+  body.printing-relatorios .cards-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
     margin: 6px 0;
   }
 
-  .metric-card,
-  .metric-card.compact {
+  body.printing-relatorios .metric-card,
+  body.printing-relatorios .metric-card.compact {
     padding: 6px 8px;
     border-radius: 8px;
   }
 
-  .metric-title {
+  body.printing-relatorios .metric-title {
     font-size: 8px;
   }
 
-  .metric-value {
+  body.printing-relatorios .metric-value {
     font-size: 10px;
     margin-top: 3px;
   }
@@ -558,7 +742,43 @@ th {
 
   tr,
   .report-header,
-  .cards-grid {
+  .cards-grid,
+  .rdo-print-section,
+  .rdo-print-header {
     break-inside: avoid;
+  }
+
+  .rdo-print-document {
+    gap: 10px;
+    padding: 0 0 10mm;
+    page-break-after: always;
+  }
+
+  .rdo-print-document:last-child {
+    page-break-after: auto;
+  }
+
+  .rdo-print-section h5 {
+    margin-bottom: 4px;
+    font-size: 10px;
+  }
+
+  .rdo-print-section ul {
+    gap: 3px;
+    margin: 0;
+    padding-left: 14px;
+  }
+
+  .rdo-print-photo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .rdo-print-photo img {
+    height: 105px;
+  }
+
+  .rdo-print-photo figcaption {
+    font-size: 8px;
   }
 }

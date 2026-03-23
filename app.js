@@ -2,6 +2,7 @@ const state = {
   obras: [],
   compras: [],
   maoDeObra: [],
+  rdos: [],
   usuarios: [],
   sessionUser: null,
   loginTakeoverEmail: null,
@@ -10,7 +11,9 @@ const state = {
     periodoInicio: "",
     periodoFim: "",
     dataPagamento: ""
-  }
+  },
+  rdoDraftPhotos: [],
+  selectedRdoIds: new Set()
 };
 
 const loginSection = document.getElementById("loginSection");
@@ -68,6 +71,31 @@ const maoDeObraPeriodoInicioInput = document.getElementById("maoDeObraPeriodoIni
 const maoDeObraPeriodoFimInput = document.getElementById("maoDeObraPeriodoFim");
 const maoDeObraDataPagamentoInput = document.getElementById("maoDeObraDataPagamento");
 const maoDeObraValorInput = document.getElementById("maoDeObraValor");
+
+const rdoForm = document.getElementById("rdoForm");
+const rdoTableBody = document.getElementById("rdoTableBody");
+const rdoEditIdInput = document.getElementById("rdoEditId");
+const rdoSubmitBtn = document.getElementById("rdoSubmitBtn");
+const rdoCancelEditBtn = document.getElementById("rdoCancelEditBtn");
+const rdoNewBtn = document.getElementById("rdoNewBtn");
+const rdoEditorPanel = document.getElementById("rdoEditorPanel");
+const rdoEditorTitle = document.getElementById("rdoEditorTitle");
+const rdoEditorSubtitle = document.getElementById("rdoEditorSubtitle");
+const rdoCloseEditorBtn = document.getElementById("rdoCloseEditorBtn");
+const rdoObraSelect = document.getElementById("rdoObra");
+const rdoDataInput = document.getElementById("rdoData");
+const rdoFiltroObraSelect = document.getElementById("rdoFiltroObra");
+const rdoFiltroDataInicioInput = document.getElementById("rdoFiltroDataInicio");
+const rdoFiltroDataFimInput = document.getElementById("rdoFiltroDataFim");
+const rdoBuscarBtn = document.getElementById("rdoBuscarBtn");
+const rdoLimparBuscaBtn = document.getElementById("rdoLimparBuscaBtn");
+const rdoImprimirSelecionadosBtn = document.getElementById("rdoImprimirSelecionadosBtn");
+const rdoSelectAllInput = document.getElementById("rdoSelectAll");
+const rdoFotosContainer = document.getElementById("rdoFotosContainer");
+const rdoServicosContainer = document.getElementById("rdoServicosContainer");
+const rdoMateriaisRecebidosContainer = document.getElementById("rdoMateriaisRecebidosContainer");
+const rdoMateriaisConsumidosContainer = document.getElementById("rdoMateriaisConsumidosContainer");
+const rdoPrintArea = document.getElementById("rdoPrintArea");
 
 const relatorioObraSelect = document.getElementById("relatorioObra");
 const relatorioTipoSelect = document.getElementById("relatorioTipo");
@@ -151,6 +179,9 @@ async function refreshData() {
   state.obras = payload.obras || [];
   state.compras = payload.compras || [];
   state.maoDeObra = payload.maoDeObra || [];
+  state.rdos = payload.rdos || [];
+  const availableIds = new Set(state.rdos.map((rdo) => rdo.id));
+  state.selectedRdoIds = new Set(Array.from(state.selectedRdoIds).filter((id) => availableIds.has(id)));
 }
 
 async function refreshUsers() {
@@ -172,6 +203,10 @@ function getUsuarios() {
 
 function getPagamentosMaoDeObra() {
   return state.maoDeObra;
+}
+
+function getRdos() {
+  return state.rdos;
 }
 
 function formatCurrency(value) {
@@ -465,6 +500,257 @@ function buildUniqueValues(values) {
 
 function updateDatalist(element, values) {
   element.innerHTML = values.map((value) => `<option value="${escapeHtml(value)}"></option>`).join("");
+}
+
+function createClientId(prefix = "item") {
+  if (window.crypto?.randomUUID) {
+    return `${prefix}-${window.crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function normalizeRdoPhoto(photo, index = 0) {
+  const dataUrl = String(photo?.dataUrl || "").trim();
+  if (!dataUrl.startsWith("data:image/")) {
+    return null;
+  }
+
+  return {
+    id: String(photo?.id || createClientId("rdo-foto")),
+    name: String(photo?.name || `Foto ${index + 1}`).trim() || `Foto ${index + 1}`,
+    dataUrl
+  };
+}
+
+function getRdoDraftPhotos() {
+  return state.rdoDraftPhotos;
+}
+
+function setRdoDraftPhotos(photos) {
+  state.rdoDraftPhotos = Array.isArray(photos)
+    ? photos.map((photo, index) => normalizeRdoPhoto(photo, index)).filter(Boolean)
+    : [];
+  renderRdoFotos();
+}
+
+function createDynamicTextRow(value = "", placeholder = "") {
+  const row = document.createElement("div");
+  row.className = "dynamic-input-row";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "dynamic-text-input";
+  input.value = value;
+  input.placeholder = placeholder;
+
+  const removeButton = document.createElement("button");
+  removeButton.type = "button";
+  removeButton.className = "btn ghost dynamic-remove-btn";
+  removeButton.dataset.dynamicRemove = "true";
+  removeButton.textContent = "Remover";
+
+  row.appendChild(input);
+  row.appendChild(removeButton);
+  return row;
+}
+
+function syncDynamicTextContainer(container) {
+  if (!container) {
+    return;
+  }
+
+  const placeholder = container.dataset.placeholder || "";
+  const rows = Array.from(container.querySelectorAll(".dynamic-input-row"));
+
+  rows.forEach((row, index) => {
+    const input = row.querySelector(".dynamic-text-input");
+    if (!input) {
+      row.remove();
+      return;
+    }
+
+    if (!input.value.trim() && index < rows.length - 1) {
+      row.remove();
+    }
+  });
+
+  const currentRows = Array.from(container.querySelectorAll(".dynamic-input-row"));
+  const lastRow = currentRows[currentRows.length - 1];
+  const lastInput = lastRow?.querySelector(".dynamic-text-input");
+
+  if (!lastInput || lastInput.value.trim()) {
+    container.appendChild(createDynamicTextRow("", placeholder));
+  }
+
+  Array.from(container.querySelectorAll(".dynamic-input-row")).forEach((row, index, allRows) => {
+    const input = row.querySelector(".dynamic-text-input");
+    const removeButton = row.querySelector("[data-dynamic-remove]");
+    const isOnlyEmptyRow = allRows.length === 1 && !input?.value.trim();
+    removeButton?.classList.toggle("hidden", isOnlyEmptyRow);
+    row.classList.toggle("is-empty", !input?.value.trim() && index === allRows.length - 1);
+  });
+}
+
+function hydrateDynamicTextContainer(container, values, placeholder) {
+  if (!container) {
+    return;
+  }
+
+  container.dataset.placeholder = placeholder;
+  container.innerHTML = "";
+
+  const normalizedValues = Array.isArray(values)
+    ? values.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+
+  normalizedValues.forEach((value) => {
+    container.appendChild(createDynamicTextRow(value, placeholder));
+  });
+
+  container.appendChild(createDynamicTextRow("", placeholder));
+  syncDynamicTextContainer(container);
+}
+
+function getDynamicTextValues(container) {
+  if (!container) {
+    return [];
+  }
+
+  return Array.from(container.querySelectorAll(".dynamic-text-input"))
+    .map((input) => input.value.trim())
+    .filter(Boolean);
+}
+
+function bindDynamicTextContainer(container, placeholder) {
+  if (!container) {
+    return;
+  }
+
+  hydrateDynamicTextContainer(container, [], placeholder);
+
+  container.addEventListener("input", (event) => {
+    if (!event.target.closest(".dynamic-text-input")) {
+      return;
+    }
+
+    syncDynamicTextContainer(container);
+  });
+
+  container.addEventListener("click", (event) => {
+    const removeButton = event.target.closest("[data-dynamic-remove]");
+    if (!removeButton) {
+      return;
+    }
+
+    removeButton.closest(".dynamic-input-row")?.remove();
+    syncDynamicTextContainer(container);
+  });
+
+  container.addEventListener("keydown", (event) => {
+    const input = event.target.closest(".dynamic-text-input");
+    if (!input || event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    syncDynamicTextContainer(container);
+    const rows = Array.from(container.querySelectorAll(".dynamic-text-input"));
+    const currentIndex = rows.indexOf(input);
+    const nextInput = rows[currentIndex + 1] || rows[rows.length - 1];
+    nextInput?.focus();
+  });
+}
+
+async function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Nao foi possivel ler a foto selecionada."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressImageFile(file) {
+  const originalDataUrl = await readFileAsDataUrl(file);
+
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      const maxDimension = 1600;
+      const ratio = Math.min(1, maxDimension / Math.max(image.width || 1, image.height || 1));
+      const width = Math.max(1, Math.round(image.width * ratio));
+      const height = Math.max(1, Math.round(image.height * ratio));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const context = canvas.getContext("2d");
+      if (!context) {
+        resolve({
+          id: createClientId("rdo-foto"),
+          name: file.name,
+          dataUrl: originalDataUrl
+        });
+        return;
+      }
+
+      context.drawImage(image, 0, 0, width, height);
+      resolve({
+        id: createClientId("rdo-foto"),
+        name: file.name,
+        dataUrl: canvas.toDataURL("image/jpeg", 0.82)
+      });
+    };
+
+    image.onerror = () =>
+      resolve({
+        id: createClientId("rdo-foto"),
+        name: file.name,
+        dataUrl: originalDataUrl
+      });
+
+    image.src = originalDataUrl;
+  });
+}
+
+function renderRdoFotos() {
+  if (!rdoFotosContainer) {
+    return;
+  }
+
+  const photos = getRdoDraftPhotos();
+  const photoCards = photos
+    .map(
+      (photo) => `
+        <article class="photo-card">
+          <img src="${photo.dataUrl}" alt="${escapeHtml(photo.name)}" />
+          <div class="photo-card-info">
+            <strong>${escapeHtml(photo.name)}</strong>
+            <button type="button" class="btn ghost" data-rdo-photo-remove="${photo.id}">Remover</button>
+          </div>
+        </article>
+      `
+    )
+    .join("");
+
+  rdoFotosContainer.innerHTML = `
+    <div class="photo-list">
+      ${photoCards || '<p class="empty">Nenhuma foto adicionada ainda.</p>'}
+    </div>
+    <label class="photo-upload-field">
+      Adicionar foto
+      <input type="file" accept="image/*" data-rdo-photo-input />
+    </label>
+  `;
+}
+
+function getRdoById(rdoId) {
+  return getRdos().find((rdo) => rdo.id === rdoId) || null;
+}
+
+function clearPrintMode() {
+  document.body.classList.remove("printing-relatorios", "printing-rdos");
 }
 
 function refreshCompraAutocomplete() {
@@ -847,6 +1133,10 @@ function activatePage(pageId) {
   if (pageId === "relatorios") {
     renderRelatorios();
   }
+
+  if (pageId === "rdos") {
+    renderRdos();
+  }
 }
 
 function renderDashboard() {
@@ -929,12 +1219,20 @@ function renderDashboard() {
 function populateObraSelects() {
   const obras = getObras();
   const ultimaObraLancadaId = getUltimaObraLancadaId();
+  const rdoObraValue = rdoObraSelect?.value || "";
+  const rdoFiltroObraValue = rdoFiltroObraSelect?.value || "";
 
   if (!obras.length) {
     compraObraSelect.innerHTML = `<option value="">Cadastre uma obra antes</option>`;
     maoDeObraObraSelect.innerHTML = `<option value="">Cadastre uma obra antes</option>`;
     finalizacaoObraSelect.innerHTML = `<option value="">Cadastre uma obra antes</option>`;
     relatorioObraSelect.innerHTML = `<option value="">Todas as obras</option>`;
+    if (rdoObraSelect) {
+      rdoObraSelect.innerHTML = `<option value="">Cadastre uma obra antes</option>`;
+    }
+    if (rdoFiltroObraSelect) {
+      rdoFiltroObraSelect.innerHTML = `<option value="">Todas as obras</option>`;
+    }
     return;
   }
 
@@ -951,6 +1249,25 @@ function populateObraSelects() {
     <option value="">Todas as obras</option>
     ${obras.map((obra) => `<option value="${obra.id}">${obra.nome}</option>`).join("")}
   `;
+
+  if (rdoObraSelect) {
+    rdoObraSelect.innerHTML = obras.map((obra) => `<option value="${obra.id}">${obra.nome}</option>`).join("");
+    rdoObraSelect.value = obras.some((obra) => obra.id === rdoObraValue)
+      ? rdoObraValue
+      : ultimaObraLancadaId && obras.some((obra) => obra.id === ultimaObraLancadaId)
+        ? ultimaObraLancadaId
+        : obras[0].id;
+  }
+
+  if (rdoFiltroObraSelect) {
+    rdoFiltroObraSelect.innerHTML = `
+      <option value="">Todas as obras</option>
+      ${obras.map((obra) => `<option value="${obra.id}">${obra.nome}</option>`).join("")}
+    `;
+    if (obras.some((obra) => obra.id === rdoFiltroObraValue)) {
+      rdoFiltroObraSelect.value = rdoFiltroObraValue;
+    }
+  }
 }
 
 function renderObras() {
@@ -1044,6 +1361,232 @@ function renderMaoDeObra() {
     `
     )
     .join("");
+}
+
+function getFilteredRdos() {
+  const obraId = rdoFiltroObraSelect?.value || "";
+  const dataInicio = rdoFiltroDataInicioInput?.value || "";
+  const dataFim = rdoFiltroDataFimInput?.value || "";
+
+  return [...getRdos()]
+    .filter((rdo) => {
+      const matchObra = !obraId || rdo.obraId === obraId;
+      const matchInicio = !dataInicio || rdo.data >= dataInicio;
+      const matchFim = !dataFim || rdo.data <= dataFim;
+      return matchObra && matchInicio && matchFim;
+    })
+    .sort((a, b) => compareIsoDatesDesc(a.data, b.data));
+}
+
+function updateRdoSelectAllState(rdosVisiveis) {
+  if (!rdoSelectAllInput) {
+    return;
+  }
+
+  const visibleIds = rdosVisiveis.map((rdo) => rdo.id);
+  const selectedCount = visibleIds.filter((id) => state.selectedRdoIds.has(id)).length;
+  rdoSelectAllInput.checked = visibleIds.length > 0 && selectedCount === visibleIds.length;
+  rdoSelectAllInput.indeterminate = selectedCount > 0 && selectedCount < visibleIds.length;
+}
+
+function renderRdos() {
+  if (!rdoTableBody) {
+    return;
+  }
+
+  const rdos = getFilteredRdos();
+  const obraMap = buildObraNameMap(getObras());
+
+  if (!rdos.length) {
+    rdoTableBody.innerHTML = `<tr><td colspan="8" class="empty">Nenhum RDO encontrado para os filtros selecionados.</td></tr>`;
+    updateRdoSelectAllState([]);
+    if (rdoImprimirSelecionadosBtn) {
+      rdoImprimirSelecionadosBtn.disabled = state.selectedRdoIds.size === 0;
+    }
+    return;
+  }
+
+  rdoTableBody.innerHTML = rdos
+    .map(
+      (rdo) => `
+        <tr>
+          <td>
+            <input type="checkbox" data-rdo-select="${rdo.id}" ${state.selectedRdoIds.has(rdo.id) ? "checked" : ""} />
+          </td>
+          <td>${formatDate(rdo.data)}</td>
+          <td>${obraMap.get(rdo.obraId) || "Obra removida"}</td>
+          <td>${rdo.fotosCount}</td>
+          <td>${rdo.servicosCount}</td>
+          <td>${rdo.materiaisRecebidosCount}</td>
+          <td>${rdo.materiaisConsumidosCount}</td>
+          <td>
+            <button class="btn ghost" data-rdo-edit="${rdo.id}">Editar</button>
+            <button class="btn ghost" data-rdo-print="${rdo.id}">Imprimir</button>
+          </td>
+        </tr>
+      `
+    )
+    .join("");
+
+  updateRdoSelectAllState(rdos);
+  if (rdoImprimirSelecionadosBtn) {
+    rdoImprimirSelecionadosBtn.disabled = state.selectedRdoIds.size === 0;
+  }
+}
+
+function resetRdoForm() {
+  if (!rdoForm) {
+    return;
+  }
+
+  rdoForm.reset();
+  rdoEditIdInput.value = "";
+  rdoSubmitBtn.textContent = "Salvar RDO";
+  rdoCancelEditBtn.classList.add("hidden");
+  rdoDataInput.value = getTodayIsoDate();
+  hydrateDynamicTextContainer(rdoServicosContainer, [], "Descreva um servico executado");
+  hydrateDynamicTextContainer(rdoMateriaisRecebidosContainer, [], "Descreva um material recebido");
+  hydrateDynamicTextContainer(rdoMateriaisConsumidosContainer, [], "Descreva um material consumido");
+  setRdoDraftPhotos([]);
+
+  if (getObras().length) {
+    rdoObraSelect.value = getUltimaObraLancadaId() || getObras()[0].id;
+  }
+}
+
+function preencherFormularioRdo(rdo) {
+  rdoEditIdInput.value = rdo.id;
+  rdoObraSelect.value = rdo.obraId;
+  rdoDataInput.value = normalizeDateInputValue(rdo.data);
+  hydrateDynamicTextContainer(rdoServicosContainer, rdo.servicosExecutados, "Descreva um servico executado");
+  hydrateDynamicTextContainer(rdoMateriaisRecebidosContainer, rdo.materiaisRecebidos, "Descreva um material recebido");
+  hydrateDynamicTextContainer(rdoMateriaisConsumidosContainer, rdo.materiaisConsumidos, "Descreva um material consumido");
+  setRdoDraftPhotos(rdo.fotos || []);
+  rdoSubmitBtn.textContent = "Atualizar RDO";
+  rdoCancelEditBtn.classList.remove("hidden");
+}
+
+function openRdoEditor(rdo = null) {
+  if (!rdoEditorPanel) {
+    return;
+  }
+
+  rdoEditorPanel.classList.remove("hidden");
+  if (rdo) {
+    rdoEditorTitle.textContent = "Editar RDO";
+    rdoEditorSubtitle.textContent = "Atualize o diario de obra selecionado e mantenha os registros completos.";
+    preencherFormularioRdo(rdo);
+    return;
+  }
+
+  rdoEditorTitle.textContent = "Cadastrar novo RDO";
+  rdoEditorSubtitle.textContent = "Registre o andamento diario da obra, fotos e itens executados.";
+  resetRdoForm();
+}
+
+function closeRdoEditor() {
+  if (!rdoEditorPanel) {
+    return;
+  }
+
+  rdoEditorPanel.classList.add("hidden");
+  resetRdoForm();
+}
+
+async function fetchRdoDetail(rdoId) {
+  const result = await apiFetch(`/api/rdos/${rdoId}`);
+  return result.rdo;
+}
+
+function renderRdoPrintList(title, items) {
+  if (!items.length) {
+    return "";
+  }
+
+  return `
+    <section class="rdo-print-section">
+      <h5>${title}</h5>
+      <ul>
+        ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+      </ul>
+    </section>
+  `;
+}
+
+function renderRdoPrintDocuments(rdos) {
+  if (!rdoPrintArea) {
+    return;
+  }
+
+  const obraMap = buildObraNameMap(getObras());
+  rdoPrintArea.innerHTML = rdos
+    .map((rdo) => {
+      const meta = [
+        `<span><strong>Obra:</strong> ${escapeHtml(obraMap.get(rdo.obraId) || "Obra removida")}</span>`,
+        `<span><strong>Data:</strong> ${formatDate(rdo.data)}</span>`,
+        rdo.fotos.length ? `<span><strong>Fotos:</strong> ${rdo.fotos.length}</span>` : "",
+        rdo.servicosExecutados.length ? `<span><strong>Servicos:</strong> ${rdo.servicosExecutados.length}</span>` : "",
+        rdo.materiaisRecebidos.length ? `<span><strong>Recebidos:</strong> ${rdo.materiaisRecebidos.length}</span>` : "",
+        rdo.materiaisConsumidos.length ? `<span><strong>Consumidos:</strong> ${rdo.materiaisConsumidos.length}</span>` : ""
+      ]
+        .filter(Boolean)
+        .join("");
+
+      const photosMarkup = rdo.fotos.length
+        ? `
+          <section class="rdo-print-section">
+            <h5>Fotos</h5>
+            <div class="rdo-print-photo-grid">
+              ${rdo.fotos
+                .map(
+                  (photo) => `
+                    <figure class="rdo-print-photo">
+                      <img src="${photo.dataUrl}" alt="${escapeHtml(photo.name)}" />
+                      <figcaption>${escapeHtml(photo.name)}</figcaption>
+                    </figure>
+                  `
+                )
+                .join("")}
+            </div>
+          </section>
+        `
+        : "";
+
+      return `
+        <article class="rdo-print-document">
+          <header class="rdo-print-header">
+            <div>
+              <h4>Relatorio Diario de Obras</h4>
+            </div>
+            <div class="report-meta">
+              ${meta}
+            </div>
+          </header>
+          ${renderRdoPrintList("Servicos executados", rdo.servicosExecutados)}
+          ${renderRdoPrintList("Materiais recebidos", rdo.materiaisRecebidos)}
+          ${renderRdoPrintList("Materiais consumidos", rdo.materiaisConsumidos)}
+          ${photosMarkup}
+        </article>
+      `;
+    })
+    .join("");
+}
+
+async function imprimirRdosPorIds(rdoIds) {
+  if (!rdoIds.length) {
+    alert("Selecione pelo menos um RDO para imprimir.");
+    return;
+  }
+
+  try {
+    const rdos = await Promise.all(rdoIds.map((id) => fetchRdoDetail(id)));
+    renderRdoPrintDocuments(rdos);
+    clearPrintMode();
+    document.body.classList.add("printing-rdos");
+    window.print();
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function filtrarLancamentosParaRelatorio() {
@@ -1262,6 +1805,7 @@ function renderAll() {
   renderObras();
   renderCompras();
   renderMaoDeObra();
+  renderRdos();
   renderUsuarios();
   renderRelatorios();
 }
@@ -1515,6 +2059,186 @@ maoDeObraCancelEditBtn.addEventListener("click", () => {
   resetMaoDeObraForm();
 });
 
+if (rdoNewBtn) {
+  rdoNewBtn.addEventListener("click", () => {
+    openRdoEditor();
+    activatePage("rdos");
+  });
+}
+
+if (rdoCloseEditorBtn) {
+  rdoCloseEditorBtn.addEventListener("click", () => {
+    closeRdoEditor();
+  });
+}
+
+if (rdoCancelEditBtn) {
+  rdoCancelEditBtn.addEventListener("click", () => {
+    closeRdoEditor();
+  });
+}
+
+if (rdoBuscarBtn) {
+  rdoBuscarBtn.addEventListener("click", () => {
+    if (
+      rdoFiltroDataInicioInput.value &&
+      rdoFiltroDataFimInput.value &&
+      rdoFiltroDataFimInput.value < rdoFiltroDataInicioInput.value
+    ) {
+      alert("A data final da busca nao pode ser anterior a data inicial.");
+      return;
+    }
+
+    renderRdos();
+  });
+}
+
+if (rdoLimparBuscaBtn) {
+  rdoLimparBuscaBtn.addEventListener("click", () => {
+    rdoFiltroObraSelect.value = "";
+    rdoFiltroDataInicioInput.value = "";
+    rdoFiltroDataFimInput.value = "";
+    renderRdos();
+  });
+}
+
+if (rdoImprimirSelecionadosBtn) {
+  rdoImprimirSelecionadosBtn.addEventListener("click", () => {
+    imprimirRdosPorIds(Array.from(state.selectedRdoIds));
+  });
+}
+
+if (rdoForm) {
+  rdoForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const obraId = rdoObraSelect.value;
+    const rdoId = rdoEditIdInput.value;
+    if (!obraId) {
+      alert("Selecione uma obra para registrar o RDO.");
+      return;
+    }
+
+    try {
+      const authorizationLabel = rdoId ? "edicao de RDO de obra finalizada" : "lancamento de RDO em obra finalizada";
+      if (isObraFinalizada(obraId) && !(await confirmarAutorizacaoGerente(authorizationLabel))) {
+        return;
+      }
+
+      await apiFetch(rdoId ? `/api/rdos/${rdoId}` : "/api/rdos", {
+        method: rdoId ? "PUT" : "POST",
+        body: JSON.stringify({
+          obraId,
+          data: rdoDataInput.value,
+          fotos: getRdoDraftPhotos(),
+          servicosExecutados: getDynamicTextValues(rdoServicosContainer),
+          materiaisRecebidos: getDynamicTextValues(rdoMateriaisRecebidosContainer),
+          materiaisConsumidos: getDynamicTextValues(rdoMateriaisConsumidosContainer)
+        })
+      });
+
+      await refreshData();
+      closeRdoEditor();
+      renderAll();
+      activatePage("rdos");
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+}
+
+if (rdoFotosContainer) {
+  rdoFotosContainer.addEventListener("change", async (event) => {
+    const input = event.target.closest("[data-rdo-photo-input]");
+    const file = input?.files?.[0];
+    if (!input || !file) {
+      return;
+    }
+
+    input.disabled = true;
+
+    try {
+      const compressedPhoto = await compressImageFile(file);
+      setRdoDraftPhotos([...getRdoDraftPhotos(), compressedPhoto]);
+    } catch (error) {
+      alert(error.message);
+      renderRdoFotos();
+    }
+  });
+
+  rdoFotosContainer.addEventListener("click", (event) => {
+    const removeButton = event.target.closest("[data-rdo-photo-remove]");
+    if (!removeButton) {
+      return;
+    }
+
+    const photoId = removeButton.getAttribute("data-rdo-photo-remove");
+    setRdoDraftPhotos(getRdoDraftPhotos().filter((photo) => photo.id !== photoId));
+  });
+}
+
+if (rdoTableBody) {
+  rdoTableBody.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("[data-rdo-select]");
+    if (!checkbox) {
+      return;
+    }
+
+    const rdoId = checkbox.getAttribute("data-rdo-select");
+    if (checkbox.checked) {
+      state.selectedRdoIds.add(rdoId);
+    } else {
+      state.selectedRdoIds.delete(rdoId);
+    }
+
+    updateRdoSelectAllState(getFilteredRdos());
+    if (rdoImprimirSelecionadosBtn) {
+      rdoImprimirSelecionadosBtn.disabled = state.selectedRdoIds.size === 0;
+    }
+  });
+
+  rdoTableBody.addEventListener("click", async (event) => {
+    const editButton = event.target.closest("[data-rdo-edit]");
+    if (editButton) {
+      const rdoId = editButton.getAttribute("data-rdo-edit");
+      const rdoSummary = getRdoById(rdoId);
+      if (rdoSummary && isObraFinalizada(rdoSummary.obraId) && !(await confirmarAutorizacaoGerente("edicao de RDO de obra finalizada"))) {
+        return;
+      }
+
+      try {
+        const rdo = await fetchRdoDetail(rdoId);
+        openRdoEditor(rdo);
+        activatePage("rdos");
+      } catch (error) {
+        alert(error.message);
+      }
+      return;
+    }
+
+    const printButton = event.target.closest("[data-rdo-print]");
+    if (!printButton) {
+      return;
+    }
+
+    await imprimirRdosPorIds([printButton.getAttribute("data-rdo-print")]);
+  });
+}
+
+if (rdoSelectAllInput) {
+  rdoSelectAllInput.addEventListener("change", () => {
+    getFilteredRdos().forEach((rdo) => {
+      if (rdoSelectAllInput.checked) {
+        state.selectedRdoIds.add(rdo.id);
+      } else {
+        state.selectedRdoIds.delete(rdo.id);
+      }
+    });
+
+    renderRdos();
+  });
+}
+
 compraQuantidadeInput.addEventListener("input", atualizarPrecoTotalCompraForm);
 compraPrecoUnitarioInput.addEventListener("input", atualizarPrecoTotalCompraForm);
 compraDescricaoInput.addEventListener("input", preencherCamposPorDescricao);
@@ -1761,6 +2485,8 @@ aplicarRelatorioBtn.addEventListener("click", () => {
 
 imprimirRelatorioBtn.addEventListener("click", () => {
   renderRelatorios();
+  clearPrintMode();
+  document.body.classList.add("printing-relatorios");
   window.print();
 });
 
@@ -1801,6 +2527,12 @@ relatorioDataFimInput.addEventListener("change", () => {
   maoDeObraValorInput
 ].forEach(bindCurrencyInput);
 
+bindDynamicTextContainer(rdoServicosContainer, "Descreva um servico executado");
+bindDynamicTextContainer(rdoMateriaisRecebidosContainer, "Descreva um material recebido");
+bindDynamicTextContainer(rdoMateriaisConsumidosContainer, "Descreva um material consumido");
+renderRdoFotos();
+window.addEventListener("afterprint", clearPrintMode);
+
 async function initializeApp() {
   try {
     const me = await apiFetch("/api/me");
@@ -1830,7 +2562,9 @@ async function initializeApp() {
   resetCompraForm();
   resetMaoDeObraForm();
   resetObraForm();
+  resetRdoForm();
   closeObraEditor();
+  closeRdoEditor();
   closeUsuarioFormPanel();
   closeSenhaPanel();
   atualizarEstadoPeriodoRelatorio();

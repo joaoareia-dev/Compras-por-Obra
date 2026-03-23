@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260320-8" />
+  <link rel="stylesheet" href="style.css?v=20260323-1" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -44,6 +44,7 @@
         <button class="menu-btn admin-only" data-section="obras">Obras</button>
         <button class="menu-btn" data-section="compras">Compras</button>
         <button class="menu-btn" data-section="maoDeObra">Mão de Obra</button>
+        <button class="menu-btn" data-section="rdos">RDOs</button>
         <button class="menu-btn" data-section="relatorios">Relatórios</button>
         <button class="menu-btn" data-section="conta">Conta e Usuários</button>
       </nav>
@@ -253,6 +254,118 @@
         </div>
       </section>
 
+      <section id="rdos" class="page card hidden">
+        <h3>RDOs</h3>
+        <div class="form-grid cols-3">
+          <label>
+            Obra
+            <select id="rdoFiltroObra">
+              <option value="">Todas as obras</option>
+            </select>
+          </label>
+          <label>
+            Data inicial
+            <input type="date" id="rdoFiltroDataInicio" />
+          </label>
+          <label>
+            Data final
+            <input type="date" id="rdoFiltroDataFim" />
+          </label>
+        </div>
+
+        <div class="section-actions">
+          <button type="button" id="rdoBuscarBtn" class="btn ghost">Buscar</button>
+          <button type="button" id="rdoLimparBuscaBtn" class="btn ghost">Limpar busca</button>
+          <button type="button" id="rdoNewBtn" class="btn primary">Cadastrar novo RDO</button>
+          <button type="button" id="rdoImprimirSelecionadosBtn" class="btn ghost">Imprimir selecionados</button>
+        </div>
+
+        <div id="rdoEditorPanel" class="subpanel hidden">
+          <div class="subpanel-header">
+            <div>
+              <h4 id="rdoEditorTitle">Cadastrar novo RDO</h4>
+              <p id="rdoEditorSubtitle" class="subtitle">Registre o andamento diário da obra.</p>
+            </div>
+            <button type="button" id="rdoCloseEditorBtn" class="btn ghost">Fechar</button>
+          </div>
+
+          <form id="rdoForm" class="form-grid cols-2">
+            <input type="hidden" id="rdoEditId" />
+            <label>
+              Obra
+              <select id="rdoObra" required></select>
+            </label>
+            <label>
+              Data
+              <input type="date" id="rdoData" required />
+            </label>
+
+            <div class="full-width dynamic-block">
+              <div class="dynamic-block-header">
+                <div>
+                  <h4>Fotos</h4>
+                  <p class="subtitle">Adicione quantas fotos precisar ao longo do dia.</p>
+                </div>
+              </div>
+              <div id="rdoFotosContainer" class="dynamic-photo-container"></div>
+            </div>
+
+            <div class="full-width dynamic-block">
+              <div class="dynamic-block-header">
+                <div>
+                  <h4>Serviços executados</h4>
+                  <p class="subtitle">Cada serviço preenchido libera o próximo campo automaticamente.</p>
+                </div>
+              </div>
+              <div id="rdoServicosContainer" class="dynamic-input-list"></div>
+            </div>
+
+            <div class="full-width dynamic-block">
+              <div class="dynamic-block-header">
+                <div>
+                  <h4>Materiais recebidos</h4>
+                  <p class="subtitle">Liste os materiais recebidos no dia.</p>
+                </div>
+              </div>
+              <div id="rdoMateriaisRecebidosContainer" class="dynamic-input-list"></div>
+            </div>
+
+            <div class="full-width dynamic-block">
+              <div class="dynamic-block-header">
+                <div>
+                  <h4>Materiais consumidos</h4>
+                  <p class="subtitle">Registre o consumo do dia com quantos itens forem necessários.</p>
+                </div>
+              </div>
+              <div id="rdoMateriaisConsumidosContainer" class="dynamic-input-list"></div>
+            </div>
+
+            <button type="submit" id="rdoSubmitBtn" class="btn primary">Salvar RDO</button>
+            <button type="button" id="rdoCancelEditBtn" class="btn ghost hidden">Cancelar edição</button>
+          </form>
+        </div>
+
+        <div id="rdoPrintArea" class="rdo-print-area"></div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="rdoSelectAll" /></th>
+                <th>Data</th>
+                <th>Obra</th>
+                <th>Fotos</th>
+                <th>Serviços</th>
+                <th>Materiais recebidos</th>
+                <th>Materiais consumidos</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="rdoTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
       <section id="relatorios" class="page card hidden">
         <h3>Relatórios</h3>
         <div class="form-grid cols-3 report-filters">
@@ -393,6 +506,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=20260320-8"></script>
+  <script src="app.js?v=20260323-1"></script>
 </body>
 </html>

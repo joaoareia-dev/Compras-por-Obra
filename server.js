@@ -22,7 +22,7 @@ const pool = new Pool({
 
 const SESSION_COOKIE = "gc_session";
 const SESSION_TTL_DAYS = 7;
-const JSON_BODY_LIMIT_BYTES = 1024 * 1024;
+const JSON_BODY_LIMIT_BYTES = Number(process.env.JSON_BODY_LIMIT_BYTES) || 20 * 1024 * 1024;
 const noCacheExtensions = new Set([".html", ".js", ".css"]);
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -313,6 +313,67 @@ function mapMaoDeObra(row) {
   };
 }
 
+function normalizeStringList(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+}
+
+function normalizePhotoList(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((value, index) => {
+      const photo = value && typeof value === "object" ? value : {};
+      const dataUrl = String(photo.dataUrl || "").trim();
+      if (!dataUrl.startsWith("data:image/")) {
+        return null;
+      }
+
+      const name = String(photo.name || `foto-${index + 1}.jpg`).trim() || `foto-${index + 1}.jpg`;
+      return {
+        id: String(photo.id || randomId()),
+        name,
+        dataUrl
+      };
+    })
+    .filter(Boolean);
+}
+
+function mapRdoSummary(row) {
+  return {
+    id: row.id,
+    obraId: row.obra_id,
+    data: toDateOnlyString(row.data),
+    fotosCount: Number(row.fotos_count || 0),
+    servicosCount: Number(row.servicos_count || 0),
+    materiaisRecebidosCount: Number(row.materiais_recebidos_count || 0),
+    materiaisConsumidosCount: Number(row.materiais_consumidos_count || 0),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapRdo(row) {
+  return {
+    id: row.id,
+    obraId: row.obra_id,
+    data: toDateOnlyString(row.data),
+    fotos: normalizePhotoList(row.fotos),
+    servicosExecutados: normalizeStringList(row.servicos_executados),
+    materiaisRecebidos: normalizeStringList(row.materiais_recebidos),
+    materiaisConsumidos: normalizeStringList(row.materiais_consumidos),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 async function ensureDatabase() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -378,6 +439,20 @@ async function ensureDatabase() {
     );
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS rdos (
+      id TEXT PRIMARY KEY,
+      obra_id TEXT NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+      data DATE NOT NULL,
+      fotos JSONB NOT NULL DEFAULT '[]'::jsonb,
+      servicos_executados JSONB NOT NULL DEFAULT '[]'::jsonb,
+      materiais_recebidos JSONB NOT NULL DEFAULT '[]'::jsonb,
+      materiais_consumidos JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
   await pool.query(`UPDATE users SET role = 'administrador' WHERE role NOT IN ('administrador', 'usuario')`);
   const adminEmail = process.env.ADMIN_EMAIL || "admin@obra.local";
   const adminPassword = process.env.ADMIN_PASSWORD || "123456";
@@ -395,16 +470,31 @@ async function ensureDatabase() {
 }
 
 async function getBootstrapPayload() {
-  const [obrasResult, comprasResult, maoDeObraResult] = await Promise.all([
+  const [obrasResult, comprasResult, maoDeObraResult, rdosResult] = await Promise.all([
     pool.query("SELECT * FROM obras ORDER BY nome ASC"),
     pool.query("SELECT * FROM compras ORDER BY created_at ASC"),
-    pool.query("SELECT * FROM mao_obra_pagamentos ORDER BY created_at ASC")
+    pool.query("SELECT * FROM mao_obra_pagamentos ORDER BY created_at ASC"),
+    pool.query(`
+      SELECT
+        id,
+        obra_id,
+        data,
+        created_at,
+        updated_at,
+        jsonb_array_length(COALESCE(fotos, '[]'::jsonb)) AS fotos_count,
+        jsonb_array_length(COALESCE(servicos_executados, '[]'::jsonb)) AS servicos_count,
+        jsonb_array_length(COALESCE(materiais_recebidos, '[]'::jsonb)) AS materiais_recebidos_count,
+        jsonb_array_length(COALESCE(materiais_consumidos, '[]'::jsonb)) AS materiais_consumidos_count
+      FROM rdos
+      ORDER BY data DESC, created_at DESC
+    `)
   ]);
 
   return {
     obras: obrasResult.rows.map(mapObra),
     compras: comprasResult.rows.map(mapCompra),
-    maoDeObra: maoDeObraResult.rows.map(mapMaoDeObra)
+    maoDeObra: maoDeObraResult.rows.map(mapMaoDeObra),
+    rdos: rdosResult.rows.map(mapRdoSummary)
   };
 }
 
@@ -841,6 +931,99 @@ async function handleApi(req, res, pathname) {
   if (req.method === "DELETE" && pathname.startsWith("/api/mao-de-obra/")) {
     const pagamentoId = getResourceId(pathname);
     await pool.query("DELETE FROM mao_obra_pagamentos WHERE id = $1", [pagamentoId]);
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  if (req.method === "GET" && pathname.startsWith("/api/rdos/")) {
+    const rdoId = getResourceId(pathname);
+    const result = await pool.query("SELECT * FROM rdos WHERE id = $1 LIMIT 1", [rdoId]);
+    if (!result.rows.length) {
+      sendJson(res, 404, { error: "RDO nao encontrado." });
+      return true;
+    }
+
+    sendJson(res, 200, { rdo: mapRdo(result.rows[0]) });
+    return true;
+  }
+
+  if (req.method === "POST" && pathname === "/api/rdos") {
+    const body = await parseRequestBody(req);
+    requireFields(body, ["obraId", "data"]);
+
+    const id = randomId();
+    const fotos = normalizePhotoList(body.fotos);
+    const servicosExecutados = normalizeStringList(body.servicosExecutados);
+    const materiaisRecebidos = normalizeStringList(body.materiaisRecebidos);
+    const materiaisConsumidos = normalizeStringList(body.materiaisConsumidos);
+    const now = new Date().toISOString();
+
+    await pool.query(
+      `
+        INSERT INTO rdos (
+          id,
+          obra_id,
+          data,
+          fotos,
+          servicos_executados,
+          materiais_recebidos,
+          materiais_consumidos,
+          created_at,
+          updated_at
+        )
+        VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8, $9)
+      `,
+      [
+        id,
+        body.obraId,
+        body.data,
+        JSON.stringify(fotos),
+        JSON.stringify(servicosExecutados),
+        JSON.stringify(materiaisRecebidos),
+        JSON.stringify(materiaisConsumidos),
+        now,
+        now
+      ]
+    );
+
+    sendJson(res, 201, { ok: true, id });
+    return true;
+  }
+
+  if (req.method === "PUT" && pathname.startsWith("/api/rdos/")) {
+    const rdoId = getResourceId(pathname);
+    const body = await parseRequestBody(req);
+    requireFields(body, ["obraId", "data"]);
+
+    const fotos = normalizePhotoList(body.fotos);
+    const servicosExecutados = normalizeStringList(body.servicosExecutados);
+    const materiaisRecebidos = normalizeStringList(body.materiaisRecebidos);
+    const materiaisConsumidos = normalizeStringList(body.materiaisConsumidos);
+
+    await pool.query(
+      `
+        UPDATE rdos
+        SET obra_id = $2,
+            data = $3,
+            fotos = $4::jsonb,
+            servicos_executados = $5::jsonb,
+            materiais_recebidos = $6::jsonb,
+            materiais_consumidos = $7::jsonb,
+            updated_at = $8
+        WHERE id = $1
+      `,
+      [
+        rdoId,
+        body.obraId,
+        body.data,
+        JSON.stringify(fotos),
+        JSON.stringify(servicosExecutados),
+        JSON.stringify(materiaisRecebidos),
+        JSON.stringify(materiaisConsumidos),
+        new Date().toISOString()
+      ]
+    );
+
     sendJson(res, 200, { ok: true });
     return true;
   }
