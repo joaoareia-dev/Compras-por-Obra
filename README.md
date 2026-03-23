@@ -27,6 +27,8 @@ Opcionais:
 - `NODE_ENV=production`
 - `ADMIN_EMAIL`
 - `ADMIN_PASSWORD`
+- `OPENAI_API_KEY`
+- `OPENAI_PDF_MODEL` = `gpt-4o-mini`
 
 Se `ADMIN_EMAIL` e `ADMIN_PASSWORD` nao forem definidos, o sistema cria o gerente inicial com:
 
@@ -78,6 +80,8 @@ postgresql://postgres:senha@localhost:5432/gestao_obras
 - `NODE_ENV` = `production`
 - `ADMIN_EMAIL` = e-mail inicial do gerente (opcional)
 - `ADMIN_PASSWORD` = senha inicial do gerente (opcional)
+- `OPENAI_API_KEY` = chave da OpenAI para leitura assistida de PDFs nas `Medições` (opcional, mas necessária para o fallback com IA)
+- `OPENAI_PDF_MODEL` = `gpt-4o-mini` (opcional)
 
 6. Conclua o deploy.
 
@@ -118,6 +122,7 @@ Ja ajustados:
 Erros comuns a evitar:
 
 - esquecer de configurar `DATABASE_URL`
+- esquecer de configurar `OPENAI_API_KEY` e esperar que a leitura assistida por IA funcione nas `Medições`
 - usar a URL externa do banco quando a interna do Render e mais apropriada para servicos no mesmo ambiente
 - trocar a senha do admin sem atualizar `ADMIN_PASSWORD` em um primeiro deploy, esperando que o seed substitua um usuario ja criado
 

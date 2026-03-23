@@ -235,7 +235,7 @@ function extractResponseOutputText(payload) {
 
 async function parseMedicaoPdfWithOpenAI({ fileName, dataUrl }) {
   if (!process.env.OPENAI_API_KEY) {
-    throw new Error("Integração com OpenAI não configurada. Defina OPENAI_API_KEY para habilitar a leitura assistida por IA.");
+    throw new Error("A leitura local do PDF falhou e a leitura assistida por IA não está habilitada neste servidor. Defina OPENAI_API_KEY no Render para ativar esse fallback.");
   }
 
   const { mimeType, base64 } = parsePdfDataUrl(dataUrl);
