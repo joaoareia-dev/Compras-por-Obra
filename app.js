@@ -1826,7 +1826,9 @@ function renderRdoPrintDocuments(rdos) {
                 .map(
                   (photo) => `
                     <figure class="rdo-print-photo">
-                      <img src="${photo.dataUrl}" alt="${escapeHtml(photo.name)}" />
+                      <div class="rdo-print-photo-media">
+                        <img src="${photo.dataUrl}" alt="${escapeHtml(photo.name)}" />
+                      </div>
                       <figcaption>
                         <strong>${escapeHtml(photo.name)}</strong>
                         ${photo.comentario ? `<span>${escapeHtml(photo.comentario)}</span>` : ""}

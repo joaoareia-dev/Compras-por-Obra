@@ -512,22 +512,34 @@ body.printing-rdos .rdo-print-area {
 
 .rdo-print-photo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .rdo-print-photo {
   margin: 0;
   display: grid;
   gap: 6px;
+  break-inside: avoid;
+}
+
+.rdo-print-photo-media {
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid #d5deee;
+  background: #f7f9fc;
 }
 
 .rdo-print-photo img {
   width: 100%;
-  height: 140px;
-  object-fit: cover;
-  border-radius: 10px;
-  border: 1px solid #d5deee;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
 }
 
 .rdo-print-photo figcaption {
@@ -825,11 +837,11 @@ th {
 
   .rdo-print-photo-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 10px;
   }
 
-  .rdo-print-photo img {
-    height: 105px;
+  .rdo-print-photo-media {
+    aspect-ratio: 4 / 3;
   }
 
   .rdo-print-photo figcaption {
