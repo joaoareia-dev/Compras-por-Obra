@@ -3,6 +3,10 @@ const state = {
   compras: [],
   maoDeObra: [],
   rdos: [],
+  rdoCatalogos: {
+    materiais: [],
+    maoDeObra: []
+  },
   usuarios: [],
   sessionUser: null,
   loginTakeoverEmail: null,
@@ -11,6 +15,10 @@ const state = {
     periodoInicio: "",
     periodoFim: "",
     dataPagamento: ""
+  },
+  obraLogoDrafts: {
+    contratante: "",
+    contratada: ""
   },
   rdoDraftPhotos: [],
   selectedRdoIds: new Set()
@@ -28,6 +36,12 @@ const obraForm = document.getElementById("obraForm");
 const obrasTableBody = document.getElementById("obrasTableBody");
 const obraEditIdInput = document.getElementById("obraEditId");
 const obraOrcamentoInput = document.getElementById("obraOrcamento");
+const obraContratanteNomeInput = document.getElementById("obraContratanteNome");
+const obraContratadaNomeInput = document.getElementById("obraContratadaNome");
+const obraContratanteLogoInput = document.getElementById("obraContratanteLogoInput");
+const obraContratadaLogoInput = document.getElementById("obraContratadaLogoInput");
+const obraContratanteLogoPreview = document.getElementById("obraContratanteLogoPreview");
+const obraContratadaLogoPreview = document.getElementById("obraContratadaLogoPreview");
 const obraSubmitBtn = document.getElementById("obraSubmitBtn");
 const obraCancelEditBtn = document.getElementById("obraCancelEditBtn");
 const obraNewBtn = document.getElementById("obraNewBtn");
@@ -99,6 +113,8 @@ const rdoMateriaisRecebidosContainer = document.getElementById("rdoMateriaisRece
 const rdoMateriaisConsumidosContainer = document.getElementById("rdoMateriaisConsumidosContainer");
 const rdoMaoDeObraPresenteContainer = document.getElementById("rdoMaoDeObraPresenteContainer");
 const rdoPrintArea = document.getElementById("rdoPrintArea");
+const rdoMaterialDescricaoOptions = document.getElementById("rdoMaterialDescricaoOptions");
+const rdoMaoDeObraCargoOptions = document.getElementById("rdoMaoDeObraCargoOptions");
 
 const relatorioObraSelect = document.getElementById("relatorioObra");
 const relatorioTipoSelect = document.getElementById("relatorioTipo");
@@ -160,6 +176,9 @@ const RDO_STRUCTURED_FIELD_CONFIGS = {
   materiais: {
     rowClass: "structured",
     primaryKey: "descricao",
+    datalistId: "rdoMaterialDescricaoOptions",
+    autocompleteKind: "materiais",
+    autoFillFieldKey: "unidade",
     fields: [
       { key: "descricao", type: "text", placeholder: "Descricao do material" },
       { key: "unidade", type: "text", placeholder: "Unidade" },
@@ -169,6 +188,8 @@ const RDO_STRUCTURED_FIELD_CONFIGS = {
   equipe: {
     rowClass: "crew",
     primaryKey: "cargo",
+    datalistId: "rdoMaoDeObraCargoOptions",
+    autocompleteKind: "maoDeObra",
     fields: [
       { key: "cargo", type: "text", placeholder: "Cargo" },
       { key: "quantidade", type: "number", placeholder: "Quantidade", min: "0", step: "1", inputMode: "numeric" }
@@ -215,6 +236,7 @@ async function refreshData() {
   state.compras = payload.compras || [];
   state.maoDeObra = payload.maoDeObra || [];
   state.rdos = payload.rdos || [];
+  state.rdoCatalogos = payload.rdoCatalogos || { materiais: [], maoDeObra: [] };
   const availableIds = new Set(state.rdos.map((rdo) => rdo.id));
   state.selectedRdoIds = new Set(Array.from(state.selectedRdoIds).filter((id) => availableIds.has(id)));
 }
@@ -242,6 +264,10 @@ function getPagamentosMaoDeObra() {
 
 function getRdos() {
   return state.rdos;
+}
+
+function getRdoCatalogos() {
+  return state.rdoCatalogos || { materiais: [], maoDeObra: [] };
 }
 
 function formatCurrency(value) {
@@ -570,6 +596,67 @@ function setRdoDraftPhotos(photos) {
   renderRdoFotos();
 }
 
+function setObraLogoDraft(type, dataUrl) {
+  state.obraLogoDrafts = {
+    ...state.obraLogoDrafts,
+    [type]: String(dataUrl || "")
+  };
+  renderObraLogoPreviews();
+}
+
+function renderObraLogoPreview(container, label, dataUrl, type) {
+  if (!container) {
+    return;
+  }
+
+  if (!dataUrl) {
+    container.className = "logo-preview empty";
+    container.innerHTML = `Nenhum logotipo de ${label.toLowerCase()} carregado.`;
+    return;
+  }
+
+  container.className = "logo-preview";
+  container.innerHTML = `
+    <img src="${dataUrl}" alt="Logotipo da ${label.toLowerCase()}" />
+    <button type="button" class="btn ghost" data-obra-logo-clear="${type}">Remover logotipo</button>
+  `;
+}
+
+function renderObraLogoPreviews() {
+  renderObraLogoPreview(obraContratanteLogoPreview, "Contratante", state.obraLogoDrafts.contratante, "contratante");
+  renderObraLogoPreview(obraContratadaLogoPreview, "Contratada", state.obraLogoDrafts.contratada, "contratada");
+}
+
+function populateRdoAutocomplete() {
+  const catalogos = getRdoCatalogos();
+  updateDatalist(
+    rdoMaterialDescricaoOptions,
+    buildUniqueValues(catalogos.materiais.map((item) => item.descricao))
+  );
+  updateDatalist(
+    rdoMaoDeObraCargoOptions,
+    buildUniqueValues(catalogos.maoDeObra.map((item) => item.cargo))
+  );
+}
+
+function findRdoMaterialSuggestion(descricao) {
+  const target = normalizeValue(descricao);
+  if (!target) {
+    return null;
+  }
+
+  return getRdoCatalogos().materiais.find((item) => normalizeValue(item.descricao) === target) || null;
+}
+
+function findRdoMaoDeObraSuggestion(cargo) {
+  const target = normalizeValue(cargo);
+  if (!target) {
+    return null;
+  }
+
+  return getRdoCatalogos().maoDeObra.find((item) => normalizeValue(item.cargo) === target) || null;
+}
+
 function createDynamicTextRow(value = "", placeholder = "") {
   const row = document.createElement("div");
   row.className = "dynamic-input-row";
@@ -609,6 +696,10 @@ function createStructuredRow(config, value = {}) {
     }
     if (field.inputMode) {
       input.inputMode = field.inputMode;
+    }
+    if (config.datalistId && field.key === config.primaryKey) {
+      input.setAttribute("list", config.datalistId);
+      input.autocomplete = "off";
     }
 
     const fieldValue = value?.[field.key];
@@ -705,6 +796,41 @@ function isStructuredRowEmpty(values) {
   return Object.values(values).every((value) => !String(value || "").trim());
 }
 
+function applyStructuredAutocomplete(row, config) {
+  if (!row || !config?.autocompleteKind) {
+    return;
+  }
+
+  const primaryInput = row.querySelector(`[data-field-key="${config.primaryKey}"]`);
+  if (!primaryInput) {
+    return;
+  }
+
+  const primaryValue = primaryInput.value.trim();
+  if (!primaryValue) {
+    return;
+  }
+
+  if (config.autocompleteKind === "materiais") {
+    const suggestion = findRdoMaterialSuggestion(primaryValue);
+    if (!suggestion) {
+      return;
+    }
+
+    if (config.autoFillFieldKey) {
+      const unitInput = row.querySelector(`[data-field-key="${config.autoFillFieldKey}"]`);
+      if (unitInput) {
+        unitInput.value = suggestion.unidade || "";
+      }
+    }
+    return;
+  }
+
+  if (config.autocompleteKind === "maoDeObra") {
+    findRdoMaoDeObraSuggestion(primaryValue);
+  }
+}
+
 function syncStructuredContainer(container, config) {
   if (!container) {
     return;
@@ -779,11 +905,25 @@ function bindStructuredContainer(container, config) {
   hydrateStructuredContainer(container, config, []);
 
   container.addEventListener("input", (event) => {
-    if (!event.target.closest(".dynamic-structured-input")) {
+    const input = event.target.closest(".dynamic-structured-input");
+    if (!input) {
       return;
     }
 
+    const row = input.closest(".dynamic-input-row");
+    if (input.dataset.fieldKey === config.primaryKey) {
+      applyStructuredAutocomplete(row, config);
+    }
     syncStructuredContainer(container, config);
+  });
+
+  container.addEventListener("change", (event) => {
+    const input = event.target.closest(".dynamic-structured-input");
+    if (!input || input.dataset.fieldKey !== config.primaryKey) {
+      return;
+    }
+
+    applyStructuredAutocomplete(input.closest(".dynamic-input-row"), config);
   });
 
   container.addEventListener("click", (event) => {
@@ -901,6 +1041,21 @@ async function compressImageFile(file) {
 
     image.src = originalDataUrl;
   });
+}
+
+async function handleObraLogoFileInput(input, type) {
+  const file = input?.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  try {
+    const dataUrl = await readFileAsDataUrl(file);
+    setObraLogoDraft(type, dataUrl);
+    input.value = "";
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function renderRdoFotos() {
@@ -1131,6 +1286,19 @@ function resetObraForm() {
   obraCancelEditBtn.classList.add("hidden");
   document.getElementById("obraDataInicio").value = getTodayIsoDate();
   setCurrencyInputValue(obraOrcamentoInput, 0);
+  obraContratanteNomeInput.value = "";
+  obraContratadaNomeInput.value = "";
+  if (obraContratanteLogoInput) {
+    obraContratanteLogoInput.value = "";
+  }
+  if (obraContratadaLogoInput) {
+    obraContratadaLogoInput.value = "";
+  }
+  state.obraLogoDrafts = {
+    contratante: "",
+    contratada: ""
+  };
+  renderObraLogoPreviews();
 }
 
 function resetFinalizacaoForm() {
@@ -1230,6 +1398,19 @@ function preencherFormularioObra(obra) {
   document.getElementById("obraResponsavel").value = obra.responsavel || "";
   document.getElementById("obraDataInicio").value = normalizeDateInputValue(obra.dataInicio);
   setCurrencyInputValue(obraOrcamentoInput, Number(obra.orcamento || 0));
+  obraContratanteNomeInput.value = obra.contratante?.nome || "";
+  obraContratadaNomeInput.value = obra.contratada?.nome || "";
+  state.obraLogoDrafts = {
+    contratante: obra.contratante?.logo || "",
+    contratada: obra.contratada?.logo || ""
+  };
+  if (obraContratanteLogoInput) {
+    obraContratanteLogoInput.value = "";
+  }
+  if (obraContratadaLogoInput) {
+    obraContratadaLogoInput.value = "";
+  }
+  renderObraLogoPreviews();
   obraSubmitBtn.textContent = "Atualizar Obra";
   obraCancelEditBtn.classList.remove("hidden");
 }
@@ -1753,6 +1934,24 @@ function renderRdoPrintList(title, items) {
   `;
 }
 
+function renderRdoCompanyBlock(title, company, positionClass) {
+  const nome = company?.nome || "";
+  const logo = company?.logo || "";
+  if (!nome && !logo) {
+    return `<div class="rdo-company-block ${positionClass} empty"></div>`;
+  }
+
+  return `
+    <div class="rdo-company-block ${positionClass}">
+      ${logo ? `<img src="${logo}" alt="${escapeHtml(title)}" class="rdo-company-logo" />` : ""}
+      <div class="rdo-company-meta">
+        <span class="rdo-company-label">${title}</span>
+        ${nome ? `<strong>${escapeHtml(nome)}</strong>` : ""}
+      </div>
+    </div>
+  `;
+}
+
 function formatStructuredQuantity(value) {
   if (value === null || value === undefined || value === "") {
     return "";
@@ -1804,6 +2003,7 @@ function renderRdoPrintDocuments(rdos) {
   const obraMap = buildObraNameMap(getObras());
   rdoPrintArea.innerHTML = rdos
     .map((rdo) => {
+      const obra = getObraById(rdo.obraId);
       const meta = [
         `<span><strong>Obra:</strong> ${escapeHtml(obraMap.get(rdo.obraId) || "Obra removida")}</span>`,
         `<span><strong>Data:</strong> ${formatDate(rdo.data)}</span>`,
@@ -1830,7 +2030,6 @@ function renderRdoPrintDocuments(rdos) {
                         <img src="${photo.dataUrl}" alt="${escapeHtml(photo.name)}" />
                       </div>
                       <figcaption>
-                        <strong>${escapeHtml(photo.name)}</strong>
                         ${photo.comentario ? `<span>${escapeHtml(photo.comentario)}</span>` : ""}
                       </figcaption>
                     </figure>
@@ -1844,10 +2043,15 @@ function renderRdoPrintDocuments(rdos) {
 
       return `
         <article class="rdo-print-document">
-          <header class="rdo-print-header">
-            <div>
+          <div class="rdo-print-branding">
+            ${renderRdoCompanyBlock("Contratante", obra?.contratante, "left")}
+            <div class="rdo-print-title-block">
               <h4>Relatorio Diario de Obras</h4>
+              <p>${escapeHtml(obraMap.get(rdo.obraId) || "Obra removida")}</p>
             </div>
+            ${renderRdoCompanyBlock("Contratada", obra?.contratada, "right")}
+          </div>
+          <header class="rdo-print-header">
             <div class="report-meta">
               ${meta}
             </div>
@@ -2096,6 +2300,7 @@ function renderAll() {
   populateObraSelects();
   populateRelatorioCategorias();
   refreshCompraAutocomplete();
+  populateRdoAutocomplete();
   renderObras();
   renderCompras();
   renderMaoDeObra();
@@ -2183,6 +2388,33 @@ if (obraCloseEditorBtn) {
   });
 }
 
+if (obraContratanteLogoInput) {
+  obraContratanteLogoInput.addEventListener("change", () => {
+    handleObraLogoFileInput(obraContratanteLogoInput, "contratante");
+  });
+}
+
+if (obraContratadaLogoInput) {
+  obraContratadaLogoInput.addEventListener("change", () => {
+    handleObraLogoFileInput(obraContratadaLogoInput, "contratada");
+  });
+}
+
+[obraContratanteLogoPreview, obraContratadaLogoPreview].forEach((container) => {
+  if (!container) {
+    return;
+  }
+
+  container.addEventListener("click", (event) => {
+    const clearButton = event.target.closest("[data-obra-logo-clear]");
+    if (!clearButton) {
+      return;
+    }
+
+    setObraLogoDraft(clearButton.getAttribute("data-obra-logo-clear"), "");
+  });
+});
+
 obraForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -2197,7 +2429,11 @@ obraForm.addEventListener("submit", async (event) => {
       local: document.getElementById("obraLocal").value.trim(),
       responsavel: document.getElementById("obraResponsavel").value.trim(),
       dataInicio: document.getElementById("obraDataInicio").value,
-      orcamento: parseCurrencyInputValue(obraOrcamentoInput.value)
+      orcamento: parseCurrencyInputValue(obraOrcamentoInput.value),
+      contratanteNome: obraContratanteNomeInput.value.trim(),
+      contratanteLogo: state.obraLogoDrafts.contratante || "",
+      contratadaNome: obraContratadaNomeInput.value.trim(),
+      contratadaLogo: state.obraLogoDrafts.contratada || ""
     };
 
     await apiFetch(obraId ? `/api/obras/${obraId}` : "/api/obras", {
@@ -2844,6 +3080,7 @@ bindStructuredContainer(rdoServicosContainer, RDO_STRUCTURED_FIELD_CONFIGS.servi
 bindStructuredContainer(rdoMateriaisRecebidosContainer, RDO_STRUCTURED_FIELD_CONFIGS.materiais);
 bindStructuredContainer(rdoMateriaisConsumidosContainer, RDO_STRUCTURED_FIELD_CONFIGS.materiais);
 bindStructuredContainer(rdoMaoDeObraPresenteContainer, RDO_STRUCTURED_FIELD_CONFIGS.equipe);
+renderObraLogoPreviews();
 renderRdoFotos();
 window.addEventListener("afterprint", clearPrintMode);
 

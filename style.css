@@ -345,6 +345,42 @@ textarea:focus {
   padding: 8px;
 }
 
+.logo-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.logo-upload-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.logo-preview {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fbfcff;
+}
+
+.logo-preview.empty {
+  color: var(--muted);
+}
+
+.logo-preview img {
+  max-width: 100%;
+  max-height: 120px;
+  object-fit: contain;
+  justify-self: start;
+}
+
 .cards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -476,6 +512,68 @@ body.printing-rdos .rdo-print-area {
 
 .rdo-print-document + .rdo-print-document {
   border-top: 1px solid var(--line);
+}
+
+.rdo-print-branding {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.rdo-company-block {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+}
+
+.rdo-company-block.left {
+  justify-items: start;
+  text-align: left;
+}
+
+.rdo-company-block.right {
+  justify-items: end;
+  text-align: right;
+}
+
+.rdo-company-block.empty {
+  min-height: 1px;
+}
+
+.rdo-company-logo {
+  max-width: 170px;
+  max-height: 72px;
+  object-fit: contain;
+}
+
+.rdo-company-meta {
+  display: grid;
+  gap: 2px;
+}
+
+.rdo-company-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rdo-print-title-block {
+  text-align: center;
+  display: grid;
+  gap: 4px;
+}
+
+.rdo-print-title-block h4,
+.rdo-print-title-block p {
+  margin: 0;
+}
+
+.rdo-print-title-block p {
+  color: var(--muted);
 }
 
 .rdo-print-header {
@@ -671,13 +769,29 @@ th {
   }
 
   .dynamic-input-row,
-  .photo-card {
+  .photo-card,
+  .logo-upload-grid {
     grid-template-columns: 1fr;
   }
 
   .dynamic-input-row.structured,
   .dynamic-input-row.crew {
     grid-template-columns: 1fr;
+  }
+
+  .logo-upload-grid {
+    display: grid;
+  }
+
+  .rdo-print-branding {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .rdo-company-block.right,
+  .rdo-company-block.left {
+    justify-items: start;
+    text-align: left;
   }
 
   .rdo-print-header {
@@ -763,7 +877,8 @@ th {
   }
 
   .report-header,
-  .rdo-print-header {
+  .rdo-print-header,
+  .rdo-print-branding {
     margin-bottom: 4px;
     gap: 8px;
   }
@@ -822,6 +937,28 @@ th {
     gap: 10px;
     padding: 0 0 10mm;
     page-break-after: always;
+  }
+
+  .rdo-print-branding {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    padding-bottom: 6px;
+  }
+
+  .rdo-company-logo {
+    max-width: 120px;
+    max-height: 48px;
+  }
+
+  .rdo-company-label {
+    font-size: 7px;
+  }
+
+  .rdo-print-title-block h4 {
+    font-size: 12px;
+  }
+
+  .rdo-print-title-block p {
+    font-size: 8px;
   }
 
   .rdo-print-document:last-child {

@@ -271,6 +271,14 @@ function mapObra(row) {
     responsavel: row.responsavel,
     dataInicio: toDateOnlyString(row.data_inicio),
     orcamento: Number(row.orcamento || 0),
+    contratante: {
+      nome: String(row.contratante_nome || "").trim(),
+      logo: String(row.contratante_logo || "").trim()
+    },
+    contratada: {
+      nome: String(row.contratada_nome || "").trim(),
+      logo: String(row.contratada_logo || "").trim()
+    },
     finalizacao: row.finalizacao_data_entrega || row.finalizacao_aditivos_info || Number(row.finalizacao_aditivos_valor || 0) > 0
       ? {
           dataEntrega: toDateOnlyString(row.finalizacao_data_entrega),
@@ -422,6 +430,45 @@ function validateRdoClima(clima) {
   }
 }
 
+function normalizeCatalogKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function buildRdoCatalogos(rows) {
+  const materiais = new Map();
+  const maoDeObra = new Map();
+
+  rows.forEach((row) => {
+    [...normalizeRdoItemList(row.materiais_recebidos), ...normalizeRdoItemList(row.materiais_consumidos)].forEach((item) => {
+      const key = normalizeCatalogKey(item.descricao);
+      if (!key) {
+        return;
+      }
+
+      materiais.set(key, {
+        descricao: item.descricao,
+        unidade: item.unidade || ""
+      });
+    });
+
+    normalizeRdoCrewList(row.mao_obra_presente).forEach((item) => {
+      const key = normalizeCatalogKey(item.cargo);
+      if (!key) {
+        return;
+      }
+
+      maoDeObra.set(key, {
+        cargo: item.cargo
+      });
+    });
+  });
+
+  return {
+    materiais: Array.from(materiais.values()).sort((a, b) => a.descricao.localeCompare(b.descricao, "pt-BR")),
+    maoDeObra: Array.from(maoDeObra.values()).sort((a, b) => a.cargo.localeCompare(b.cargo, "pt-BR"))
+  };
+}
+
 function mapRdoSummary(row) {
   return {
     id: row.id,
@@ -481,12 +528,21 @@ async function ensureDatabase() {
       responsavel TEXT NOT NULL,
       data_inicio DATE NOT NULL,
       orcamento NUMERIC(14, 2) NOT NULL,
+      contratante_nome TEXT,
+      contratante_logo TEXT,
+      contratada_nome TEXT,
+      contratada_logo TEXT,
       finalizacao_data_entrega DATE,
       finalizacao_aditivos_info TEXT,
       finalizacao_aditivos_valor NUMERIC(14, 2) DEFAULT 0,
       finalizacao_atualizado_em TIMESTAMPTZ
     );
   `);
+
+  await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS contratante_nome TEXT");
+  await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS contratante_logo TEXT");
+  await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS contratada_nome TEXT");
+  await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS contratada_logo TEXT");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS compras (
@@ -556,7 +612,7 @@ async function ensureDatabase() {
 }
 
 async function getBootstrapPayload() {
-  const [obrasResult, comprasResult, maoDeObraResult, rdosResult] = await Promise.all([
+  const [obrasResult, comprasResult, maoDeObraResult, rdosResult, rdoCatalogRowsResult] = await Promise.all([
     pool.query("SELECT * FROM obras ORDER BY nome ASC"),
     pool.query("SELECT * FROM compras ORDER BY created_at ASC"),
     pool.query("SELECT * FROM mao_obra_pagamentos ORDER BY created_at ASC"),
@@ -573,6 +629,11 @@ async function getBootstrapPayload() {
         jsonb_array_length(COALESCE(materiais_consumidos, '[]'::jsonb)) AS materiais_consumidos_count
       FROM rdos
       ORDER BY data DESC, created_at DESC
+    `),
+    pool.query(`
+      SELECT materiais_recebidos, materiais_consumidos, mao_obra_presente
+      FROM rdos
+      ORDER BY data ASC, created_at ASC
     `)
   ]);
 
@@ -580,7 +641,8 @@ async function getBootstrapPayload() {
     obras: obrasResult.rows.map(mapObra),
     compras: comprasResult.rows.map(mapCompra),
     maoDeObra: maoDeObraResult.rows.map(mapMaoDeObra),
-    rdos: rdosResult.rows.map(mapRdoSummary)
+    rdos: rdosResult.rows.map(mapRdoSummary),
+    rdoCatalogos: buildRdoCatalogos(rdoCatalogRowsResult.rows)
   };
 }
 
@@ -835,8 +897,25 @@ async function handleApi(req, res, pathname) {
     requireFields(body, ["nome", "local", "responsavel", "dataInicio"]);
     const id = randomId();
     await pool.query(
-      `INSERT INTO obras (id, nome, local, responsavel, data_inicio, orcamento) VALUES ($1, $2, $3, $4, $5, $6)`,
-      [id, body.nome, body.local, body.responsavel, body.dataInicio, Number(body.orcamento || 0)]
+      `
+        INSERT INTO obras (
+          id, nome, local, responsavel, data_inicio, orcamento,
+          contratante_nome, contratante_logo, contratada_nome, contratada_logo
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `,
+      [
+        id,
+        body.nome,
+        body.local,
+        body.responsavel,
+        body.dataInicio,
+        Number(body.orcamento || 0),
+        String(body.contratanteNome || "").trim(),
+        String(body.contratanteLogo || "").trim(),
+        String(body.contratadaNome || "").trim(),
+        String(body.contratadaLogo || "").trim()
+      ]
     );
     sendJson(res, 201, { ok: true, id });
     return true;
@@ -849,8 +928,31 @@ async function handleApi(req, res, pathname) {
     const obraId = getResourceId(pathname);
     const body = await parseRequestBody(req);
     await pool.query(
-      `UPDATE obras SET nome = $2, local = $3, responsavel = $4, data_inicio = $5, orcamento = $6 WHERE id = $1`,
-      [obraId, body.nome, body.local, body.responsavel, body.dataInicio, Number(body.orcamento || 0)]
+      `
+        UPDATE obras
+        SET nome = $2,
+            local = $3,
+            responsavel = $4,
+            data_inicio = $5,
+            orcamento = $6,
+            contratante_nome = $7,
+            contratante_logo = $8,
+            contratada_nome = $9,
+            contratada_logo = $10
+        WHERE id = $1
+      `,
+      [
+        obraId,
+        body.nome,
+        body.local,
+        body.responsavel,
+        body.dataInicio,
+        Number(body.orcamento || 0),
+        String(body.contratanteNome || "").trim(),
+        String(body.contratanteLogo || "").trim(),
+        String(body.contratadaNome || "").trim(),
+        String(body.contratadaLogo || "").trim()
+      ]
     );
     sendJson(res, 200, { ok: true });
     return true;

@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260323-2" />
+  <link rel="stylesheet" href="style.css?v=20260323-3" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -88,6 +88,36 @@
             Orçamento Previsto (R$)
             <input type="text" id="obraOrcamento" inputmode="decimal" autocomplete="off" data-currency="true" required />
             </label>
+            <label>
+              Nome da Contratante
+              <input type="text" id="obraContratanteNome" placeholder="Empresa contratante" />
+            </label>
+            <label>
+              Nome da Contratada
+              <input type="text" id="obraContratadaNome" placeholder="Empresa contratada" />
+            </label>
+            <div class="full-width logo-upload-grid">
+              <div class="logo-upload-card">
+                <div class="dynamic-block-header">
+                  <div>
+                    <h4>Logotipo da Contratante</h4>
+                    <p class="subtitle">Será usado no cabeçalho do RDO quando disponível.</p>
+                  </div>
+                </div>
+                <input type="file" id="obraContratanteLogoInput" accept="image/*" />
+                <div id="obraContratanteLogoPreview" class="logo-preview empty">Nenhum logotipo carregado.</div>
+              </div>
+              <div class="logo-upload-card">
+                <div class="dynamic-block-header">
+                  <div>
+                    <h4>Logotipo da Contratada</h4>
+                    <p class="subtitle">Será usado no cabeçalho do RDO quando disponível.</p>
+                  </div>
+                </div>
+                <input type="file" id="obraContratadaLogoInput" accept="image/*" />
+                <div id="obraContratadaLogoPreview" class="logo-preview empty">Nenhum logotipo carregado.</div>
+              </div>
+            </div>
             <button type="submit" id="obraSubmitBtn" class="btn primary">Salvar Obra</button>
             <button type="button" id="obraCancelEditBtn" class="btn ghost">Cancelar</button>
           </form>
@@ -367,6 +397,8 @@
             <button type="submit" id="rdoSubmitBtn" class="btn primary">Salvar RDO</button>
             <button type="button" id="rdoCancelEditBtn" class="btn ghost hidden">Cancelar edição</button>
           </form>
+          <datalist id="rdoMaterialDescricaoOptions"></datalist>
+          <datalist id="rdoMaoDeObraCargoOptions"></datalist>
         </div>
 
         <div id="rdoPrintArea" class="rdo-print-area"></div>
@@ -530,6 +562,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=20260323-2"></script>
+  <script src="app.js?v=20260323-3"></script>
 </body>
 </html>
