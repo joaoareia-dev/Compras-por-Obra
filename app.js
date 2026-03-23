@@ -1836,7 +1836,7 @@ function renderRdos() {
           <td>${rdo.materiaisConsumidosCount}</td>
           <td>
             <button class="btn ghost" data-rdo-edit="${rdo.id}">Editar</button>
-            <button class="btn ghost" data-rdo-print="${rdo.id}">Imprimir</button>
+            <button class="btn ghost" data-rdo-print="${rdo.id}">Exportar PDF</button>
           </td>
         </tr>
       `
@@ -1995,6 +1995,18 @@ function renderRdoStructuredTable(title, items, type = "itens") {
   `;
 }
 
+function renderRdoSignatureBlock(obra) {
+  const companyName = String(obra?.contratada?.nome || "").trim() || "Empresa contratada";
+
+  return `
+    <section class="rdo-print-signature">
+      <div class="rdo-signature-line"></div>
+      <strong>${escapeHtml(companyName)}</strong>
+      <span>Assinatura do RDO</span>
+    </section>
+  `;
+}
+
 function renderRdoPrintDocuments(rdos) {
   if (!rdoPrintArea) {
     return;
@@ -2058,28 +2070,173 @@ function renderRdoPrintDocuments(rdos) {
           ${renderRdoStructuredTable("Materiais consumidos", rdo.materiaisConsumidos)}
           ${rdo.observacoesAdicionais ? renderRdoPrintList("Observacoes adicionais", [rdo.observacoesAdicionais]) : ""}
           ${photosMarkup}
+          ${renderRdoSignatureBlock(obra)}
         </article>
       `;
     })
     .join("");
 }
 
-async function imprimirRdosPorIds(rdoIds) {
+function compareRdosByChronology(left, right) {
+  const dateComparison = String(left?.data || "").localeCompare(String(right?.data || ""));
+  if (dateComparison !== 0) {
+    return dateComparison;
+  }
+
+  return String(left?.createdAt || "").localeCompare(String(right?.createdAt || ""));
+}
+
+function sanitizeFileNamePart(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
+
+function buildRdoPdfFileName(rdos) {
+  const orderedRdos = [...rdos].sort(compareRdosByChronology);
+  if (orderedRdos.length === 1) {
+    const rdo = orderedRdos[0];
+    const obra = getObraById(rdo.obraId);
+    const obraSlug = sanitizeFileNamePart(obra?.nome || "obra");
+    const dateSlug = sanitizeFileNamePart(rdo.data || getTodayIsoDate());
+    return `rdo-${obraSlug || "obra"}-${dateSlug || "data"}.pdf`;
+  }
+
+  const firstDate = orderedRdos[0]?.data || getTodayIsoDate();
+  const lastDate = orderedRdos[orderedRdos.length - 1]?.data || firstDate;
+  return `rdos-${sanitizeFileNamePart(firstDate)}-a-${sanitizeFileNamePart(lastDate)}.pdf`;
+}
+
+function getPdfLibraries() {
+  const html2canvasLib = window.html2canvas;
+  const jsPdfLib = window.jspdf?.jsPDF;
+
+  if (!html2canvasLib || !jsPdfLib) {
+    throw new Error("As bibliotecas de PDF nao foram carregadas. Atualize a pagina e tente novamente.");
+  }
+
+  return {
+    html2canvas: html2canvasLib,
+    jsPDF: jsPdfLib
+  };
+}
+
+async function nextFrame(times = 1) {
+  for (let index = 0; index < times; index += 1) {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
+}
+
+function sliceCanvasForPdf(sourceCanvas, sourceTop, sourceHeight) {
+  const sliceCanvas = document.createElement("canvas");
+  sliceCanvas.width = sourceCanvas.width;
+  sliceCanvas.height = sourceHeight;
+
+  const context = sliceCanvas.getContext("2d");
+  if (!context) {
+    throw new Error("Nao foi possivel preparar a pagina do PDF.");
+  }
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+  context.drawImage(
+    sourceCanvas,
+    0,
+    sourceTop,
+    sourceCanvas.width,
+    sourceHeight,
+    0,
+    0,
+    sliceCanvas.width,
+    sliceCanvas.height
+  );
+
+  return sliceCanvas;
+}
+
+async function exportarRdosPdfPorIds(rdoIds) {
   if (!rdoIds.length) {
-    alert("Selecione pelo menos um RDO para imprimir.");
+    alert("Selecione pelo menos um RDO para exportar.");
     return;
   }
 
+  const buttonLabel = rdoImprimirSelecionadosBtn?.textContent || "";
+
   try {
-    const rdos = await Promise.all(rdoIds.map((id) => fetchRdoDetail(id)));
+    if (rdoImprimirSelecionadosBtn) {
+      rdoImprimirSelecionadosBtn.disabled = true;
+      rdoImprimirSelecionadosBtn.textContent = "Gerando PDF...";
+    }
+
+    const { html2canvas, jsPDF } = getPdfLibraries();
+    const rdos = (await Promise.all(rdoIds.map((id) => fetchRdoDetail(id)))).sort(compareRdosByChronology);
+
     renderRdoPrintDocuments(rdos);
     clearPrintMode();
     document.body.classList.add("printing-rdos");
     await waitForImagesToLoad(rdoPrintArea);
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    window.print();
+    await nextFrame(2);
+
+    const documents = Array.from(rdoPrintArea.querySelectorAll(".rdo-print-document"));
+    if (!documents.length) {
+      throw new Error("Nao foi possivel montar o conteudo do RDO para exportacao.");
+    }
+
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+      compress: true
+    });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 8;
+    const usableWidth = pageWidth - margin * 2;
+    const usableHeight = pageHeight - margin * 2;
+    let isFirstPage = true;
+
+    for (const documentElement of documents) {
+      const canvas = await html2canvas(documentElement, {
+        backgroundColor: "#ffffff",
+        logging: false,
+        scale: 1.8,
+        useCORS: true,
+        windowWidth: documentElement.scrollWidth,
+        windowHeight: documentElement.scrollHeight
+      });
+
+      const pixelsPerPage = Math.max(1, Math.floor((usableHeight * canvas.width) / usableWidth));
+      let sourceTop = 0;
+
+      while (sourceTop < canvas.height) {
+        const remainingHeight = canvas.height - sourceTop;
+        const sliceHeight = Math.min(remainingHeight, pixelsPerPage);
+        const pageCanvas = sliceCanvasForPdf(canvas, sourceTop, sliceHeight);
+        const renderedHeight = (pageCanvas.height * usableWidth) / pageCanvas.width;
+        const imageData = pageCanvas.toDataURL("image/jpeg", 0.92);
+
+        if (!isFirstPage) {
+          pdf.addPage();
+        }
+
+        pdf.addImage(imageData, "JPEG", margin, margin, usableWidth, renderedHeight, undefined, "FAST");
+        isFirstPage = false;
+        sourceTop += sliceHeight;
+      }
+    }
+
+    pdf.save(buildRdoPdfFileName(rdos));
   } catch (error) {
     alert(error.message);
+  } finally {
+    clearPrintMode();
+    if (rdoImprimirSelecionadosBtn) {
+      rdoImprimirSelecionadosBtn.disabled = state.selectedRdoIds.size === 0;
+      rdoImprimirSelecionadosBtn.textContent = buttonLabel || "Exportar PDF selecionados";
+    }
   }
 }
 
@@ -2630,7 +2787,7 @@ if (rdoLimparBuscaBtn) {
 
 if (rdoImprimirSelecionadosBtn) {
   rdoImprimirSelecionadosBtn.addEventListener("click", () => {
-    imprimirRdosPorIds(Array.from(state.selectedRdoIds));
+    exportarRdosPdfPorIds(Array.from(state.selectedRdoIds));
   });
 }
 
@@ -2766,7 +2923,7 @@ if (rdoTableBody) {
       return;
     }
 
-    await imprimirRdosPorIds([printButton.getAttribute("data-rdo-print")]);
+    await exportarRdosPdfPorIds([printButton.getAttribute("data-rdo-print")]);
   });
 }
 

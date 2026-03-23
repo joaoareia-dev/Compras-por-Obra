@@ -651,6 +651,30 @@ body.printing-rdos .rdo-print-area {
   color: var(--text);
 }
 
+.rdo-print-signature {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  padding-top: 18px;
+  margin-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.rdo-signature-line {
+  width: min(320px, 100%);
+  border-top: 1px solid #5e6b86;
+}
+
+.rdo-print-signature strong,
+.rdo-print-signature span {
+  text-align: center;
+}
+
+.rdo-print-signature span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
 .report-header {
   display: flex;
   justify-content: space-between;
@@ -986,6 +1010,15 @@ th {
   }
 
   .rdo-print-photo figcaption {
+    font-size: 8px;
+  }
+
+  .rdo-print-signature {
+    padding-top: 12px;
+    gap: 4px;
+  }
+
+  .rdo-print-signature span {
     font-size: 8px;
   }
 }

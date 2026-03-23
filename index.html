@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260323-3" />
+  <link rel="stylesheet" href="style.css?v=20260323-4" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -307,7 +307,7 @@
           <button type="button" id="rdoBuscarBtn" class="btn ghost">Buscar</button>
           <button type="button" id="rdoLimparBuscaBtn" class="btn ghost">Limpar busca</button>
           <button type="button" id="rdoNewBtn" class="btn primary">Cadastrar novo RDO</button>
-          <button type="button" id="rdoImprimirSelecionadosBtn" class="btn ghost">Imprimir selecionados</button>
+          <button type="button" id="rdoImprimirSelecionadosBtn" class="btn ghost">Exportar PDF selecionados</button>
         </div>
 
         <div id="rdoEditorPanel" class="subpanel hidden">
@@ -562,6 +562,8 @@
     </section>
   </main>
 
-  <script src="app.js?v=20260323-3"></script>
+  <script src="node_modules/html2canvas/dist/html2canvas.min.js?v=20260323-4"></script>
+  <script src="node_modules/jspdf/dist/jspdf.umd.min.js?v=20260323-4"></script>
+  <script src="app.js?v=20260323-4"></script>
 </body>
 </html>
