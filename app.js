@@ -7,6 +7,7 @@ const state = {
     materiais: [],
     maoDeObra: []
   },
+  auditLogs: [],
   usuarios: [],
   sessionUser: null,
   loginTakeoverEmail: null,
@@ -140,6 +141,8 @@ const usuariosTableBody = document.getElementById("usuariosTableBody");
 const usuarioNewBtn = document.getElementById("usuarioNewBtn");
 const usuarioFormPanel = document.getElementById("usuarioFormPanel");
 const usuarioClosePanelBtn = document.getElementById("usuarioClosePanelBtn");
+const auditLogsTableBody = document.getElementById("auditLogsTableBody");
+const logsRefreshBtn = document.getElementById("logsRefreshBtn");
 
 const menuButtons = Array.from(document.querySelectorAll(".menu-btn"));
 const pages = Array.from(document.querySelectorAll(".page"));
@@ -153,6 +156,10 @@ const currencyFormatter = new Intl.NumberFormat("pt-BR", {
 const monthFormatter = new Intl.DateTimeFormat("pt-BR", {
   month: "long",
   year: "numeric"
+});
+const dateTimeFormatter = new Intl.DateTimeFormat("pt-BR", {
+  dateStyle: "short",
+  timeStyle: "short"
 });
 const numberFormatter = new Intl.NumberFormat("pt-BR");
 const currencyInputFormatter = new Intl.NumberFormat("pt-BR", {
@@ -246,6 +253,22 @@ async function refreshUsers() {
   state.usuarios = payload.users || [];
 }
 
+async function refreshAuditLogs() {
+  if (!isAdmin()) {
+    state.auditLogs = [];
+    return;
+  }
+
+  const payload = await apiFetch("/api/audit-logs");
+  state.auditLogs = payload.logs || [];
+}
+
+async function refreshAuditLogsIfNeeded() {
+  if (isAdmin()) {
+    await refreshAuditLogs();
+  }
+}
+
 function getObras() {
   return state.obras;
 }
@@ -270,8 +293,21 @@ function getRdoCatalogos() {
   return state.rdoCatalogos || { materiais: [], maoDeObra: [] };
 }
 
+function getAuditLogs() {
+  return state.auditLogs || [];
+}
+
 function formatCurrency(value) {
   return currencyFormatter.format(Number(value || 0));
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return "-";
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "-" : dateTimeFormatter.format(parsed);
 }
 
 function formatNumber(value) {
@@ -1258,6 +1294,25 @@ async function confirmarAutorizacaoGerente(motivo) {
   return true;
 }
 
+function solicitarSenhaUsuarioParaExclusao(tipoItem) {
+  const confirmouAcao = confirm(`Tem certeza que deseja excluir este ${tipoItem}?`);
+  if (!confirmouAcao) {
+    return null;
+  }
+
+  const senhaInformada = prompt(`Confirme a exclusao digitando a senha do usuario atual:`);
+  if (senhaInformada === null) {
+    return null;
+  }
+
+  if (!senhaInformada.trim()) {
+    alert("Informe a senha para concluir a exclusao.");
+    return null;
+  }
+
+  return senhaInformada;
+}
+
 async function confirmarExclusaoObraComSenhaGerente() {
   const confirmouAcao = confirm("Tem certeza que deseja excluir esta obra? Esta acao tambem remove as compras vinculadas.");
   if (!confirmouAcao) {
@@ -1502,7 +1557,7 @@ function syncPermissionsUI() {
     element.classList.toggle("hidden", !isAdmin());
   });
 
-  if (!isAdmin() && ["obras"].includes(document.querySelector(".menu-btn.active")?.dataset.section)) {
+  if (!isAdmin() && ["obras", "logs"].includes(document.querySelector(".menu-btn.active")?.dataset.section)) {
     activatePage("dashboard");
   }
 }
@@ -1536,6 +1591,55 @@ function renderUsuarios() {
     .join("");
 }
 
+function formatAuditAction(action) {
+  return {
+    cadastro: "Cadastro",
+    edicao: "Edição",
+    exclusao: "Exclusão"
+  }[action] || action || "-";
+}
+
+function formatAuditEntityType(entityType) {
+  return {
+    obra: "Obra",
+    compra: "Compra",
+    mao_de_obra: "Mão de Obra",
+    rdo: "RDO",
+    usuario: "Usuário"
+  }[entityType] || entityType || "-";
+}
+
+function renderAuditLogs() {
+  if (!auditLogsTableBody) {
+    return;
+  }
+
+  if (!isAdmin()) {
+    auditLogsTableBody.innerHTML = `<tr><td colspan="5" class="empty">Apenas gerentes podem visualizar os logs.</td></tr>`;
+    return;
+  }
+
+  const logs = getAuditLogs();
+  if (!logs.length) {
+    auditLogsTableBody.innerHTML = `<tr><td colspan="5" class="empty">Nenhum log de auditoria disponível.</td></tr>`;
+    return;
+  }
+
+  auditLogsTableBody.innerHTML = logs
+    .map(
+      (log) => `
+        <tr>
+          <td>${formatDateTime(log.createdAt)}</td>
+          <td>${escapeHtml(log.user?.name || "-")}</td>
+          <td>${formatAuditAction(log.action)}</td>
+          <td>${formatAuditEntityType(log.entityType)}</td>
+          <td>${escapeHtml(log.summary || "-")}</td>
+        </tr>
+      `
+    )
+    .join("");
+}
+
 function activatePage(pageId) {
   pages.forEach((page) => {
     page.classList.toggle("hidden", page.id !== pageId);
@@ -1551,6 +1655,15 @@ function activatePage(pageId) {
 
   if (pageId === "rdos") {
     renderRdos();
+  }
+
+  if (pageId === "logs") {
+    renderAuditLogs();
+    if (isAdmin()) {
+      refreshAuditLogs()
+        .then(() => renderAuditLogs())
+        .catch((error) => alert(error.message));
+    }
   }
 }
 
@@ -1837,6 +1950,7 @@ function renderRdos() {
           <td>
             <button class="btn ghost" data-rdo-edit="${rdo.id}">Editar</button>
             <button class="btn ghost" data-rdo-print="${rdo.id}">Exportar PDF</button>
+            <button class="btn delete" data-rdo-delete="${rdo.id}">Excluir</button>
           </td>
         </tr>
       `
@@ -2488,6 +2602,7 @@ function renderAll() {
   renderMaoDeObra();
   renderRdos();
   renderUsuarios();
+  renderAuditLogs();
   renderRelatorios();
 }
 
@@ -2624,6 +2739,7 @@ obraForm.addEventListener("submit", async (event) => {
     });
 
     await refreshData();
+    await refreshAuditLogsIfNeeded();
     closeObraEditor();
     renderAll();
     activatePage("obras");
@@ -2660,6 +2776,7 @@ finalizacaoForm.addEventListener("submit", async (event) => {
     });
 
     await refreshData();
+    await refreshAuditLogsIfNeeded();
     renderAll();
     openObraEditor(getObraById(obraId));
     activatePage("obras");
@@ -2705,8 +2822,9 @@ compraForm.addEventListener("submit", async (event) => {
     });
 
     rememberCompraDate(compraDataValue);
-    await refreshData();
-    resetCompraForm();
+      await refreshData();
+      await refreshAuditLogsIfNeeded();
+      resetCompraForm();
     renderAll();
     activatePage("compras");
   } catch (error) {
@@ -2758,8 +2876,9 @@ maoDeObraForm.addEventListener("submit", async (event) => {
       periodoFim: periodoFimValue,
       dataPagamento: dataPagamentoValue
     });
-    await refreshData();
-    resetMaoDeObraForm();
+      await refreshData();
+      await refreshAuditLogsIfNeeded();
+      resetMaoDeObraForm();
     renderAll();
     activatePage("maoDeObra");
   } catch (error) {
@@ -2855,6 +2974,7 @@ if (rdoForm) {
       });
 
       await refreshData();
+      await refreshAuditLogsIfNeeded();
       closeRdoEditor();
       renderAll();
       activatePage("rdos");
@@ -2948,11 +3068,37 @@ if (rdoTableBody) {
     }
 
     const printButton = event.target.closest("[data-rdo-print]");
-    if (!printButton) {
+    if (printButton) {
+      await exportarRdosPdfPorIds([printButton.getAttribute("data-rdo-print")]);
       return;
     }
 
-    await exportarRdosPdfPorIds([printButton.getAttribute("data-rdo-print")]);
+    const deleteButton = event.target.closest("[data-rdo-delete]");
+    if (!deleteButton) {
+      return;
+    }
+
+    const rdoId = deleteButton.getAttribute("data-rdo-delete");
+    const senhaInformada = solicitarSenhaUsuarioParaExclusao("RDO");
+    if (!senhaInformada) {
+      return;
+    }
+
+    try {
+      await apiFetch(`/api/rdos/${rdoId}`, {
+        method: "DELETE",
+        body: JSON.stringify({ password: senhaInformada })
+      });
+      state.selectedRdoIds.delete(rdoId);
+      if (rdoEditIdInput.value === rdoId) {
+        closeRdoEditor();
+      }
+      await refreshData();
+      await refreshAuditLogsIfNeeded();
+      renderAll();
+    } catch (error) {
+      alert(error.message);
+    }
   });
 }
 
@@ -3007,6 +3153,7 @@ obrasTableBody.addEventListener("click", async (event) => {
     const id = deleteButton.getAttribute("data-obra-delete");
     await apiFetch(`/api/obras/${id}`, { method: "DELETE" });
     await refreshData();
+    await refreshAuditLogsIfNeeded();
     if (obraEditIdInput.value === id) {
       closeObraEditor();
     }
@@ -3050,6 +3197,7 @@ comprasTableBody.addEventListener("click", async (event) => {
 
     await apiFetch(`/api/compras/${id}`, { method: "DELETE" });
     await refreshData();
+    await refreshAuditLogsIfNeeded();
     renderAll();
   } catch (error) {
     alert(error.message);
@@ -3090,6 +3238,7 @@ maoDeObraTableBody.addEventListener("click", async (event) => {
 
     await apiFetch(`/api/mao-de-obra/${id}`, { method: "DELETE" });
     await refreshData();
+    await refreshAuditLogsIfNeeded();
     renderAll();
   } catch (error) {
     alert(error.message);
@@ -3113,6 +3262,7 @@ if (usuarioForm) {
 
       closeUsuarioFormPanel();
       await refreshUsers();
+      await refreshAuditLogsIfNeeded();
       renderUsuarios();
       activatePage("conta");
     } catch (error) {
@@ -3160,6 +3310,7 @@ if (usuariosTableBody) {
         method: "DELETE"
       });
       await refreshUsers();
+      await refreshAuditLogsIfNeeded();
       renderUsuarios();
     } catch (error) {
       alert(error.message);
@@ -3195,6 +3346,7 @@ if (senhaForm) {
       });
 
       resetSenhaForm();
+      await refreshAuditLogsIfNeeded();
       senhaFeedback.textContent = isOwnUser ? "Senha atualizada com sucesso." : `Senha de ${targetUser?.name || "usuario"} atualizada com sucesso.`;
       senhaFeedback.classList.remove("hidden");
     } catch (error) {
@@ -3207,6 +3359,17 @@ if (senhaForm) {
 if (senhaClosePanelBtn) {
   senhaClosePanelBtn.addEventListener("click", () => {
     closeSenhaPanel();
+  });
+}
+
+if (logsRefreshBtn) {
+  logsRefreshBtn.addEventListener("click", async () => {
+    try {
+      await refreshAuditLogsIfNeeded();
+      renderAuditLogs();
+    } catch (error) {
+      alert(error.message);
+    }
   });
 }
 
@@ -3279,6 +3442,7 @@ async function initializeApp() {
   try {
     await refreshData();
     await refreshUsers();
+    await refreshAuditLogsIfNeeded();
   } catch (error) {
     clearSession();
     showLogin();

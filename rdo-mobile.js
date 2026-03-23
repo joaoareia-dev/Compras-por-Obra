@@ -589,7 +589,10 @@ function renderRdoList() {
               <h4>${escapeHtml(obra?.nome || "Obra removida")}</h4>
               <p class="subtitle">${formatDate(rdo.data)}</p>
             </div>
-            <button type="button" class="btn ghost" data-rdo-edit="${rdo.id}">Editar</button>
+            <div class="mobile-rdo-actions">
+              <button type="button" class="btn ghost" data-rdo-edit="${rdo.id}">Editar</button>
+              <button type="button" class="btn delete" data-rdo-delete="${rdo.id}">Excluir</button>
+            </div>
           </div>
           <div class="mobile-rdo-meta">
             <p><strong>Fotos:</strong> ${rdo.fotosCount}</p>
@@ -601,6 +604,25 @@ function renderRdoList() {
       `;
     })
     .join("");
+}
+
+function promptPasswordForRdoDeletion() {
+  const confirmed = window.confirm("Tem certeza que deseja excluir este RDO?");
+  if (!confirmed) {
+    return null;
+  }
+
+  const password = window.prompt("Digite a senha do usuário atual para confirmar a exclusão:");
+  if (password === null) {
+    return null;
+  }
+
+  if (!password.trim()) {
+    alert("Informe a senha para concluir a exclusão.");
+    return null;
+  }
+
+  return password;
 }
 
 async function confirmAdminAuthorization(actionLabel) {
@@ -889,19 +911,39 @@ rdoForm.addEventListener("submit", async (event) => {
 
 rdoList.addEventListener("click", async (event) => {
   const editButton = event.target.closest("[data-rdo-edit]");
-  if (!editButton) {
+  if (editButton) {
+    try {
+      const rdoSummary = getRdoById(editButton.getAttribute("data-rdo-edit"));
+      if (rdoSummary && isObraFinalizada(rdoSummary.obraId) && !(await confirmAdminAuthorization("a edição do RDO"))) {
+        return;
+      }
+
+      const rdo = await fetchRdoDetail(editButton.getAttribute("data-rdo-edit"));
+      fillRdoForm(rdo);
+      openEditor();
+    } catch (error) {
+      alert(error.message);
+    }
+    return;
+  }
+
+  const deleteButton = event.target.closest("[data-rdo-delete]");
+  if (!deleteButton) {
+    return;
+  }
+
+  const password = promptPasswordForRdoDeletion();
+  if (!password) {
     return;
   }
 
   try {
-    const rdoSummary = getRdoById(editButton.getAttribute("data-rdo-edit"));
-    if (rdoSummary && isObraFinalizada(rdoSummary.obraId) && !(await confirmAdminAuthorization("a edição do RDO"))) {
-      return;
-    }
-
-    const rdo = await fetchRdoDetail(editButton.getAttribute("data-rdo-edit"));
-    fillRdoForm(rdo);
-    openEditor();
+    await apiFetch(`/api/rdos/${deleteButton.getAttribute("data-rdo-delete")}`, {
+      method: "DELETE",
+      body: JSON.stringify({ password })
+    });
+    await refreshData();
+    closeEditor();
   } catch (error) {
     alert(error.message);
   }

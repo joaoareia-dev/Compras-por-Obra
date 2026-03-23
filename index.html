@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260323-7" />
+  <link rel="stylesheet" href="style.css?v=20260323-8" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -47,6 +47,7 @@
         <button class="menu-btn" data-section="rdos">RDOs</button>
         <button class="menu-btn" data-section="relatorios">Relatórios</button>
         <button class="menu-btn" data-section="conta">Conta e Usuários</button>
+        <button class="menu-btn admin-only" data-section="logs">Logs</button>
       </nav>
 
       <section id="dashboard" class="page card"></section>
@@ -559,11 +560,33 @@
           </table>
         </div>
       </section>
+
+      <section id="logs" class="page card hidden admin-only">
+        <h3>Log de Auditoria</h3>
+        <p class="subtitle">Acompanhe cadastro, edição e exclusão dos principais registros do sistema.</p>
+        <div class="section-actions">
+          <button type="button" id="logsRefreshBtn" class="btn ghost">Atualizar logs</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data/Hora</th>
+                <th>Usuário</th>
+                <th>Ação</th>
+                <th>Tipo</th>
+                <th>Resumo</th>
+              </tr>
+            </thead>
+            <tbody id="auditLogsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
     </section>
   </main>
 
-  <script src="node_modules/html2canvas/dist/html2canvas.min.js?v=20260323-7"></script>
-  <script src="node_modules/jspdf/dist/jspdf.umd.min.js?v=20260323-7"></script>
-  <script src="app.js?v=20260323-7"></script>
+  <script src="node_modules/html2canvas/dist/html2canvas.min.js?v=20260323-8"></script>
+  <script src="node_modules/jspdf/dist/jspdf.umd.min.js?v=20260323-8"></script>
+  <script src="app.js?v=20260323-8"></script>
 </body>
 </html>

@@ -25,6 +25,7 @@ const SESSION_TTL_DAYS = 7;
 const JSON_BODY_LIMIT_BYTES = Number(process.env.JSON_BODY_LIMIT_BYTES) || 20 * 1024 * 1024;
 const noCacheExtensions = new Set([".html", ".js", ".css"]);
 const RDO_CLIMA_OPTIONS = new Set(["Ensolarado", "Nublado", "Chuvoso"]);
+const AUDIT_ACTIONS = new Set(["cadastro", "edicao", "exclusao"]);
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -596,6 +597,26 @@ async function ensureDatabase() {
   await pool.query("ALTER TABLE rdos ADD COLUMN IF NOT EXISTS observacoes_adicionais TEXT");
   await pool.query("ALTER TABLE rdos ADD COLUMN IF NOT EXISTS mao_obra_presente JSONB NOT NULL DEFAULT '[]'::jsonb");
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      user_name TEXT NOT NULL,
+      user_email TEXT,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT,
+      summary TEXT NOT NULL,
+      details JSONB NOT NULL DEFAULT '{}'::jsonb,
+      client_ip TEXT,
+      user_agent TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details JSONB NOT NULL DEFAULT '{}'::jsonb");
+  await pool.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS client_ip TEXT");
+  await pool.query("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT");
+
   await pool.query(`UPDATE users SET role = 'administrador' WHERE role NOT IN ('administrador', 'usuario')`);
   const adminEmail = process.env.ADMIN_EMAIL || "admin@obra.local";
   const adminPassword = process.env.ADMIN_PASSWORD || "123456";
@@ -689,6 +710,70 @@ function requireAdmin(res, user) {
   }
 
   return true;
+}
+
+function getRequestClientData(req) {
+  return {
+    ip: String((req.headers["x-forwarded-for"] || "").split(",")[0] || req.socket.remoteAddress || "").trim(),
+    userAgent: String(req.headers["user-agent"] || "").trim()
+  };
+}
+
+function mapAuditLog(row) {
+  return {
+    id: row.id,
+    action: row.action,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    summary: row.summary,
+    details: row.details || {},
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || ""),
+    clientIp: row.client_ip || "",
+    userAgent: row.user_agent || "",
+    user: {
+      id: row.user_id || "",
+      name: row.user_name || "",
+      email: row.user_email || ""
+    }
+  };
+}
+
+async function createAuditLog(req, user, action, entityType, entityId, summary, details = {}) {
+  if (!user || !AUDIT_ACTIONS.has(action)) {
+    return;
+  }
+
+  const client = getRequestClientData(req);
+  await pool.query(
+    `
+      INSERT INTO audit_logs (
+        id, user_id, user_name, user_email, action, entity_type, entity_id, summary, details, client_ip, user_agent, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, NOW())
+    `,
+    [
+      randomId(),
+      user.id || null,
+      user.name || "Usuario",
+      user.email || "",
+      action,
+      entityType,
+      entityId || null,
+      summary,
+      JSON.stringify(details || {}),
+      client.ip,
+      client.userAgent
+    ]
+  );
+}
+
+async function verifyCurrentUserPassword(userId, password) {
+  const result = await pool.query("SELECT password FROM users WHERE id = $1 LIMIT 1", [userId]);
+  if (!result.rows.length) {
+    return false;
+  }
+
+  return verifyPassword(String(password || ""), result.rows[0].password);
 }
 
 async function handleApi(req, res, pathname) {
@@ -795,6 +880,9 @@ async function handleApi(req, res, pathname) {
     }
 
     await updateUserPasswordAndSessions(user.id, newPassword, parseCookies(req)[SESSION_COOKIE] || "", true);
+    await createAuditLog(req, user, "edicao", "usuario", user.id, "Alteracao da propria senha.", {
+      ownUser: true
+    });
     sendJson(res, 200, { ok: true });
     return true;
   }
@@ -841,6 +929,16 @@ async function handleApi(req, res, pathname) {
       isOwnUser
     );
 
+    await createAuditLog(
+      req,
+      user,
+      "edicao",
+      "usuario",
+      targetUserId,
+      isOwnUser ? "Alteracao da propria senha." : `Senha redefinida para ${targetUserId}.`,
+      { ownUser: isOwnUser }
+    );
+
     sendJson(res, 200, { ok: true });
     return true;
   }
@@ -858,6 +956,23 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  if (req.method === "GET" && pathname === "/api/audit-logs") {
+    if (!requireAdmin(res, user)) {
+      return true;
+    }
+
+    const result = await pool.query(
+      `
+        SELECT id, user_id, user_name, user_email, action, entity_type, entity_id, summary, details, client_ip, user_agent, created_at
+        FROM audit_logs
+        ORDER BY created_at DESC
+        LIMIT 400
+      `
+    );
+    sendJson(res, 200, { logs: result.rows.map(mapAuditLog) });
+    return true;
+  }
+
   if (req.method === "POST" && pathname === "/api/users") {
     if (!requireAdmin(res, user)) {
       return true;
@@ -872,6 +987,10 @@ async function handleApi(req, res, pathname) {
       "INSERT INTO users (id, name, email, password, role) VALUES ($1, $2, $3, $4, $5)",
       [id, String(body.name).trim(), String(body.email).trim().toLowerCase(), hashPassword(String(body.password)), body.role]
     );
+    await createAuditLog(req, user, "cadastro", "usuario", id, `Usuario ${String(body.name).trim()} cadastrado.`, {
+      role: body.role,
+      email: String(body.email).trim().toLowerCase()
+    });
     sendJson(res, 201, { ok: true, id });
     return true;
   }
@@ -885,7 +1004,15 @@ async function handleApi(req, res, pathname) {
       sendJson(res, 400, { error: "Voce nao pode excluir o proprio usuario." });
       return true;
     }
+    const targetUserResult = await pool.query("SELECT name, email, role FROM users WHERE id = $1 LIMIT 1", [userId]);
     await pool.query("DELETE FROM users WHERE id = $1", [userId]);
+    if (targetUserResult.rows.length) {
+      const targetUser = targetUserResult.rows[0];
+      await createAuditLog(req, user, "exclusao", "usuario", userId, `Usuario ${targetUser.name} excluido.`, {
+        email: targetUser.email,
+        role: targetUser.role
+      });
+    }
     sendJson(res, 200, { ok: true });
     return true;
   }
@@ -918,6 +1045,11 @@ async function handleApi(req, res, pathname) {
         String(body.contratadaLogo || "").trim()
       ]
     );
+    await createAuditLog(req, user, "cadastro", "obra", id, `Obra ${String(body.nome).trim()} cadastrada.`, {
+      nome: String(body.nome).trim(),
+      local: String(body.local).trim(),
+      responsavel: String(body.responsavel).trim()
+    });
     sendJson(res, 201, { ok: true, id });
     return true;
   }
@@ -955,6 +1087,11 @@ async function handleApi(req, res, pathname) {
         String(body.contratadaLogo || "").trim()
       ]
     );
+    await createAuditLog(req, user, "edicao", "obra", obraId, `Obra ${String(body.nome || "").trim() || obraId} atualizada.`, {
+      nome: String(body.nome || "").trim(),
+      local: String(body.local || "").trim(),
+      responsavel: String(body.responsavel || "").trim()
+    });
     sendJson(res, 200, { ok: true });
     return true;
   }
@@ -976,6 +1113,10 @@ async function handleApi(req, res, pathname) {
       `,
       [obraId, body.dataEntrega, body.aditivosInfo, Number(body.aditivosValor || 0), new Date().toISOString()]
     );
+    await createAuditLog(req, user, "edicao", "obra", obraId, `Finalizacao da obra ${obraId} atualizada.`, {
+      dataEntrega: body.dataEntrega,
+      aditivosValor: Number(body.aditivosValor || 0)
+    });
     sendJson(res, 200, { ok: true });
     return true;
   }
@@ -985,7 +1126,15 @@ async function handleApi(req, res, pathname) {
       return true;
     }
     const obraId = getResourceId(pathname);
+    const obraResult = await pool.query("SELECT nome, local FROM obras WHERE id = $1 LIMIT 1", [obraId]);
     await pool.query("DELETE FROM obras WHERE id = $1", [obraId]);
+    if (obraResult.rows.length) {
+      const obra = obraResult.rows[0];
+      await createAuditLog(req, user, "exclusao", "obra", obraId, `Obra ${obra.nome} excluida.`, {
+        nome: obra.nome,
+        local: obra.local
+      });
+    }
     sendJson(res, 200, { ok: true });
     return true;
   }
@@ -1016,6 +1165,12 @@ async function handleApi(req, res, pathname) {
         Boolean(body.pago)
       ]
     );
+    await createAuditLog(req, user, "cadastro", "compra", id, `Compra ${String(body.descricao || "").trim() || id} cadastrada.`, {
+      obraId: body.obraId,
+      descricao: String(body.descricao || "").trim(),
+      categoria: String(body.categoria || "").trim(),
+      precoTotal: Number(body.precoTotal || 0)
+    });
     sendJson(res, 201, { ok: true, id });
     return true;
   }
@@ -1052,13 +1207,28 @@ async function handleApi(req, res, pathname) {
         Boolean(body.pago)
       ]
     );
+    await createAuditLog(req, user, "edicao", "compra", compraId, `Compra ${String(body.descricao || "").trim() || compraId} atualizada.`, {
+      obraId: body.obraId,
+      descricao: String(body.descricao || "").trim(),
+      categoria: String(body.categoria || "").trim(),
+      precoTotal: Number(body.precoTotal || 0)
+    });
     sendJson(res, 200, { ok: true });
     return true;
   }
 
   if (req.method === "DELETE" && pathname.startsWith("/api/compras/")) {
     const compraId = getResourceId(pathname);
+    const compraResult = await pool.query("SELECT obra_id, descricao, categoria, preco_total FROM compras WHERE id = $1 LIMIT 1", [compraId]);
     await pool.query("DELETE FROM compras WHERE id = $1", [compraId]);
+    if (compraResult.rows.length) {
+      const compra = compraResult.rows[0];
+      await createAuditLog(req, user, "exclusao", "compra", compraId, `Compra ${compra.descricao} excluida.`, {
+        obraId: compra.obra_id,
+        categoria: compra.categoria,
+        precoTotal: Number(compra.preco_total || 0)
+      });
+    }
     sendJson(res, 200, { ok: true });
     return true;
   }
@@ -1085,6 +1255,11 @@ async function handleApi(req, res, pathname) {
         Number(body.valor || 0)
       ]
     );
+    await createAuditLog(req, user, "cadastro", "mao_de_obra", id, `Pagamento de mao de obra ${String(body.descricao || "").trim() || id} cadastrado.`, {
+      obraId: body.obraId,
+      descricao: String(body.descricao || "").trim(),
+      valor: Number(body.valor || 0)
+    });
     sendJson(res, 201, { ok: true, id });
     return true;
   }
@@ -1113,13 +1288,26 @@ async function handleApi(req, res, pathname) {
         Number(body.valor || 0)
       ]
     );
+    await createAuditLog(req, user, "edicao", "mao_de_obra", pagamentoId, `Pagamento de mao de obra ${String(body.descricao || "").trim() || pagamentoId} atualizado.`, {
+      obraId: body.obraId,
+      descricao: String(body.descricao || "").trim(),
+      valor: Number(body.valor || 0)
+    });
     sendJson(res, 200, { ok: true });
     return true;
   }
 
   if (req.method === "DELETE" && pathname.startsWith("/api/mao-de-obra/")) {
     const pagamentoId = getResourceId(pathname);
+    const pagamentoResult = await pool.query("SELECT obra_id, descricao, valor FROM mao_obra_pagamentos WHERE id = $1 LIMIT 1", [pagamentoId]);
     await pool.query("DELETE FROM mao_obra_pagamentos WHERE id = $1", [pagamentoId]);
+    if (pagamentoResult.rows.length) {
+      const pagamento = pagamentoResult.rows[0];
+      await createAuditLog(req, user, "exclusao", "mao_de_obra", pagamentoId, `Pagamento de mao de obra ${pagamento.descricao} excluido.`, {
+        obraId: pagamento.obra_id,
+        valor: Number(pagamento.valor || 0)
+      });
+    }
     sendJson(res, 200, { ok: true });
     return true;
   }
@@ -1184,6 +1372,12 @@ async function handleApi(req, res, pathname) {
       ]
     );
 
+    await createAuditLog(req, user, "cadastro", "rdo", id, `RDO de ${body.data} cadastrado.`, {
+      obraId: body.obraId,
+      data: body.data,
+      clima: String(body.clima).trim()
+    });
+
     sendJson(res, 201, { ok: true, id });
     return true;
   }
@@ -1231,6 +1425,44 @@ async function handleApi(req, res, pathname) {
       ]
     );
 
+    await createAuditLog(req, user, "edicao", "rdo", rdoId, `RDO de ${body.data} atualizado.`, {
+      obraId: body.obraId,
+      data: body.data,
+      clima: String(body.clima).trim()
+    });
+
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  if (req.method === "DELETE" && pathname.startsWith("/api/rdos/")) {
+    const rdoId = getResourceId(pathname);
+    const body = await parseRequestBody(req);
+    const password = String(body.password || "");
+
+    if (!password) {
+      sendJson(res, 400, { error: "Informe a senha do usuario para excluir o RDO." });
+      return true;
+    }
+
+    if (!(await verifyCurrentUserPassword(user.id, password))) {
+      sendJson(res, 401, { error: "Senha invalida. Exclusao cancelada." });
+      return true;
+    }
+
+    const rdoResult = await pool.query("SELECT obra_id, data, clima FROM rdos WHERE id = $1 LIMIT 1", [rdoId]);
+    if (!rdoResult.rows.length) {
+      sendJson(res, 404, { error: "RDO nao encontrado." });
+      return true;
+    }
+
+    await pool.query("DELETE FROM rdos WHERE id = $1", [rdoId]);
+    const rdo = rdoResult.rows[0];
+    await createAuditLog(req, user, "exclusao", "rdo", rdoId, `RDO de ${toDateOnlyString(rdo.data)} excluido.`, {
+      obraId: rdo.obra_id,
+      data: toDateOnlyString(rdo.data),
+      clima: rdo.clima || ""
+    });
     sendJson(res, 200, { ok: true });
     return true;
   }
