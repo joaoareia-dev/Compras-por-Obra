@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260323-1" />
+  <link rel="stylesheet" href="style.css?v=20260323-2" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -299,12 +299,21 @@
               Data
               <input type="date" id="rdoData" required />
             </label>
+            <label>
+              Clima no dia
+              <select id="rdoClima" required>
+                <option value="">Selecione</option>
+                <option value="Ensolarado">Ensolarado</option>
+                <option value="Nublado">Nublado</option>
+                <option value="Chuvoso">Chuvoso</option>
+              </select>
+            </label>
 
             <div class="full-width dynamic-block">
               <div class="dynamic-block-header">
                 <div>
                   <h4>Fotos</h4>
-                  <p class="subtitle">Adicione quantas fotos precisar ao longo do dia.</p>
+                  <p class="subtitle">Adicione quantas fotos precisar ao longo do dia. Cada foto exige um comentário.</p>
                 </div>
               </div>
               <div id="rdoFotosContainer" class="dynamic-photo-container"></div>
@@ -314,7 +323,7 @@
               <div class="dynamic-block-header">
                 <div>
                   <h4>Serviços executados</h4>
-                  <p class="subtitle">Cada serviço preenchido libera o próximo campo automaticamente.</p>
+                  <p class="subtitle">Informe descrição, unidade e quantidade. Cada linha preenchida libera a próxima.</p>
                 </div>
               </div>
               <div id="rdoServicosContainer" class="dynamic-input-list"></div>
@@ -324,7 +333,7 @@
               <div class="dynamic-block-header">
                 <div>
                   <h4>Materiais recebidos</h4>
-                  <p class="subtitle">Liste os materiais recebidos no dia.</p>
+                  <p class="subtitle">Registre descrição, unidade e quantidade dos materiais recebidos.</p>
                 </div>
               </div>
               <div id="rdoMateriaisRecebidosContainer" class="dynamic-input-list"></div>
@@ -334,11 +343,26 @@
               <div class="dynamic-block-header">
                 <div>
                   <h4>Materiais consumidos</h4>
-                  <p class="subtitle">Registre o consumo do dia com quantos itens forem necessários.</p>
+                  <p class="subtitle">Registre descrição, unidade e quantidade do consumo diário.</p>
                 </div>
               </div>
               <div id="rdoMateriaisConsumidosContainer" class="dynamic-input-list"></div>
             </div>
+
+            <div class="full-width dynamic-block">
+              <div class="dynamic-block-header">
+                <div>
+                  <h4>Mão de Obra Presente</h4>
+                  <p class="subtitle">Informe o cargo e a quantidade presente. Cada nova entrada cria a próxima.</p>
+                </div>
+              </div>
+              <div id="rdoMaoDeObraPresenteContainer" class="dynamic-input-list"></div>
+            </div>
+
+            <label class="full-width">
+              Observações adicionais
+              <textarea id="rdoObservacoesAdicionais" rows="4" placeholder="Informações complementares do dia, se houver."></textarea>
+            </label>
 
             <button type="submit" id="rdoSubmitBtn" class="btn primary">Salvar RDO</button>
             <button type="button" id="rdoCancelEditBtn" class="btn ghost hidden">Cancelar edição</button>
@@ -506,6 +530,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=20260323-1"></script>
+  <script src="app.js?v=20260323-2"></script>
 </body>
 </html>

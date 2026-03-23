@@ -24,6 +24,7 @@ const SESSION_COOKIE = "gc_session";
 const SESSION_TTL_DAYS = 7;
 const JSON_BODY_LIMIT_BYTES = Number(process.env.JSON_BODY_LIMIT_BYTES) || 20 * 1024 * 1024;
 const noCacheExtensions = new Set([".html", ".js", ".css"]);
+const RDO_CLIMA_OPTIONS = new Set(["Ensolarado", "Nublado", "Chuvoso"]);
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -313,17 +314,17 @@ function mapMaoDeObra(row) {
   };
 }
 
-function normalizeStringList(values) {
-  if (!Array.isArray(values)) {
-    return [];
+function normalizeOptionalDecimal(value) {
+  if (value === "" || value === null || value === undefined) {
+    return null;
   }
 
-  return values
-    .map((value) => String(value || "").trim())
-    .filter(Boolean);
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
-function normalizePhotoList(values) {
+function normalizePhotoList(values, options = {}) {
+  const requireComment = Boolean(options.requireComment);
   if (!Array.isArray(values)) {
     return [];
   }
@@ -337,13 +338,88 @@ function normalizePhotoList(values) {
       }
 
       const name = String(photo.name || `foto-${index + 1}.jpg`).trim() || `foto-${index + 1}.jpg`;
+      const comentario = String(photo.comentario || "").trim();
+      if (requireComment && !comentario) {
+        throw new Error(`Informe o comentario da foto ${index + 1}.`);
+      }
+
       return {
         id: String(photo.id || randomId()),
         name,
-        dataUrl
+        dataUrl,
+        comentario
       };
     })
     .filter(Boolean);
+}
+
+function normalizeRdoItemList(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((value) => {
+      if (typeof value === "string") {
+        const descricao = value.trim();
+        return descricao
+          ? {
+              id: randomId(),
+              descricao,
+              unidade: "",
+              quantidade: null
+            }
+          : null;
+      }
+
+      const item = value && typeof value === "object" ? value : {};
+      const descricao = String(item.descricao || "").trim();
+      const unidade = String(item.unidade || "").trim();
+      const quantidade = normalizeOptionalDecimal(item.quantidade);
+
+      if (!descricao && !unidade && quantidade === null) {
+        return null;
+      }
+
+      return {
+        id: String(item.id || randomId()),
+        descricao,
+        unidade,
+        quantidade
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeRdoCrewList(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((value) => {
+      const item = value && typeof value === "object" ? value : {};
+      const cargoSource = typeof value === "string" ? value : item.cargo || "";
+      const cargo = String(cargoSource).trim();
+      const quantidade = normalizeOptionalDecimal(item.quantidade);
+
+      if (!cargo && quantidade === null) {
+        return null;
+      }
+
+      return {
+        id: String(item.id || randomId()),
+        cargo,
+        quantidade
+      };
+    })
+    .filter(Boolean);
+}
+
+function validateRdoClima(clima) {
+  if (!RDO_CLIMA_OPTIONS.has(String(clima || "").trim())) {
+    throw new Error("Selecione um clima valido para o RDO.");
+  }
 }
 
 function mapRdoSummary(row) {
@@ -366,9 +442,12 @@ function mapRdo(row) {
     obraId: row.obra_id,
     data: toDateOnlyString(row.data),
     fotos: normalizePhotoList(row.fotos),
-    servicosExecutados: normalizeStringList(row.servicos_executados),
-    materiaisRecebidos: normalizeStringList(row.materiais_recebidos),
-    materiaisConsumidos: normalizeStringList(row.materiais_consumidos),
+    servicosExecutados: normalizeRdoItemList(row.servicos_executados),
+    materiaisRecebidos: normalizeRdoItemList(row.materiais_recebidos),
+    materiaisConsumidos: normalizeRdoItemList(row.materiais_consumidos),
+    maoDeObraPresente: normalizeRdoCrewList(row.mao_obra_presente),
+    clima: String(row.clima || "").trim(),
+    observacoesAdicionais: String(row.observacoes_adicionais || "").trim(),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -448,10 +527,17 @@ async function ensureDatabase() {
       servicos_executados JSONB NOT NULL DEFAULT '[]'::jsonb,
       materiais_recebidos JSONB NOT NULL DEFAULT '[]'::jsonb,
       materiais_consumidos JSONB NOT NULL DEFAULT '[]'::jsonb,
+      clima TEXT,
+      observacoes_adicionais TEXT,
+      mao_obra_presente JSONB NOT NULL DEFAULT '[]'::jsonb,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+
+  await pool.query("ALTER TABLE rdos ADD COLUMN IF NOT EXISTS clima TEXT");
+  await pool.query("ALTER TABLE rdos ADD COLUMN IF NOT EXISTS observacoes_adicionais TEXT");
+  await pool.query("ALTER TABLE rdos ADD COLUMN IF NOT EXISTS mao_obra_presente JSONB NOT NULL DEFAULT '[]'::jsonb");
 
   await pool.query(`UPDATE users SET role = 'administrador' WHERE role NOT IN ('administrador', 'usuario')`);
   const adminEmail = process.env.ADMIN_EMAIL || "admin@obra.local";
@@ -949,13 +1035,16 @@ async function handleApi(req, res, pathname) {
 
   if (req.method === "POST" && pathname === "/api/rdos") {
     const body = await parseRequestBody(req);
-    requireFields(body, ["obraId", "data"]);
+    requireFields(body, ["obraId", "data", "clima"]);
+    validateRdoClima(body.clima);
 
     const id = randomId();
-    const fotos = normalizePhotoList(body.fotos);
-    const servicosExecutados = normalizeStringList(body.servicosExecutados);
-    const materiaisRecebidos = normalizeStringList(body.materiaisRecebidos);
-    const materiaisConsumidos = normalizeStringList(body.materiaisConsumidos);
+    const fotos = normalizePhotoList(body.fotos, { requireComment: true });
+    const servicosExecutados = normalizeRdoItemList(body.servicosExecutados);
+    const materiaisRecebidos = normalizeRdoItemList(body.materiaisRecebidos);
+    const materiaisConsumidos = normalizeRdoItemList(body.materiaisConsumidos);
+    const maoDeObraPresente = normalizeRdoCrewList(body.maoDeObraPresente);
+    const observacoesAdicionais = String(body.observacoesAdicionais || "").trim();
     const now = new Date().toISOString();
 
     await pool.query(
@@ -968,10 +1057,13 @@ async function handleApi(req, res, pathname) {
           servicos_executados,
           materiais_recebidos,
           materiais_consumidos,
+          clima,
+          observacoes_adicionais,
+          mao_obra_presente,
           created_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8, $9)
+        VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8, $9, $10::jsonb, $11, $12)
       `,
       [
         id,
@@ -981,6 +1073,9 @@ async function handleApi(req, res, pathname) {
         JSON.stringify(servicosExecutados),
         JSON.stringify(materiaisRecebidos),
         JSON.stringify(materiaisConsumidos),
+        String(body.clima).trim(),
+        observacoesAdicionais,
+        JSON.stringify(maoDeObraPresente),
         now,
         now
       ]
@@ -993,12 +1088,15 @@ async function handleApi(req, res, pathname) {
   if (req.method === "PUT" && pathname.startsWith("/api/rdos/")) {
     const rdoId = getResourceId(pathname);
     const body = await parseRequestBody(req);
-    requireFields(body, ["obraId", "data"]);
+    requireFields(body, ["obraId", "data", "clima"]);
+    validateRdoClima(body.clima);
 
-    const fotos = normalizePhotoList(body.fotos);
-    const servicosExecutados = normalizeStringList(body.servicosExecutados);
-    const materiaisRecebidos = normalizeStringList(body.materiaisRecebidos);
-    const materiaisConsumidos = normalizeStringList(body.materiaisConsumidos);
+    const fotos = normalizePhotoList(body.fotos, { requireComment: true });
+    const servicosExecutados = normalizeRdoItemList(body.servicosExecutados);
+    const materiaisRecebidos = normalizeRdoItemList(body.materiaisRecebidos);
+    const materiaisConsumidos = normalizeRdoItemList(body.materiaisConsumidos);
+    const maoDeObraPresente = normalizeRdoCrewList(body.maoDeObraPresente);
+    const observacoesAdicionais = String(body.observacoesAdicionais || "").trim();
 
     await pool.query(
       `
@@ -1009,7 +1107,10 @@ async function handleApi(req, res, pathname) {
             servicos_executados = $5::jsonb,
             materiais_recebidos = $6::jsonb,
             materiais_consumidos = $7::jsonb,
-            updated_at = $8
+            clima = $8,
+            observacoes_adicionais = $9,
+            mao_obra_presente = $10::jsonb,
+            updated_at = $11
         WHERE id = $1
       `,
       [
@@ -1020,6 +1121,9 @@ async function handleApi(req, res, pathname) {
         JSON.stringify(servicosExecutados),
         JSON.stringify(materiaisRecebidos),
         JSON.stringify(materiaisConsumidos),
+        String(body.clima).trim(),
+        observacoesAdicionais,
+        JSON.stringify(maoDeObraPresente),
         new Date().toISOString()
       ]
     );

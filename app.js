@@ -84,6 +84,8 @@ const rdoEditorSubtitle = document.getElementById("rdoEditorSubtitle");
 const rdoCloseEditorBtn = document.getElementById("rdoCloseEditorBtn");
 const rdoObraSelect = document.getElementById("rdoObra");
 const rdoDataInput = document.getElementById("rdoData");
+const rdoClimaSelect = document.getElementById("rdoClima");
+const rdoObservacoesAdicionaisInput = document.getElementById("rdoObservacoesAdicionais");
 const rdoFiltroObraSelect = document.getElementById("rdoFiltroObra");
 const rdoFiltroDataInicioInput = document.getElementById("rdoFiltroDataInicio");
 const rdoFiltroDataFimInput = document.getElementById("rdoFiltroDataFim");
@@ -95,6 +97,7 @@ const rdoFotosContainer = document.getElementById("rdoFotosContainer");
 const rdoServicosContainer = document.getElementById("rdoServicosContainer");
 const rdoMateriaisRecebidosContainer = document.getElementById("rdoMateriaisRecebidosContainer");
 const rdoMateriaisConsumidosContainer = document.getElementById("rdoMateriaisConsumidosContainer");
+const rdoMaoDeObraPresenteContainer = document.getElementById("rdoMaoDeObraPresenteContainer");
 const rdoPrintArea = document.getElementById("rdoPrintArea");
 
 const relatorioObraSelect = document.getElementById("relatorioObra");
@@ -140,6 +143,38 @@ const currencyInputFormatter = new Intl.NumberFormat("pt-BR", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
 });
+const structuredQuantityFormatter = new Intl.NumberFormat("pt-BR", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 3
+});
+const RDO_STRUCTURED_FIELD_CONFIGS = {
+  servicos: {
+    rowClass: "structured",
+    primaryKey: "descricao",
+    fields: [
+      { key: "descricao", type: "text", placeholder: "Descricao do servico executado" },
+      { key: "unidade", type: "text", placeholder: "Unidade" },
+      { key: "quantidade", type: "number", placeholder: "Quantidade", min: "0", step: "0.001", inputMode: "decimal" }
+    ]
+  },
+  materiais: {
+    rowClass: "structured",
+    primaryKey: "descricao",
+    fields: [
+      { key: "descricao", type: "text", placeholder: "Descricao do material" },
+      { key: "unidade", type: "text", placeholder: "Unidade" },
+      { key: "quantidade", type: "number", placeholder: "Quantidade", min: "0", step: "0.001", inputMode: "decimal" }
+    ]
+  },
+  equipe: {
+    rowClass: "crew",
+    primaryKey: "cargo",
+    fields: [
+      { key: "cargo", type: "text", placeholder: "Cargo" },
+      { key: "quantidade", type: "number", placeholder: "Quantidade", min: "0", step: "1", inputMode: "numeric" }
+    ]
+  }
+};
 
 function clearLegacyBrowserData() {
   const legacyKeys = ["gc_users", "gc_obras", "gc_compras", "gc_session"];
@@ -519,7 +554,8 @@ function normalizeRdoPhoto(photo, index = 0) {
   return {
     id: String(photo?.id || createClientId("rdo-foto")),
     name: String(photo?.name || `Foto ${index + 1}`).trim() || `Foto ${index + 1}`,
-    dataUrl
+    dataUrl,
+    comentario: String(photo?.comentario || "").trim()
   };
 }
 
@@ -551,6 +587,40 @@ function createDynamicTextRow(value = "", placeholder = "") {
   removeButton.textContent = "Remover";
 
   row.appendChild(input);
+  row.appendChild(removeButton);
+  return row;
+}
+
+function createStructuredRow(config, value = {}) {
+  const row = document.createElement("div");
+  row.className = `dynamic-input-row ${config.rowClass || ""}`.trim();
+
+  config.fields.forEach((field) => {
+    const input = document.createElement("input");
+    input.type = field.type || "text";
+    input.className = "dynamic-structured-input";
+    input.dataset.fieldKey = field.key;
+    input.placeholder = field.placeholder || "";
+    if (field.min !== undefined) {
+      input.min = field.min;
+    }
+    if (field.step !== undefined) {
+      input.step = field.step;
+    }
+    if (field.inputMode) {
+      input.inputMode = field.inputMode;
+    }
+
+    const fieldValue = value?.[field.key];
+    input.value = fieldValue === null || fieldValue === undefined ? "" : String(fieldValue);
+    row.appendChild(input);
+  });
+
+  const removeButton = document.createElement("button");
+  removeButton.type = "button";
+  removeButton.className = "btn ghost dynamic-remove-btn";
+  removeButton.dataset.dynamicRemove = "true";
+  removeButton.textContent = "Remover";
   row.appendChild(removeButton);
   return row;
 }
@@ -620,6 +690,125 @@ function getDynamicTextValues(container) {
   return Array.from(container.querySelectorAll(".dynamic-text-input"))
     .map((input) => input.value.trim())
     .filter(Boolean);
+}
+
+function getStructuredRowValues(row, config) {
+  const values = {};
+  config.fields.forEach((field) => {
+    const input = row.querySelector(`[data-field-key="${field.key}"]`);
+    values[field.key] = String(input?.value || "").trim();
+  });
+  return values;
+}
+
+function isStructuredRowEmpty(values) {
+  return Object.values(values).every((value) => !String(value || "").trim());
+}
+
+function syncStructuredContainer(container, config) {
+  if (!container) {
+    return;
+  }
+
+  const rows = Array.from(container.querySelectorAll(".dynamic-input-row"));
+  rows.forEach((row, index) => {
+    const values = getStructuredRowValues(row, config);
+    if (isStructuredRowEmpty(values) && index < rows.length - 1) {
+      row.remove();
+    }
+  });
+
+  const currentRows = Array.from(container.querySelectorAll(".dynamic-input-row"));
+  const lastRow = currentRows[currentRows.length - 1];
+  const lastValues = lastRow ? getStructuredRowValues(lastRow, config) : null;
+  if (!lastRow || !isStructuredRowEmpty(lastValues)) {
+    container.appendChild(createStructuredRow(config));
+  }
+
+  Array.from(container.querySelectorAll(".dynamic-input-row")).forEach((row, index, allRows) => {
+    const values = getStructuredRowValues(row, config);
+    const removeButton = row.querySelector("[data-dynamic-remove]");
+    const isLastEmpty = isStructuredRowEmpty(values) && index === allRows.length - 1;
+    const isOnlyEmptyRow = allRows.length === 1 && isStructuredRowEmpty(values);
+    removeButton?.classList.toggle("hidden", isOnlyEmptyRow);
+    row.classList.toggle("is-empty", isLastEmpty);
+  });
+}
+
+function hydrateStructuredContainer(container, config, values) {
+  if (!container) {
+    return;
+  }
+
+  container.innerHTML = "";
+  const normalizedValues = Array.isArray(values) ? values : [];
+  normalizedValues.forEach((value) => {
+    container.appendChild(createStructuredRow(config, value));
+  });
+  container.appendChild(createStructuredRow(config));
+  syncStructuredContainer(container, config);
+}
+
+function getStructuredContainerValues(container, config) {
+  if (!container) {
+    return [];
+  }
+
+  return Array.from(container.querySelectorAll(".dynamic-input-row"))
+    .map((row) => getStructuredRowValues(row, config))
+    .filter((values) => !isStructuredRowEmpty(values))
+    .map((values) => {
+      const normalized = {};
+      config.fields.forEach((field) => {
+        const rawValue = String(values[field.key] || "").trim();
+        if (field.type === "number") {
+          normalized[field.key] = rawValue ? Number(rawValue) : null;
+        } else {
+          normalized[field.key] = rawValue;
+        }
+      });
+      return normalized;
+    });
+}
+
+function bindStructuredContainer(container, config) {
+  if (!container) {
+    return;
+  }
+
+  hydrateStructuredContainer(container, config, []);
+
+  container.addEventListener("input", (event) => {
+    if (!event.target.closest(".dynamic-structured-input")) {
+      return;
+    }
+
+    syncStructuredContainer(container, config);
+  });
+
+  container.addEventListener("click", (event) => {
+    const removeButton = event.target.closest("[data-dynamic-remove]");
+    if (!removeButton) {
+      return;
+    }
+
+    removeButton.closest(".dynamic-input-row")?.remove();
+    syncStructuredContainer(container, config);
+  });
+
+  container.addEventListener("keydown", (event) => {
+    const input = event.target.closest(".dynamic-structured-input");
+    if (!input || event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    syncStructuredContainer(container, config);
+    const inputs = Array.from(container.querySelectorAll(".dynamic-structured-input"));
+    const currentIndex = inputs.indexOf(input);
+    const nextInput = inputs[currentIndex + 1] || inputs[inputs.length - 1];
+    nextInput?.focus();
+  });
 }
 
 function bindDynamicTextContainer(container, placeholder) {
@@ -727,6 +916,10 @@ function renderRdoFotos() {
           <img src="${photo.dataUrl}" alt="${escapeHtml(photo.name)}" />
           <div class="photo-card-info">
             <strong>${escapeHtml(photo.name)}</strong>
+            <label class="photo-comment-field">
+              Comentario da foto
+              <textarea data-rdo-photo-comment="${photo.id}" placeholder="Descreva o que esta sendo mostrado na foto." required>${escapeHtml(photo.comentario || "")}</textarea>
+            </label>
             <button type="button" class="btn ghost" data-rdo-photo-remove="${photo.id}">Remover</button>
           </div>
         </article>
@@ -743,6 +936,15 @@ function renderRdoFotos() {
       <input type="file" accept="image/*" data-rdo-photo-input />
     </label>
   `;
+}
+
+function validateRdoPhotos() {
+  const photos = getRdoDraftPhotos();
+  for (let index = 0; index < photos.length; index += 1) {
+    if (!String(photos[index].comentario || "").trim()) {
+      throw new Error(`Informe o comentario obrigatorio da foto ${index + 1}.`);
+    }
+  }
 }
 
 function getRdoById(rdoId) {
@@ -1444,9 +1646,12 @@ function resetRdoForm() {
   rdoSubmitBtn.textContent = "Salvar RDO";
   rdoCancelEditBtn.classList.add("hidden");
   rdoDataInput.value = getTodayIsoDate();
-  hydrateDynamicTextContainer(rdoServicosContainer, [], "Descreva um servico executado");
-  hydrateDynamicTextContainer(rdoMateriaisRecebidosContainer, [], "Descreva um material recebido");
-  hydrateDynamicTextContainer(rdoMateriaisConsumidosContainer, [], "Descreva um material consumido");
+  rdoClimaSelect.value = "";
+  rdoObservacoesAdicionaisInput.value = "";
+  hydrateStructuredContainer(rdoServicosContainer, RDO_STRUCTURED_FIELD_CONFIGS.servicos, []);
+  hydrateStructuredContainer(rdoMateriaisRecebidosContainer, RDO_STRUCTURED_FIELD_CONFIGS.materiais, []);
+  hydrateStructuredContainer(rdoMateriaisConsumidosContainer, RDO_STRUCTURED_FIELD_CONFIGS.materiais, []);
+  hydrateStructuredContainer(rdoMaoDeObraPresenteContainer, RDO_STRUCTURED_FIELD_CONFIGS.equipe, []);
   setRdoDraftPhotos([]);
 
   if (getObras().length) {
@@ -1458,9 +1663,12 @@ function preencherFormularioRdo(rdo) {
   rdoEditIdInput.value = rdo.id;
   rdoObraSelect.value = rdo.obraId;
   rdoDataInput.value = normalizeDateInputValue(rdo.data);
-  hydrateDynamicTextContainer(rdoServicosContainer, rdo.servicosExecutados, "Descreva um servico executado");
-  hydrateDynamicTextContainer(rdoMateriaisRecebidosContainer, rdo.materiaisRecebidos, "Descreva um material recebido");
-  hydrateDynamicTextContainer(rdoMateriaisConsumidosContainer, rdo.materiaisConsumidos, "Descreva um material consumido");
+  rdoClimaSelect.value = rdo.clima || "";
+  rdoObservacoesAdicionaisInput.value = rdo.observacoesAdicionais || "";
+  hydrateStructuredContainer(rdoServicosContainer, RDO_STRUCTURED_FIELD_CONFIGS.servicos, rdo.servicosExecutados);
+  hydrateStructuredContainer(rdoMateriaisRecebidosContainer, RDO_STRUCTURED_FIELD_CONFIGS.materiais, rdo.materiaisRecebidos);
+  hydrateStructuredContainer(rdoMateriaisConsumidosContainer, RDO_STRUCTURED_FIELD_CONFIGS.materiais, rdo.materiaisConsumidos);
+  hydrateStructuredContainer(rdoMaoDeObraPresenteContainer, RDO_STRUCTURED_FIELD_CONFIGS.equipe, rdo.maoDeObraPresente);
   setRdoDraftPhotos(rdo.fotos || []);
   rdoSubmitBtn.textContent = "Atualizar RDO";
   rdoCancelEditBtn.classList.remove("hidden");
@@ -1513,6 +1721,49 @@ function renderRdoPrintList(title, items) {
   `;
 }
 
+function formatStructuredQuantity(value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+
+  return structuredQuantityFormatter.format(Number(value || 0));
+}
+
+function renderRdoStructuredTable(title, items, type = "itens") {
+  if (!items.length) {
+    return "";
+  }
+
+  const isEquipe = type === "equipe";
+  return `
+    <section class="rdo-print-section">
+      <h5>${title}</h5>
+      <table class="rdo-print-table">
+        <thead>
+          <tr>
+            <th>${isEquipe ? "Cargo" : "Descricao"}</th>
+            ${isEquipe ? "" : "<th>Unidade</th>"}
+            <th>Quantidade</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items
+            .map(
+              (item) => `
+                <tr>
+                  <td>${escapeHtml(isEquipe ? item.cargo || "-" : item.descricao || "-")}</td>
+                  ${isEquipe ? "" : `<td>${escapeHtml(item.unidade || "-")}</td>`}
+                  <td>${escapeHtml(formatStructuredQuantity(item.quantidade) || "-")}</td>
+                </tr>
+              `
+            )
+            .join("")}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
 function renderRdoPrintDocuments(rdos) {
   if (!rdoPrintArea) {
     return;
@@ -1524,10 +1775,12 @@ function renderRdoPrintDocuments(rdos) {
       const meta = [
         `<span><strong>Obra:</strong> ${escapeHtml(obraMap.get(rdo.obraId) || "Obra removida")}</span>`,
         `<span><strong>Data:</strong> ${formatDate(rdo.data)}</span>`,
+        rdo.clima ? `<span><strong>Clima:</strong> ${escapeHtml(rdo.clima)}</span>` : "",
         rdo.fotos.length ? `<span><strong>Fotos:</strong> ${rdo.fotos.length}</span>` : "",
         rdo.servicosExecutados.length ? `<span><strong>Servicos:</strong> ${rdo.servicosExecutados.length}</span>` : "",
         rdo.materiaisRecebidos.length ? `<span><strong>Recebidos:</strong> ${rdo.materiaisRecebidos.length}</span>` : "",
-        rdo.materiaisConsumidos.length ? `<span><strong>Consumidos:</strong> ${rdo.materiaisConsumidos.length}</span>` : ""
+        rdo.materiaisConsumidos.length ? `<span><strong>Consumidos:</strong> ${rdo.materiaisConsumidos.length}</span>` : "",
+        rdo.maoDeObraPresente.length ? `<span><strong>Mao de obra presente:</strong> ${rdo.maoDeObraPresente.length}</span>` : ""
       ]
         .filter(Boolean)
         .join("");
@@ -1542,7 +1795,10 @@ function renderRdoPrintDocuments(rdos) {
                   (photo) => `
                     <figure class="rdo-print-photo">
                       <img src="${photo.dataUrl}" alt="${escapeHtml(photo.name)}" />
-                      <figcaption>${escapeHtml(photo.name)}</figcaption>
+                      <figcaption>
+                        <strong>${escapeHtml(photo.name)}</strong>
+                        ${photo.comentario ? `<span>${escapeHtml(photo.comentario)}</span>` : ""}
+                      </figcaption>
                     </figure>
                   `
                 )
@@ -1562,9 +1818,11 @@ function renderRdoPrintDocuments(rdos) {
               ${meta}
             </div>
           </header>
-          ${renderRdoPrintList("Servicos executados", rdo.servicosExecutados)}
-          ${renderRdoPrintList("Materiais recebidos", rdo.materiaisRecebidos)}
-          ${renderRdoPrintList("Materiais consumidos", rdo.materiaisConsumidos)}
+          ${renderRdoStructuredTable("Servicos executados", rdo.servicosExecutados)}
+          ${renderRdoStructuredTable("Materiais recebidos", rdo.materiaisRecebidos)}
+          ${renderRdoStructuredTable("Materiais consumidos", rdo.materiaisConsumidos)}
+          ${renderRdoStructuredTable("Mao de obra presente", rdo.maoDeObraPresente, "equipe")}
+          ${rdo.observacoesAdicionais ? renderRdoPrintList("Observacoes adicionais", [rdo.observacoesAdicionais]) : ""}
           ${photosMarkup}
         </article>
       `;
@@ -2125,15 +2383,20 @@ if (rdoForm) {
         return;
       }
 
+      validateRdoPhotos();
+
       await apiFetch(rdoId ? `/api/rdos/${rdoId}` : "/api/rdos", {
         method: rdoId ? "PUT" : "POST",
         body: JSON.stringify({
           obraId,
           data: rdoDataInput.value,
+          clima: rdoClimaSelect.value,
           fotos: getRdoDraftPhotos(),
-          servicosExecutados: getDynamicTextValues(rdoServicosContainer),
-          materiaisRecebidos: getDynamicTextValues(rdoMateriaisRecebidosContainer),
-          materiaisConsumidos: getDynamicTextValues(rdoMateriaisConsumidosContainer)
+          servicosExecutados: getStructuredContainerValues(rdoServicosContainer, RDO_STRUCTURED_FIELD_CONFIGS.servicos),
+          materiaisRecebidos: getStructuredContainerValues(rdoMateriaisRecebidosContainer, RDO_STRUCTURED_FIELD_CONFIGS.materiais),
+          materiaisConsumidos: getStructuredContainerValues(rdoMateriaisConsumidosContainer, RDO_STRUCTURED_FIELD_CONFIGS.materiais),
+          maoDeObraPresente: getStructuredContainerValues(rdoMaoDeObraPresenteContainer, RDO_STRUCTURED_FIELD_CONFIGS.equipe),
+          observacoesAdicionais: rdoObservacoesAdicionaisInput.value.trim()
         })
       });
 
@@ -2164,6 +2427,20 @@ if (rdoFotosContainer) {
       alert(error.message);
       renderRdoFotos();
     }
+  });
+
+  rdoFotosContainer.addEventListener("input", (event) => {
+    const commentField = event.target.closest("[data-rdo-photo-comment]");
+    if (!commentField) {
+      return;
+    }
+
+    const photoId = commentField.getAttribute("data-rdo-photo-comment");
+    state.rdoDraftPhotos = getRdoDraftPhotos().map((photo) => (
+      photo.id === photoId
+        ? { ...photo, comentario: commentField.value.trimStart() }
+        : photo
+    ));
   });
 
   rdoFotosContainer.addEventListener("click", (event) => {
@@ -2527,9 +2804,10 @@ relatorioDataFimInput.addEventListener("change", () => {
   maoDeObraValorInput
 ].forEach(bindCurrencyInput);
 
-bindDynamicTextContainer(rdoServicosContainer, "Descreva um servico executado");
-bindDynamicTextContainer(rdoMateriaisRecebidosContainer, "Descreva um material recebido");
-bindDynamicTextContainer(rdoMateriaisConsumidosContainer, "Descreva um material consumido");
+bindStructuredContainer(rdoServicosContainer, RDO_STRUCTURED_FIELD_CONFIGS.servicos);
+bindStructuredContainer(rdoMateriaisRecebidosContainer, RDO_STRUCTURED_FIELD_CONFIGS.materiais);
+bindStructuredContainer(rdoMateriaisConsumidosContainer, RDO_STRUCTURED_FIELD_CONFIGS.materiais);
+bindStructuredContainer(rdoMaoDeObraPresenteContainer, RDO_STRUCTURED_FIELD_CONFIGS.equipe);
 renderRdoFotos();
 window.addEventListener("afterprint", clearPrintMode);
 
