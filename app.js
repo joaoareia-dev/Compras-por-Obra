@@ -2,6 +2,7 @@ const state = {
   obras: [],
   compras: [],
   maoDeObra: [],
+  medicoes: [],
   rdos: [],
   rdoCatalogos: {
     materiais: [],
@@ -25,6 +26,10 @@ const state = {
     orcamentoSintetico: null,
     orcamentoAnalitico: null
   },
+  medicaoDraftItems: [],
+  medicaoPdfDraft: null,
+  medicaoHistory: [],
+  medicaoHistoryObraId: "",
   rdoDraftPhotos: [],
   selectedRdoIds: new Set()
 };
@@ -63,6 +68,29 @@ const finalizacaoPanel = document.getElementById("finalizacaoPanel");
 const finalizacaoForm = document.getElementById("finalizacaoForm");
 const finalizacaoObraSelect = document.getElementById("finalizacaoObra");
 const finalizacaoAditivosValorInput = document.getElementById("finalizacaoAditivosValor");
+
+const medicoesTableBody = document.getElementById("medicoesTableBody");
+const medicaoFiltroObraSelect = document.getElementById("medicaoFiltroObra");
+const medicaoFiltroDataInicioInput = document.getElementById("medicaoFiltroDataInicio");
+const medicaoFiltroDataFimInput = document.getElementById("medicaoFiltroDataFim");
+const medicaoBuscarBtn = document.getElementById("medicaoBuscarBtn");
+const medicaoLimparBuscaBtn = document.getElementById("medicaoLimparBuscaBtn");
+const medicaoNewBtn = document.getElementById("medicaoNewBtn");
+const medicaoEditorPanel = document.getElementById("medicaoEditorPanel");
+const medicaoEditorTitle = document.getElementById("medicaoEditorTitle");
+const medicaoEditorSubtitle = document.getElementById("medicaoEditorSubtitle");
+const medicaoCloseEditorBtn = document.getElementById("medicaoCloseEditorBtn");
+const medicaoForm = document.getElementById("medicaoForm");
+const medicaoEditIdInput = document.getElementById("medicaoEditId");
+const medicaoObraSelect = document.getElementById("medicaoObra");
+const medicaoDataInput = document.getElementById("medicaoData");
+const medicaoReferenciaInput = document.getElementById("medicaoReferencia");
+const medicaoPdfInput = document.getElementById("medicaoPdfInput");
+const medicaoImportPdfBtn = document.getElementById("medicaoImportPdfBtn");
+const medicaoPdfStatus = document.getElementById("medicaoPdfStatus");
+const medicaoItensTableBody = document.getElementById("medicaoItensTableBody");
+const medicaoSubmitBtn = document.getElementById("medicaoSubmitBtn");
+const medicaoCancelEditBtn = document.getElementById("medicaoCancelEditBtn");
 
 const compraForm = document.getElementById("compraForm");
 const comprasTableBody = document.getElementById("comprasTableBody");
@@ -250,6 +278,7 @@ async function refreshData() {
   state.obras = payload.obras || [];
   state.compras = payload.compras || [];
   state.maoDeObra = payload.maoDeObra || [];
+  state.medicoes = payload.medicoes || [];
   state.rdos = payload.rdos || [];
   state.rdoCatalogos = payload.rdoCatalogos || { materiais: [], maoDeObra: [] };
   const availableIds = new Set(state.rdos.map((rdo) => rdo.id));
@@ -291,6 +320,10 @@ function getUsuarios() {
 
 function getPagamentosMaoDeObra() {
   return state.maoDeObra;
+}
+
+function getMedicoes() {
+  return state.medicoes || [];
 }
 
 function getRdos() {
@@ -732,6 +765,555 @@ function renderObraArquivoPreviews() {
     state.obraArquivoDrafts.orcamentoAnalitico,
     "orcamentoAnalitico"
   );
+}
+
+function normalizeMedicaoItemKey(item) {
+  const codigo = normalizeValue(item?.codigo);
+  if (codigo) {
+    return `codigo:${codigo}`;
+  }
+
+  return [
+    "item",
+    normalizeValue(item?.etapa),
+    normalizeValue(item?.descricao),
+    normalizeValue(item?.unidade)
+  ].join(":");
+}
+
+function parseLocaleNumber(value) {
+  const normalized = String(value || "")
+    .replace(/\s+/g, "")
+    .replace(/R\$/gi, "")
+    .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+    .replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeMedicaoItem(item = {}, index = 0) {
+  const codigo = String(item.codigo || "").trim();
+  const etapa = String(item.etapa || "").trim();
+  const descricao = String(item.descricao || "").trim();
+  const unidade = String(item.unidade || "").trim();
+  const quantidadeTotal = Number(item.quantidadeTotal || 0);
+  const valorUnitario = Number(item.valorUnitario || 0);
+  const valorTotal = Number(item.valorTotal || 0);
+  const quantidadeMedida = Number(item.quantidadeMedida || 0);
+
+  if (!descricao || !unidade) {
+    return null;
+  }
+
+  return {
+    id: String(item.id || createClientId(`medicao-${index + 1}`)),
+    key: String(item.key || normalizeMedicaoItemKey({ codigo, etapa, descricao, unidade })),
+    codigo,
+    etapa,
+    descricao,
+    unidade,
+    quantidadeTotal: Number.isFinite(quantidadeTotal) ? quantidadeTotal : 0,
+    valorUnitario: Number.isFinite(valorUnitario) ? valorUnitario : 0,
+    valorTotal: Number.isFinite(valorTotal) ? valorTotal : 0,
+    quantidadeMedida: Number.isFinite(quantidadeMedida) ? quantidadeMedida : 0
+  };
+}
+
+function cloneMedicaoItems(items, options = {}) {
+  const { zeroMeasured = false } = options;
+  return Array.isArray(items)
+    ? items
+        .map((item, index) => {
+          const normalized = normalizeMedicaoItem(item, index);
+          if (!normalized) {
+            return null;
+          }
+
+          return {
+            ...normalized,
+            id: createClientId("medicao-item"),
+            quantidadeMedida: zeroMeasured ? 0 : normalized.quantidadeMedida
+          };
+        })
+        .filter(Boolean)
+    : [];
+}
+
+function getMedicaoDraftItems() {
+  return state.medicaoDraftItems || [];
+}
+
+function setMedicaoDraftItems(items) {
+  state.medicaoDraftItems = Array.isArray(items)
+    ? items.map((item, index) => normalizeMedicaoItem(item, index)).filter(Boolean)
+    : [];
+  renderMedicaoDraftTable();
+}
+
+function setMedicaoPdfDraft(fileDraft = null) {
+  if (!fileDraft || typeof fileDraft !== "object") {
+    state.medicaoPdfDraft = null;
+    return;
+  }
+
+  const name = String(fileDraft.name || "").trim();
+  const source = String(fileDraft.source || "").trim();
+  state.medicaoPdfDraft = name ? { name, source } : null;
+}
+
+function setMedicaoHistory(obraId, medicoes = []) {
+  state.medicaoHistoryObraId = String(obraId || "");
+  state.medicaoHistory = Array.isArray(medicoes) ? medicoes : [];
+}
+
+function getMedicaoSummaryById(id) {
+  return getMedicoes().find((medicao) => medicao.id === id) || null;
+}
+
+async function fetchMedicaoDetail(medicaoId) {
+  const result = await apiFetch(`/api/medicoes/${medicaoId}`);
+  return result.medicao;
+}
+
+async function fetchMedicoesByObra(obraId, includeItems = false) {
+  if (!obraId) {
+    return [];
+  }
+
+  const params = new URLSearchParams({ obraId });
+  if (includeItems) {
+    params.set("includeItems", "1");
+  }
+
+  const result = await apiFetch(`/api/medicoes?${params.toString()}`);
+  return result.medicoes || [];
+}
+
+function buildMedicaoAcumuladoAnteriorMap(obraId, currentMedicaoId = "") {
+  if (!obraId || state.medicaoHistoryObraId !== obraId) {
+    return new Map();
+  }
+
+  const totais = new Map();
+  state.medicaoHistory
+    .filter((medicao) => medicao.id !== currentMedicaoId)
+    .forEach((medicao) => {
+      (medicao.items || []).forEach((item) => {
+        const key = item.key || normalizeMedicaoItemKey(item);
+        totais.set(key, (totais.get(key) || 0) + Number(item.quantidadeMedida || 0));
+      });
+    });
+
+  return totais;
+}
+
+function formatMedicaoPdfStatus(message = "") {
+  if (medicaoPdfStatus) {
+    medicaoPdfStatus.textContent = message;
+  }
+}
+
+function getFilteredMedicoes() {
+  const obraId = medicaoFiltroObraSelect?.value || "";
+  const dataInicio = medicaoFiltroDataInicioInput?.value || "";
+  const dataFim = medicaoFiltroDataFimInput?.value || "";
+
+  return [...getMedicoes()]
+    .filter((medicao) => {
+      const matchObra = !obraId || medicao.obraId === obraId;
+      const matchInicio = !dataInicio || medicao.data >= dataInicio;
+      const matchFim = !dataFim || medicao.data <= dataFim;
+      return matchObra && matchInicio && matchFim;
+    })
+    .sort((left, right) => compareIsoDatesDesc(left.data, right.data));
+}
+
+function renderMedicoes() {
+  if (!medicoesTableBody) {
+    return;
+  }
+
+  const medicoes = getFilteredMedicoes();
+  const obraMap = buildObraNameMap(getObras());
+
+  if (!medicoes.length) {
+    medicoesTableBody.innerHTML = `<tr><td colspan="6" class="empty">Nenhuma mediÃ§Ã£o encontrada para os filtros selecionados.</td></tr>`;
+    return;
+  }
+
+  medicoesTableBody.innerHTML = medicoes
+    .map(
+      (medicao) => `
+        <tr>
+          <td>${formatDate(medicao.data)}</td>
+          <td>${escapeHtml(obraMap.get(medicao.obraId) || "Obra removida")}</td>
+          <td>${escapeHtml(medicao.referencia || "-")}</td>
+          <td>${medicao.itensCount}</td>
+          <td>${formatCurrency(medicao.totalMedido || 0)}</td>
+          <td>
+            <button class="btn ghost" data-medicao-edit="${medicao.id}">Editar</button>
+          </td>
+        </tr>
+      `
+    )
+    .join("");
+}
+
+function renderMedicaoDraftTable() {
+  if (!medicaoItensTableBody) {
+    return;
+  }
+
+  const items = getMedicaoDraftItems();
+  if (!items.length) {
+    medicaoItensTableBody.innerHTML = `<tr><td colspan="10" class="empty">Importe o PDF do orÃ§amento ou reaproveite os itens da Ãºltima mediÃ§Ã£o da obra.</td></tr>`;
+    return;
+  }
+
+  const obraId = medicaoObraSelect?.value || "";
+  const currentMedicaoId = medicaoEditIdInput?.value || "";
+  const acumuladoAnteriorMap = buildMedicaoAcumuladoAnteriorMap(obraId, currentMedicaoId);
+
+  medicaoItensTableBody.innerHTML = items
+    .map((item) => {
+      const acumuladoAnterior = acumuladoAnteriorMap.get(item.key) || 0;
+      const quantidadeMedida = Number(item.quantidadeMedida || 0);
+      const quantidadeAcumulada = acumuladoAnterior + quantidadeMedida;
+      const saldo = Number(item.quantidadeTotal || 0) - quantidadeAcumulada;
+
+      return `
+        <tr>
+          <td>${escapeHtml(item.etapa || "-")}</td>
+          <td>${escapeHtml(item.codigo || "-")}</td>
+          <td class="medicao-item-desc">${escapeHtml(item.descricao)}</td>
+          <td>${escapeHtml(item.unidade)}</td>
+          <td class="numeric-cell">${formatStructuredQuantity(item.quantidadeTotal)}</td>
+          <td class="numeric-cell">${formatCurrency(item.valorUnitario)}</td>
+          <td class="numeric-cell">${formatCurrency(item.valorTotal)}</td>
+          <td>
+            <input
+              type="number"
+              class="medicao-measured-input"
+              data-medicao-qtd="${item.id}"
+              min="0"
+              step="0.001"
+              inputmode="decimal"
+              value="${Number.isFinite(quantidadeMedida) ? quantidadeMedida : 0}"
+            />
+          </td>
+          <td class="numeric-cell">${formatStructuredQuantity(quantidadeAcumulada)}</td>
+          <td class="numeric-cell ${saldo < 0 ? "saldo-negative" : ""}">${formatStructuredQuantity(saldo)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+function resetMedicaoForm() {
+  if (!medicaoForm) {
+    return;
+  }
+
+  medicaoForm.reset();
+  medicaoForm.dataset.originalObraId = "";
+  medicaoEditIdInput.value = "";
+  medicaoDataInput.value = getTodayIsoDate();
+  medicaoReferenciaInput.value = "";
+  medicaoSubmitBtn.textContent = "Salvar Medição";
+  medicaoCancelEditBtn.classList.add("hidden");
+  medicaoPdfInput.value = "";
+  setMedicaoHistory("", []);
+  setMedicaoPdfDraft(null);
+  setMedicaoDraftItems([]);
+
+  const obraSelecionada = medicaoFiltroObraSelect?.value || medicaoObraSelect?.value || "";
+  if (obraSelecionada && Array.from(medicaoObraSelect.options).some((option) => option.value === obraSelecionada)) {
+    medicaoObraSelect.value = obraSelecionada;
+  }
+
+  formatMedicaoPdfStatus("Selecione a obra e, se necessário, leia o PDF do orçamento para montar a medição.");
+}
+
+function preencherFormularioMedicao(medicao) {
+  medicaoForm.dataset.originalObraId = medicao.obraId;
+  medicaoEditIdInput.value = medicao.id;
+  medicaoObraSelect.value = medicao.obraId;
+  medicaoDataInput.value = normalizeDateInputValue(medicao.data);
+  medicaoReferenciaInput.value = medicao.referencia || "";
+  medicaoSubmitBtn.textContent = "Atualizar Medição";
+  medicaoCancelEditBtn.classList.remove("hidden");
+  medicaoPdfInput.value = "";
+  setMedicaoPdfDraft(medicao.pdfNome ? { name: medicao.pdfNome, source: "salvo" } : null);
+  formatMedicaoPdfStatus(
+    medicao.pdfNome
+      ? `Base carregada da medição salva. PDF de origem: ${medicao.pdfNome}.`
+      : "Base carregada da medição salva."
+  );
+  setMedicaoDraftItems(cloneMedicaoItems(medicao.items));
+}
+
+async function loadMedicaoHistoryForObra(obraId) {
+  if (!obraId) {
+    setMedicaoHistory("", []);
+    return [];
+  }
+
+  const medicoes = await fetchMedicoesByObra(obraId, true);
+  setMedicaoHistory(obraId, medicoes);
+  return medicoes;
+}
+
+async function carregarBaseNovaMedicao(obraId) {
+  if (!obraId) {
+    setMedicaoHistory("", []);
+    setMedicaoDraftItems([]);
+    setMedicaoPdfDraft(null);
+    formatMedicaoPdfStatus("Selecione uma obra para iniciar a medição.");
+    return;
+  }
+
+  const medicoes = await loadMedicaoHistoryForObra(obraId);
+  const ultimaMedicao = medicoes[0] || null;
+
+  if (!medicaoReferenciaInput.value.trim()) {
+    medicaoReferenciaInput.value = `Medição ${String(medicoes.length + 1).padStart(2, "0")}`;
+  }
+
+  if (!ultimaMedicao) {
+    setMedicaoDraftItems([]);
+    setMedicaoPdfDraft(null);
+    formatMedicaoPdfStatus("Nenhuma medição anterior encontrada para esta obra. Importe o PDF do orçamento para começar.");
+    return;
+  }
+
+  setMedicaoDraftItems(cloneMedicaoItems(ultimaMedicao.items, { zeroMeasured: true }));
+  setMedicaoPdfDraft(ultimaMedicao.pdfNome ? { name: ultimaMedicao.pdfNome, source: "historico" } : null);
+  formatMedicaoPdfStatus(
+    `Itens reaproveitados da última medição da obra (${formatDate(ultimaMedicao.data)}). ${
+      ultimaMedicao.pdfNome ? `PDF de origem: ${ultimaMedicao.pdfNome}.` : ""
+    }`
+  );
+}
+
+async function openMedicaoEditor(medicao = null) {
+  if (!medicaoEditorPanel) {
+    return;
+  }
+
+  medicaoEditorPanel.classList.remove("hidden");
+
+  if (medicao) {
+    medicaoEditorTitle.textContent = "Editar Medição";
+    medicaoEditorSubtitle.textContent = "Atualize as quantidades medidas mantendo o histórico do item por obra.";
+    await loadMedicaoHistoryForObra(medicao.obraId);
+    preencherFormularioMedicao(medicao);
+    return;
+  }
+
+  medicaoEditorTitle.textContent = "Nova Medição";
+  medicaoEditorSubtitle.textContent = "Reaproveite a base da última medição da obra ou leia um novo PDF do orçamento.";
+  resetMedicaoForm();
+  const obraPrefill = medicaoFiltroObraSelect?.value || medicaoObraSelect?.value || "";
+  if (obraPrefill && Array.from(medicaoObraSelect.options).some((option) => option.value === obraPrefill)) {
+    medicaoObraSelect.value = obraPrefill;
+    await carregarBaseNovaMedicao(obraPrefill);
+  }
+}
+
+function closeMedicaoEditor() {
+  if (!medicaoEditorPanel) {
+    return;
+  }
+
+  medicaoEditorPanel.classList.add("hidden");
+  resetMedicaoForm();
+}
+
+function mergeMedicaoMeasuredValues(items) {
+  const currentMap = new Map(getMedicaoDraftItems().map((item) => [item.key, Number(item.quantidadeMedida || 0)]));
+  return items.map((item) => ({
+    ...item,
+    quantidadeMedida: currentMap.get(item.key) || 0
+  }));
+}
+
+function buildPdfTextLines(textItems) {
+  const rows = [];
+
+  textItems.forEach((item) => {
+    const text = String(item.str || "").replace(/\s+/g, " ").trim();
+    if (!text) {
+      return;
+    }
+
+    const y = Math.round((item.transform?.[5] || 0) * 2) / 2;
+    const x = item.transform?.[4] || 0;
+    let row = rows.find((candidate) => Math.abs(candidate.y - y) <= 1.5);
+    if (!row) {
+      row = { y, parts: [] };
+      rows.push(row);
+    }
+    row.parts.push({ x, text });
+  });
+
+  return rows
+    .sort((left, right) => right.y - left.y)
+    .map((row) =>
+      row.parts
+        .sort((left, right) => left.x - right.x)
+        .map((part) => part.text)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim()
+    )
+    .filter(Boolean);
+}
+
+let pdfJsModulePromise;
+
+async function getPdfJsModule() {
+  if (!pdfJsModulePromise) {
+    pdfJsModulePromise = import("/node_modules/pdfjs-dist/build/pdf.mjs").then((module) => {
+      module.GlobalWorkerOptions.workerSrc = "/node_modules/pdfjs-dist/build/pdf.worker.mjs";
+      return module;
+    });
+  }
+
+  return pdfJsModulePromise;
+}
+
+function isLikelyMedicaoHeaderLine(line) {
+  const normalized = normalizeValue(line);
+  return (
+    normalized.includes("valor unit") ||
+    normalized.includes("valor total") ||
+    normalized.includes("quantidade") ||
+    normalized.includes("unid") ||
+    normalized.includes("descricao") ||
+    normalized.includes("item orc") ||
+    normalized.includes("orcamento")
+  );
+}
+
+function isLikelyMedicaoStageLine(line) {
+  const cleaned = String(line || "").trim();
+  if (!cleaned || cleaned.length > 110 || isLikelyMedicaoHeaderLine(cleaned)) {
+    return false;
+  }
+
+  const numberCount = (cleaned.match(/\d/g) || []).length;
+  if (numberCount > 6) {
+    return false;
+  }
+
+  return /^[A-Z0-9\s./-]+$/.test(cleaned) || /^(etapa|grupo|servico|servi[cç]o)/i.test(cleaned);
+}
+
+function parseMedicaoBudgetLine(line, etapaAtual = "", pendingPrefix = "") {
+  const cleaned = String(line || "")
+    .replace(/\s+/g, " ")
+    .replace(/R\$/gi, "")
+    .trim();
+  if (!cleaned || isLikelyMedicaoHeaderLine(cleaned)) {
+    return null;
+  }
+
+  const numberPattern = String.raw`(?:\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:,\d+)?)`;
+  const pattern = new RegExp(`^(.*?)(?:\\s+([A-Za-zÀ-ÿ0-9%°ºª./-]{1,12}))\\s+(${numberPattern})\\s+(${numberPattern})\\s+(${numberPattern})$`);
+  const match = cleaned.match(pattern);
+  if (!match) {
+    return null;
+  }
+
+  const leftPart = [pendingPrefix, match[1]].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  const unidade = String(match[2] || "").trim();
+  const quantidadeTotal = parseLocaleNumber(match[3]);
+  const valorUnitario = parseLocaleNumber(match[4]);
+  const valorTotal = parseLocaleNumber(match[5]);
+
+  if (!leftPart || !unidade) {
+    return null;
+  }
+
+  let codigo = "";
+  let descricao = leftPart;
+  const codeMatch = leftPart.match(/^([A-Za-z0-9]+(?:[./-][A-Za-z0-9]+)*)\s+(.*)$/);
+  if (codeMatch && codeMatch[2]) {
+    codigo = codeMatch[1];
+    descricao = codeMatch[2].trim();
+  }
+
+  if (!descricao) {
+    return null;
+  }
+
+  return normalizeMedicaoItem({
+    codigo,
+    etapa: etapaAtual,
+    descricao,
+    unidade,
+    quantidadeTotal,
+    valorUnitario,
+    valorTotal,
+    quantidadeMedida: 0
+  });
+}
+
+function parseMedicaoItemsFromPdfLines(lines) {
+  const items = [];
+  let etapaAtual = "";
+  let pendingPrefix = "";
+
+  lines.forEach((line) => {
+    const cleaned = String(line || "").replace(/\s+/g, " ").trim();
+    if (!cleaned) {
+      return;
+    }
+
+    if (isLikelyMedicaoStageLine(cleaned)) {
+      etapaAtual = cleaned;
+      pendingPrefix = "";
+      return;
+    }
+
+    const parsed = parseMedicaoBudgetLine(cleaned, etapaAtual, pendingPrefix);
+    if (parsed) {
+      items.push(parsed);
+      pendingPrefix = "";
+      return;
+    }
+
+    if (!isLikelyMedicaoHeaderLine(cleaned) && cleaned.length <= 140) {
+      pendingPrefix = [pendingPrefix, cleaned].filter(Boolean).join(" ").trim();
+    }
+  });
+
+  return items.map((item, index) => ({
+    ...item,
+    id: createClientId(`medicao-item-${index + 1}`)
+  }));
+}
+
+async function importMedicaoPdf(file) {
+  const pdfjs = await getPdfJsModule();
+  const data = await file.arrayBuffer();
+  const pdf = await pdfjs.getDocument({ data }).promise;
+  const lines = [];
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const textContent = await page.getTextContent();
+    lines.push(...buildPdfTextLines(textContent.items || []));
+  }
+
+  const parsedItems = parseMedicaoItemsFromPdfLines(lines);
+  if (!parsedItems.length) {
+    throw new Error("Nao foi possivel identificar itens no PDF. Confirme se o arquivo possui texto selecionavel e tabela de orcamento.");
+  }
+
+  setMedicaoPdfDraft({ name: file.name, source: "importado" });
+  setMedicaoDraftItems(mergeMedicaoMeasuredValues(parsedItems));
+  formatMedicaoPdfStatus(`${parsedItems.length} itens lidos do PDF ${file.name}. Revise as quantidades medidas antes de salvar.`);
 }
 
 function populateRdoAutocomplete() {
@@ -1715,6 +2297,7 @@ function formatAuditEntityType(entityType) {
   return {
     obra: "Obra",
     compra: "Compra",
+    medicao: "Medição",
     mao_de_obra: "Mão de Obra",
     rdo: "RDO",
     usuario: "Usuário"
@@ -1763,6 +2346,10 @@ function activatePage(pageId) {
 
   if (pageId === "relatorios") {
     renderRelatorios();
+  }
+
+  if (pageId === "medicoes") {
+    renderMedicoes();
   }
 
   if (pageId === "rdos") {
@@ -1859,10 +2446,18 @@ function renderDashboard() {
 function populateObraSelects() {
   const obras = getObras();
   const ultimaObraLancadaId = getUltimaObraLancadaId();
+  const medicaoObraValue = medicaoObraSelect?.value || "";
+  const medicaoFiltroObraValue = medicaoFiltroObraSelect?.value || "";
   const rdoObraValue = rdoObraSelect?.value || "";
   const rdoFiltroObraValue = rdoFiltroObraSelect?.value || "";
 
   if (!obras.length) {
+    if (medicaoObraSelect) {
+      medicaoObraSelect.innerHTML = `<option value="">Cadastre uma obra antes</option>`;
+    }
+    if (medicaoFiltroObraSelect) {
+      medicaoFiltroObraSelect.innerHTML = `<option value="">Todas as obras</option>`;
+    }
     compraObraSelect.innerHTML = `<option value="">Cadastre uma obra antes</option>`;
     maoDeObraObraSelect.innerHTML = `<option value="">Cadastre uma obra antes</option>`;
     finalizacaoObraSelect.innerHTML = `<option value="">Cadastre uma obra antes</option>`;
@@ -1874,6 +2469,25 @@ function populateObraSelects() {
       rdoFiltroObraSelect.innerHTML = `<option value="">Todas as obras</option>`;
     }
     return;
+  }
+
+  if (medicaoObraSelect) {
+    medicaoObraSelect.innerHTML = obras.map((obra) => `<option value="${obra.id}">${obra.nome}</option>`).join("");
+    medicaoObraSelect.value = obras.some((obra) => obra.id === medicaoObraValue)
+      ? medicaoObraValue
+      : medicaoFiltroObraValue && obras.some((obra) => obra.id === medicaoFiltroObraValue)
+        ? medicaoFiltroObraValue
+        : obras[0].id;
+  }
+
+  if (medicaoFiltroObraSelect) {
+    medicaoFiltroObraSelect.innerHTML = `
+      <option value="">Todas as obras</option>
+      ${obras.map((obra) => `<option value="${obra.id}">${obra.nome}</option>`).join("")}
+    `;
+    if (obras.some((obra) => obra.id === medicaoFiltroObraValue)) {
+      medicaoFiltroObraSelect.value = medicaoFiltroObraValue;
+    }
   }
 
   compraObraSelect.innerHTML = obras.map((obra) => `<option value="${obra.id}">${obra.nome}</option>`).join("");
@@ -2710,6 +3324,7 @@ function renderAll() {
   refreshCompraAutocomplete();
   populateRdoAutocomplete();
   renderObras();
+  renderMedicoes();
   renderCompras();
   renderMaoDeObra();
   renderRdos();
@@ -2925,6 +3540,192 @@ finalizacaoForm.addEventListener("submit", async (event) => {
     alert(error.message);
   }
 });
+
+if (medicaoNewBtn) {
+  medicaoNewBtn.addEventListener("click", async () => {
+    try {
+      await openMedicaoEditor();
+      activatePage("medicoes");
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+}
+
+if (medicaoCloseEditorBtn) {
+  medicaoCloseEditorBtn.addEventListener("click", () => {
+    closeMedicaoEditor();
+  });
+}
+
+if (medicaoCancelEditBtn) {
+  medicaoCancelEditBtn.addEventListener("click", () => {
+    closeMedicaoEditor();
+  });
+}
+
+if (medicaoBuscarBtn) {
+  medicaoBuscarBtn.addEventListener("click", () => {
+    if (
+      medicaoFiltroDataInicioInput.value &&
+      medicaoFiltroDataFimInput.value &&
+      medicaoFiltroDataFimInput.value < medicaoFiltroDataInicioInput.value
+    ) {
+      alert("A data final da busca nao pode ser anterior a data inicial.");
+      return;
+    }
+
+    renderMedicoes();
+  });
+}
+
+if (medicaoLimparBuscaBtn) {
+  medicaoLimparBuscaBtn.addEventListener("click", () => {
+    medicaoFiltroObraSelect.value = "";
+    medicaoFiltroDataInicioInput.value = "";
+    medicaoFiltroDataFimInput.value = "";
+    renderMedicoes();
+  });
+}
+
+if (medicaoObraSelect) {
+  medicaoObraSelect.addEventListener("change", async () => {
+    const medicaoId = medicaoEditIdInput.value;
+    if (medicaoId) {
+      const originalObraId = medicaoForm?.dataset.originalObraId || "";
+      if (originalObraId && medicaoObraSelect.value !== originalObraId) {
+        const confirmed = confirm("Ao trocar a obra, a base de itens da medição será recarregada a partir do histórico da nova obra. Deseja continuar?");
+        if (!confirmed) {
+          medicaoObraSelect.value = originalObraId;
+          return;
+        }
+
+        medicaoEditIdInput.value = "";
+        medicaoForm.dataset.originalObraId = "";
+        medicaoSubmitBtn.textContent = "Salvar Medição";
+        medicaoCancelEditBtn.classList.add("hidden");
+        medicaoReferenciaInput.value = "";
+        try {
+          await carregarBaseNovaMedicao(medicaoObraSelect.value);
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+
+      try {
+        await loadMedicaoHistoryForObra(medicaoObraSelect.value);
+        renderMedicaoDraftTable();
+      } catch (error) {
+        alert(error.message);
+      }
+      return;
+    }
+
+    try {
+      await carregarBaseNovaMedicao(medicaoObraSelect.value);
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+}
+
+if (medicaoImportPdfBtn) {
+  medicaoImportPdfBtn.addEventListener("click", async () => {
+    const arquivo = medicaoPdfInput?.files?.[0];
+    if (!arquivo) {
+      alert("Selecione primeiro o PDF do orcamento para leitura.");
+      return;
+    }
+
+    medicaoImportPdfBtn.disabled = true;
+    formatMedicaoPdfStatus(`Lendo ${arquivo.name}...`);
+
+    try {
+      await importMedicaoPdf(arquivo);
+    } catch (error) {
+      formatMedicaoPdfStatus("Falha na leitura do PDF.");
+      alert(error.message);
+    } finally {
+      medicaoImportPdfBtn.disabled = false;
+    }
+  });
+}
+
+if (medicaoItensTableBody) {
+  medicaoItensTableBody.addEventListener("change", (event) => {
+    const input = event.target.closest("[data-medicao-qtd]");
+    if (!input) {
+      return;
+    }
+
+    const itemId = input.getAttribute("data-medicao-qtd");
+    const quantidadeMedida = Math.max(0, Number(input.value || 0));
+    state.medicaoDraftItems = getMedicaoDraftItems().map((item) => (
+      item.id === itemId
+        ? { ...item, quantidadeMedida: Number.isFinite(quantidadeMedida) ? quantidadeMedida : 0 }
+        : item
+    ));
+    renderMedicaoDraftTable();
+  });
+}
+
+if (medicoesTableBody) {
+  medicoesTableBody.addEventListener("click", async (event) => {
+    const editButton = event.target.closest("[data-medicao-edit]");
+    if (!editButton) {
+      return;
+    }
+
+    try {
+      const medicao = await fetchMedicaoDetail(editButton.getAttribute("data-medicao-edit"));
+      await openMedicaoEditor(medicao);
+      activatePage("medicoes");
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+}
+
+if (medicaoForm) {
+  medicaoForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const obraId = medicaoObraSelect.value;
+    if (!obraId) {
+      alert("Selecione uma obra para registrar a medicao.");
+      return;
+    }
+
+    const items = getMedicaoDraftItems();
+    if (!items.length) {
+      alert("Importe o PDF ou carregue a base da ultima medicao antes de salvar.");
+      return;
+    }
+
+    try {
+      const medicaoId = medicaoEditIdInput.value;
+      await apiFetch(medicaoId ? `/api/medicoes/${medicaoId}` : "/api/medicoes", {
+        method: medicaoId ? "PUT" : "POST",
+        body: JSON.stringify({
+          obraId,
+          data: medicaoDataInput.value,
+          referencia: medicaoReferenciaInput.value.trim(),
+          pdfNome: state.medicaoPdfDraft?.name || "",
+          items
+        })
+      });
+
+      await refreshData();
+      await refreshAuditLogsIfNeeded();
+      closeMedicaoEditor();
+      renderAll();
+      activatePage("medicoes");
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+}
 
 compraForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -3601,8 +4402,10 @@ async function initializeApp() {
   resetCompraForm();
   resetMaoDeObraForm();
   resetObraForm();
+  resetMedicaoForm();
   resetRdoForm();
   closeObraEditor();
+  closeMedicaoEditor();
   closeRdoEditor();
   closeUsuarioFormPanel();
   closeSenhaPanel();

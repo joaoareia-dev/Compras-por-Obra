@@ -23,7 +23,7 @@ const pool = new Pool({
 const SESSION_COOKIE = "gc_session";
 const SESSION_TTL_DAYS = 7;
 const JSON_BODY_LIMIT_BYTES = Number(process.env.JSON_BODY_LIMIT_BYTES) || 20 * 1024 * 1024;
-const noCacheExtensions = new Set([".html", ".js", ".css", ".webmanifest"]);
+const noCacheExtensions = new Set([".html", ".js", ".mjs", ".css", ".webmanifest"]);
 const RDO_CLIMA_OPTIONS = new Set(["Ensolarado", "Nublado", "Chuvoso"]);
 const AUDIT_ACTIONS = new Set(["cadastro", "edicao", "exclusao"]);
 const CLIENT_VERSION_TARGETS = {
@@ -44,6 +44,7 @@ const mimeTypes = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
+  ".mjs": "application/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".webmanifest": "application/manifest+json; charset=utf-8",
   ".txt": "text/plain; charset=utf-8",
@@ -498,6 +499,85 @@ function normalizeCatalogKey(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function buildMedicaoItemKey(item) {
+  const codigo = normalizeCatalogKey(item.codigo);
+  if (codigo) {
+    return `codigo:${codigo}`;
+  }
+
+  return [
+    "item",
+    normalizeCatalogKey(item.etapa),
+    normalizeCatalogKey(item.descricao),
+    normalizeCatalogKey(item.unidade)
+  ].join(":");
+}
+
+function normalizeMedicaoItemList(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((value) => {
+      const item = value && typeof value === "object" ? value : {};
+      const codigo = String(item.codigo || "").trim();
+      const etapa = String(item.etapa || "").trim();
+      const descricao = String(item.descricao || "").trim();
+      const unidade = String(item.unidade || "").trim();
+      const quantidadeTotal = Number(item.quantidadeTotal || 0);
+      const valorUnitario = Number(item.valorUnitario || 0);
+      const valorTotal = Number(item.valorTotal || 0);
+      const quantidadeMedida = Number(item.quantidadeMedida || 0);
+
+      if (!descricao || !unidade) {
+        return null;
+      }
+
+      const normalized = {
+        id: String(item.id || randomId()),
+        key: String(item.key || buildMedicaoItemKey({ codigo, etapa, descricao, unidade })),
+        codigo,
+        etapa,
+        descricao,
+        unidade,
+        quantidadeTotal: Number.isFinite(quantidadeTotal) ? quantidadeTotal : 0,
+        valorUnitario: Number.isFinite(valorUnitario) ? valorUnitario : 0,
+        valorTotal: Number.isFinite(valorTotal) ? valorTotal : 0,
+        quantidadeMedida: Number.isFinite(quantidadeMedida) ? quantidadeMedida : 0
+      };
+
+      return normalized;
+    })
+    .filter(Boolean);
+}
+
+function mapMedicaoSummary(row) {
+  return {
+    id: row.id,
+    obraId: row.obra_id,
+    data: toDateOnlyString(row.data),
+    referencia: String(row.referencia || "").trim(),
+    itensCount: Number(row.itens_count || 0),
+    totalMedido: Number(row.total_medido || 0),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapMedicao(row) {
+  return {
+    id: row.id,
+    obraId: row.obra_id,
+    data: toDateOnlyString(row.data),
+    referencia: String(row.referencia || "").trim(),
+    pdfNome: String(row.pdf_nome || "").trim(),
+    items: normalizeMedicaoItemList(row.items_json),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 function buildRdoCatalogos(rows) {
   const materiais = new Map();
   const maoDeObra = new Map();
@@ -664,6 +744,22 @@ async function ensureDatabase() {
   await pool.query("ALTER TABLE rdos ADD COLUMN IF NOT EXISTS mao_obra_presente JSONB NOT NULL DEFAULT '[]'::jsonb");
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS medicoes (
+      id TEXT PRIMARY KEY,
+      obra_id TEXT NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+      data DATE NOT NULL,
+      referencia TEXT,
+      pdf_nome TEXT,
+      items_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query("ALTER TABLE medicoes ADD COLUMN IF NOT EXISTS referencia TEXT");
+  await pool.query("ALTER TABLE medicoes ADD COLUMN IF NOT EXISTS pdf_nome TEXT");
+  await pool.query("ALTER TABLE medicoes ADD COLUMN IF NOT EXISTS items_json JSONB NOT NULL DEFAULT '[]'::jsonb");
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS audit_logs (
       id TEXT PRIMARY KEY,
       user_id TEXT,
@@ -700,7 +796,7 @@ async function ensureDatabase() {
 }
 
 async function getBootstrapPayload() {
-  const [obrasResult, comprasResult, maoDeObraResult, rdosResult, rdoCatalogRowsResult] = await Promise.all([
+  const [obrasResult, comprasResult, maoDeObraResult, rdosResult, rdoCatalogRowsResult, medicoesResult] = await Promise.all([
     pool.query("SELECT * FROM obras ORDER BY nome ASC"),
     pool.query("SELECT * FROM compras ORDER BY created_at ASC"),
     pool.query("SELECT * FROM mao_obra_pagamentos ORDER BY created_at ASC"),
@@ -722,6 +818,25 @@ async function getBootstrapPayload() {
       SELECT materiais_recebidos, materiais_consumidos, mao_obra_presente
       FROM rdos
       ORDER BY data ASC, created_at ASC
+    `),
+    pool.query(`
+      SELECT
+        id,
+        obra_id,
+        data,
+        referencia,
+        created_at,
+        updated_at,
+        jsonb_array_length(COALESCE(items_json, '[]'::jsonb)) AS itens_count,
+        COALESCE((
+          SELECT SUM(
+            COALESCE((item ->> 'quantidadeMedida')::numeric, 0) *
+            COALESCE((item ->> 'valorUnitario')::numeric, 0)
+          )
+          FROM jsonb_array_elements(COALESCE(items_json, '[]'::jsonb)) AS item
+        ), 0) AS total_medido
+      FROM medicoes
+      ORDER BY data DESC, created_at DESC
     `)
   ]);
 
@@ -730,7 +845,8 @@ async function getBootstrapPayload() {
     compras: comprasResult.rows.map(mapCompra),
     maoDeObra: maoDeObraResult.rows.map(mapMaoDeObra),
     rdos: rdosResult.rows.map(mapRdoSummary),
-    rdoCatalogos: buildRdoCatalogos(rdoCatalogRowsResult.rows)
+    rdoCatalogos: buildRdoCatalogos(rdoCatalogRowsResult.rows),
+    medicoes: medicoesResult.rows.map(mapMedicaoSummary)
   };
 }
 
@@ -1391,6 +1507,170 @@ async function handleApi(req, res, pathname) {
         valor: Number(pagamento.valor || 0)
       });
     }
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  if (req.method === "GET" && pathname === "/api/medicoes") {
+    const searchParams = new URL(req.url, `http://${req.headers.host || "localhost"}`).searchParams;
+    const obraId = searchParams.get("obraId") || "";
+    const includeItems = searchParams.get("includeItems") === "1";
+
+    if (includeItems) {
+      const result = obraId
+        ? await pool.query(
+            `
+              SELECT *
+              FROM medicoes
+              WHERE obra_id = $1
+              ORDER BY data DESC, created_at DESC
+            `,
+            [obraId]
+          )
+        : await pool.query(`
+              SELECT *
+              FROM medicoes
+              ORDER BY data DESC, created_at DESC
+            `);
+      sendJson(res, 200, { medicoes: result.rows.map(mapMedicao) });
+      return true;
+    }
+
+    const result = obraId
+      ? await pool.query(
+          `
+            SELECT
+              id,
+              obra_id,
+              data,
+              referencia,
+              created_at,
+              updated_at,
+              jsonb_array_length(COALESCE(items_json, '[]'::jsonb)) AS itens_count,
+              COALESCE((
+                SELECT SUM(
+                  COALESCE((item ->> 'quantidadeMedida')::numeric, 0) *
+                  COALESCE((item ->> 'valorUnitario')::numeric, 0)
+                )
+                FROM jsonb_array_elements(COALESCE(items_json, '[]'::jsonb)) AS item
+              ), 0) AS total_medido
+            FROM medicoes
+            WHERE obra_id = $1
+            ORDER BY data DESC, created_at DESC
+          `,
+          [obraId]
+        )
+      : await pool.query(
+          `
+            SELECT
+              id,
+              obra_id,
+              data,
+              referencia,
+              created_at,
+              updated_at,
+              jsonb_array_length(COALESCE(items_json, '[]'::jsonb)) AS itens_count,
+              COALESCE((
+                SELECT SUM(
+                  COALESCE((item ->> 'quantidadeMedida')::numeric, 0) *
+                  COALESCE((item ->> 'valorUnitario')::numeric, 0)
+                )
+                FROM jsonb_array_elements(COALESCE(items_json, '[]'::jsonb)) AS item
+              ), 0) AS total_medido
+            FROM medicoes
+            ORDER BY data DESC, created_at DESC
+          `
+        );
+    sendJson(res, 200, { medicoes: result.rows.map(mapMedicaoSummary) });
+    return true;
+  }
+
+  if (req.method === "GET" && pathname.startsWith("/api/medicoes/")) {
+    const medicaoId = getResourceId(pathname);
+    const result = await pool.query("SELECT * FROM medicoes WHERE id = $1 LIMIT 1", [medicaoId]);
+    if (!result.rows.length) {
+      sendJson(res, 404, { error: "Medição não encontrada." });
+      return true;
+    }
+
+    sendJson(res, 200, { medicao: mapMedicao(result.rows[0]) });
+    return true;
+  }
+
+  if (req.method === "POST" && pathname === "/api/medicoes") {
+    const body = await parseRequestBody(req);
+    requireFields(body, ["obraId", "data"]);
+    const items = normalizeMedicaoItemList(body.items);
+    if (!items.length) {
+      sendJson(res, 400, { error: "Importe ou carregue os itens da medição antes de salvar." });
+      return true;
+    }
+
+    const id = randomId();
+    const now = new Date().toISOString();
+    await pool.query(
+      `
+        INSERT INTO medicoes (id, obra_id, data, referencia, pdf_nome, items_json, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
+      `,
+      [
+        id,
+        body.obraId,
+        body.data,
+        String(body.referencia || "").trim(),
+        String(body.pdfNome || "").trim(),
+        JSON.stringify(items),
+        now,
+        now
+      ]
+    );
+
+    await createAuditLog(req, user, "cadastro", "medicao", id, `Medição de ${body.data} cadastrada.`, {
+      obraId: body.obraId,
+      data: body.data,
+      itensCount: items.length
+    });
+    sendJson(res, 201, { ok: true, id });
+    return true;
+  }
+
+  if (req.method === "PUT" && pathname.startsWith("/api/medicoes/")) {
+    const medicaoId = getResourceId(pathname);
+    const body = await parseRequestBody(req);
+    requireFields(body, ["obraId", "data"]);
+    const items = normalizeMedicaoItemList(body.items);
+    if (!items.length) {
+      sendJson(res, 400, { error: "A medição precisa conter ao menos um item." });
+      return true;
+    }
+
+    await pool.query(
+      `
+        UPDATE medicoes
+        SET obra_id = $2,
+            data = $3,
+            referencia = $4,
+            pdf_nome = $5,
+            items_json = $6::jsonb,
+            updated_at = $7
+        WHERE id = $1
+      `,
+      [
+        medicaoId,
+        body.obraId,
+        body.data,
+        String(body.referencia || "").trim(),
+        String(body.pdfNome || "").trim(),
+        JSON.stringify(items),
+        new Date().toISOString()
+      ]
+    );
+
+    await createAuditLog(req, user, "edicao", "medicao", medicaoId, `Medição de ${body.data} atualizada.`, {
+      obraId: body.obraId,
+      data: body.data,
+      itensCount: items.length
+    });
     sendJson(res, 200, { ok: true });
     return true;
   }

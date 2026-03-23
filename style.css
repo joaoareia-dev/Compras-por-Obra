@@ -537,6 +537,51 @@ textarea:focus {
   overflow-x: auto;
 }
 
+.medicao-import-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.medicao-import-bar input[type="file"] {
+  flex: 1 1 280px;
+}
+
+.medicao-table-wrap {
+  margin-top: 8px;
+}
+
+.medicao-itens-table {
+  min-width: 1220px;
+}
+
+.medicao-itens-table th,
+.medicao-itens-table td,
+.numeric-cell {
+  text-align: center;
+}
+
+.medicao-itens-table td.numeric-cell {
+  text-align: right;
+}
+
+.medicao-itens-table td.medicao-item-desc {
+  min-width: 280px;
+  text-align: left;
+}
+
+.medicao-measured-input {
+  width: 110px;
+  text-align: right;
+}
+
+.saldo-negative {
+  color: var(--danger);
+  font-weight: 700;
+}
+
 .report-actions {
   display: flex;
   gap: 10px;

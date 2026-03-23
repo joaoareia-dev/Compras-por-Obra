@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260323-9" />
+  <link rel="stylesheet" href="style.css?v=20260323-11" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -42,6 +42,7 @@
       <nav class="menu card">
         <button class="menu-btn active" data-section="dashboard">Dashboard</button>
         <button class="menu-btn admin-only" data-section="obras">Obras</button>
+        <button class="menu-btn" data-section="medicoes">Medições</button>
         <button class="menu-btn" data-section="compras">Compras</button>
         <button class="menu-btn" data-section="maoDeObra">Mão de Obra</button>
         <button class="menu-btn" data-section="rdos">RDOs</button>
@@ -217,6 +218,113 @@
               </tr>
             </thead>
             <tbody id="obrasTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="medicoes" class="page card hidden">
+        <h3>Medições</h3>
+        <div class="form-grid cols-3">
+          <label>
+            Obra
+            <select id="medicaoFiltroObra"></select>
+          </label>
+          <label>
+            Data inicial
+            <input type="date" id="medicaoFiltroDataInicio" />
+          </label>
+          <label>
+            Data final
+            <input type="date" id="medicaoFiltroDataFim" />
+          </label>
+        </div>
+
+        <div class="section-actions">
+          <button type="button" id="medicaoBuscarBtn" class="btn ghost">Buscar</button>
+          <button type="button" id="medicaoLimparBuscaBtn" class="btn ghost">Limpar busca</button>
+          <button type="button" id="medicaoNewBtn" class="btn primary">Nova Medição</button>
+        </div>
+
+        <div id="medicaoEditorPanel" class="subpanel hidden">
+          <div class="subpanel-header">
+            <div>
+              <h4 id="medicaoEditorTitle">Nova Medição</h4>
+              <p id="medicaoEditorSubtitle" class="subtitle">Importe o orçamento em PDF quando necessário e informe as quantidades medidas.</p>
+            </div>
+            <button type="button" id="medicaoCloseEditorBtn" class="btn ghost">Fechar</button>
+          </div>
+
+          <form id="medicaoForm" class="form-grid">
+            <input type="hidden" id="medicaoEditId" />
+            <div class="form-grid cols-3 compact-grid">
+              <label>
+                Obra
+                <select id="medicaoObra" required></select>
+              </label>
+              <label>
+                Data da medição
+                <input type="date" id="medicaoData" required />
+              </label>
+              <label>
+                Referência
+                <input type="text" id="medicaoReferencia" placeholder="Ex.: Medição 01" />
+              </label>
+            </div>
+
+            <section class="dynamic-block">
+              <div class="dynamic-block-header">
+                <div>
+                  <h4>Leitura do PDF do Orçamento</h4>
+                  <p class="subtitle">Na primeira medição da obra, o PDF é obrigatório. Nas próximas, você pode reaproveitar os itens da última medição ou importar um novo PDF.</p>
+                </div>
+              </div>
+              <div class="medicao-import-bar">
+                <input type="file" id="medicaoPdfInput" accept="application/pdf,.pdf" />
+                <button type="button" id="medicaoImportPdfBtn" class="btn ghost">Ler PDF do Orçamento</button>
+              </div>
+              <p id="medicaoPdfStatus" class="subtitle"></p>
+            </section>
+
+            <div class="table-wrap medicao-table-wrap">
+              <table class="medicao-itens-table">
+                <thead>
+                  <tr>
+                    <th>Etapa</th>
+                    <th>Código</th>
+                    <th>Item</th>
+                    <th>Unid.</th>
+                    <th>Qtd total</th>
+                    <th>Valor unit.</th>
+                    <th>Valor total</th>
+                    <th>Qtd medida</th>
+                    <th>Qtd acumulada</th>
+                    <th>Saldo</th>
+                  </tr>
+                </thead>
+                <tbody id="medicaoItensTableBody"></tbody>
+              </table>
+            </div>
+
+            <div class="obra-form-actions">
+              <button type="submit" id="medicaoSubmitBtn" class="btn primary">Salvar Medição</button>
+              <button type="button" id="medicaoCancelEditBtn" class="btn ghost hidden">Cancelar edição</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Obra</th>
+                <th>Referência</th>
+                <th>Itens</th>
+                <th>Total medido</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="medicoesTableBody"></tbody>
           </table>
         </div>
       </section>
@@ -640,8 +748,8 @@
     </section>
   </main>
 
-  <script src="node_modules/html2canvas/dist/html2canvas.min.js?v=20260323-9"></script>
-  <script src="node_modules/jspdf/dist/jspdf.umd.min.js?v=20260323-9"></script>
-  <script src="app.js?v=20260323-9"></script>
+  <script src="node_modules/html2canvas/dist/html2canvas.min.js?v=20260323-11"></script>
+  <script src="node_modules/jspdf/dist/jspdf.umd.min.js?v=20260323-11"></script>
+  <script src="app.js?v=20260323-11"></script>
 </body>
 </html>
