@@ -2006,13 +2006,9 @@ function renderRdoPrintDocuments(rdos) {
       const obra = getObraById(rdo.obraId);
       const meta = [
         `<span><strong>Obra:</strong> ${escapeHtml(obraMap.get(rdo.obraId) || "Obra removida")}</span>`,
+        obra?.contratada?.nome ? `<span><strong>Empresa contratada:</strong> ${escapeHtml(obra.contratada.nome)}</span>` : "",
         `<span><strong>Data:</strong> ${formatDate(rdo.data)}</span>`,
-        rdo.clima ? `<span><strong>Clima:</strong> ${escapeHtml(rdo.clima)}</span>` : "",
-        rdo.fotos.length ? `<span><strong>Fotos:</strong> ${rdo.fotos.length}</span>` : "",
-        rdo.servicosExecutados.length ? `<span><strong>Servicos:</strong> ${rdo.servicosExecutados.length}</span>` : "",
-        rdo.materiaisRecebidos.length ? `<span><strong>Recebidos:</strong> ${rdo.materiaisRecebidos.length}</span>` : "",
-        rdo.materiaisConsumidos.length ? `<span><strong>Consumidos:</strong> ${rdo.materiaisConsumidos.length}</span>` : "",
-        rdo.maoDeObraPresente.length ? `<span><strong>Mao de obra presente:</strong> ${rdo.maoDeObraPresente.length}</span>` : ""
+        rdo.clima ? `<span><strong>Clima:</strong> ${escapeHtml(rdo.clima)}</span>` : ""
       ]
         .filter(Boolean)
         .join("");
@@ -2047,7 +2043,6 @@ function renderRdoPrintDocuments(rdos) {
             ${renderRdoCompanyBlock("Contratante", obra?.contratante, "left")}
             <div class="rdo-print-title-block">
               <h4>Relatorio Diario de Obras</h4>
-              <p>${escapeHtml(obraMap.get(rdo.obraId) || "Obra removida")}</p>
             </div>
             ${renderRdoCompanyBlock("Contratada", obra?.contratada, "right")}
           </div>
