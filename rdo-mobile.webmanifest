@@ -1,0 +1,18 @@
+{
+  "name": "RDO Obras",
+  "short_name": "RDO Obras",
+  "description": "App Android focado em cadastro, consulta e edição de RDOs.",
+  "start_url": "/rdo-mobile.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#eef3f8",
+  "theme_color": "#0f6b5a",
+  "icons": [
+    {
+      "src": "/rdo-mobile-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

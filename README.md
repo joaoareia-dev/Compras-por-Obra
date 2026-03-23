@@ -121,11 +121,26 @@ Erros comuns a evitar:
 - usar a URL externa do banco quando a interna do Render e mais apropriada para servicos no mesmo ambiente
 - trocar a senha do admin sem atualizar `ADMIN_PASSWORD` em um primeiro deploy, esperando que o seed substitua um usuario ja criado
 
+## App Android de RDO
+
+- A versao mobile focada em `RDO` fica em:
+  - `/rdo-mobile.html`
+- O app usa o mesmo backend e as mesmas credenciais do sistema principal.
+- Depois do deploy, abra essa rota no Android e use:
+  - o botao `Instalar` do proprio app, quando disponivel
+  - ou `Adicionar a tela inicial` no navegador
+- Para fotos do RDO, o app oferece:
+  - `Tirar foto` com a camera do celular
+  - `Galeria` para selecionar fotos ja salvas
+
 ## Estrutura principal
 
 - [index.html](C:\Users\joaof\Documents\New project\index.html)
 - [style.css](C:\Users\joaof\Documents\New project\style.css)
 - [app.js](C:\Users\joaof\Documents\New project\app.js)
+- [rdo-mobile.html](C:\Users\joaof\Documents\New project\rdo-mobile.html)
+- [rdo-mobile.css](C:\Users\joaof\Documents\New project\rdo-mobile.css)
+- [rdo-mobile.js](C:\Users\joaof\Documents\New project\rdo-mobile.js)
 - [server.js](C:\Users\joaof\Documents\New project\server.js)
 - [package.json](C:\Users\joaof\Documents\New project\package.json)
 - [render.yaml](C:\Users\joaof\Documents\New project\render.yaml)

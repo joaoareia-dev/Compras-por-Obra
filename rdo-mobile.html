@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f6b5a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="RDO Obras" />
+  <title>RDO Obras</title>
+  <link rel="manifest" href="rdo-mobile.webmanifest?v=20260323-1" />
+  <link rel="icon" href="rdo-mobile-icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="rdo-mobile.css?v=20260323-1" />
+</head>
+<body>
+  <main class="mobile-shell">
+    <section id="mobileLoginView" class="mobile-card mobile-login">
+      <h1>RDO Obras</h1>
+      <p class="subtitle">App Android focado em cadastro e consulta de RDOs.</p>
+
+      <form id="mobileLoginForm" class="mobile-form">
+        <label>
+          E-mail
+          <input type="email" id="mobileLoginEmail" placeholder="usuario@empresa.com" required />
+        </label>
+        <label>
+          Senha
+          <input type="password" id="mobileLoginPassword" placeholder="Digite sua senha" required />
+        </label>
+        <button type="submit" class="btn primary wide">Entrar</button>
+      </form>
+
+      <p id="mobileLoginError" class="feedback error hidden"></p>
+    </section>
+
+    <section id="mobileAppView" class="hidden">
+      <header class="mobile-topbar">
+        <div>
+          <h2>RDO Obras</h2>
+          <p id="mobileWelcome" class="subtitle"></p>
+        </div>
+        <div class="topbar-actions">
+          <button type="button" id="mobileInstallBtn" class="btn ghost hidden">Instalar</button>
+          <button type="button" id="mobileLogoutBtn" class="btn ghost">Sair</button>
+        </div>
+      </header>
+
+      <section class="mobile-card quick-actions">
+        <button type="button" id="mobileNewRdoBtn" class="btn primary">Novo RDO</button>
+        <button type="button" id="mobileRefreshBtn" class="btn ghost">Sincronizar</button>
+      </section>
+
+      <section id="mobileEditorPanel" class="mobile-card hidden">
+        <div class="panel-head">
+          <div>
+            <h3 id="mobileEditorTitle">Cadastrar RDO</h3>
+            <p id="mobileEditorSubtitle" class="subtitle">Registre o andamento diário da obra direto do celular.</p>
+          </div>
+          <button type="button" id="mobileCloseEditorBtn" class="btn ghost">Fechar</button>
+        </div>
+
+        <form id="mobileRdoForm" class="mobile-form">
+          <input type="hidden" id="mobileRdoEditId" />
+
+          <label>
+            Obra
+            <select id="mobileRdoObra" required></select>
+          </label>
+
+          <div class="split-grid">
+            <label>
+              Data
+              <input type="date" id="mobileRdoData" required />
+            </label>
+            <label>
+              Clima
+              <select id="mobileRdoClima" required>
+                <option value="">Selecione</option>
+                <option value="Ensolarado">Ensolarado</option>
+                <option value="Nublado">Nublado</option>
+                <option value="Chuvoso">Chuvoso</option>
+              </select>
+            </label>
+          </div>
+
+          <section class="mobile-block">
+            <div class="block-head">
+              <div>
+                <h4>Fotos</h4>
+                <p class="subtitle">Use a câmera ou a galeria. Cada foto exige comentário.</p>
+              </div>
+            </div>
+
+            <div class="photo-actions">
+              <label class="btn primary action-file">
+                Tirar foto
+                <input type="file" id="mobilePhotoCamera" accept="image/*" capture="environment" hidden />
+              </label>
+              <label class="btn ghost action-file">
+                Galeria
+                <input type="file" id="mobilePhotoGallery" accept="image/*" multiple hidden />
+              </label>
+            </div>
+
+            <div id="mobilePhotoList" class="mobile-photo-list"></div>
+          </section>
+
+          <section class="mobile-block">
+            <div class="block-head">
+              <div>
+                <h4>Mão de Obra Presente</h4>
+                <p class="subtitle">Cargo e quantidade. O próximo campo surge automaticamente.</p>
+              </div>
+            </div>
+            <div id="mobileEquipeContainer" class="mobile-dynamic-list"></div>
+          </section>
+
+          <section class="mobile-block">
+            <div class="block-head">
+              <div>
+                <h4>Serviços Executados</h4>
+                <p class="subtitle">Descrição, unidade e quantidade.</p>
+              </div>
+            </div>
+            <div id="mobileServicosContainer" class="mobile-dynamic-list"></div>
+          </section>
+
+          <section class="mobile-block">
+            <div class="block-head">
+              <div>
+                <h4>Materiais Recebidos</h4>
+                <p class="subtitle">Com autocomplete de item e unidade.</p>
+              </div>
+            </div>
+            <div id="mobileMateriaisRecebidosContainer" class="mobile-dynamic-list"></div>
+          </section>
+
+          <section class="mobile-block">
+            <div class="block-head">
+              <div>
+                <h4>Materiais Consumidos</h4>
+                <p class="subtitle">Com autocomplete de item e unidade.</p>
+              </div>
+            </div>
+            <div id="mobileMateriaisConsumidosContainer" class="mobile-dynamic-list"></div>
+          </section>
+
+          <label>
+            Observações Adicionais
+            <textarea id="mobileRdoObservacoes" rows="5" placeholder="Informações complementares do dia."></textarea>
+          </label>
+
+          <div class="form-actions">
+            <button type="submit" id="mobileSaveRdoBtn" class="btn primary wide">Salvar RDO</button>
+            <button type="button" id="mobileCancelEditBtn" class="btn ghost wide hidden">Cancelar edição</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="mobile-card">
+        <div class="panel-head">
+          <div>
+            <h3>Buscar RDOs</h3>
+            <p class="subtitle">Filtre por obra e período para encontrar diários já cadastrados.</p>
+          </div>
+        </div>
+
+        <div class="mobile-form">
+          <label>
+            Obra
+            <select id="mobileFiltroObra">
+              <option value="">Todas as obras</option>
+            </select>
+          </label>
+
+          <div class="split-grid">
+            <label>
+              Data inicial
+              <input type="date" id="mobileFiltroDataInicio" />
+            </label>
+            <label>
+              Data final
+              <input type="date" id="mobileFiltroDataFim" />
+            </label>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" id="mobileFilterBtn" class="btn primary wide">Buscar</button>
+            <button type="button" id="mobileClearFilterBtn" class="btn ghost wide">Limpar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="mobile-card">
+        <div class="panel-head">
+          <div>
+            <h3>RDOs Cadastrados</h3>
+            <p class="subtitle">Edite lançamentos diretamente pelo celular.</p>
+          </div>
+        </div>
+
+        <div id="mobileRdoList" class="mobile-rdo-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <datalist id="mobileMaterialDescricaoOptions"></datalist>
+  <datalist id="mobileMaoDeObraCargoOptions"></datalist>
+
+  <script src="rdo-mobile.js?v=20260323-1"></script>
+</body>
+</html>
