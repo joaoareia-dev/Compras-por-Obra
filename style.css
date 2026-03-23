@@ -506,40 +506,53 @@ body.printing-rdos .rdo-print-area {
 
 .rdo-print-document {
   display: grid;
-  gap: 14px;
-  padding: 16px 0;
+  gap: 18px;
+  padding: 0;
 }
 
 .rdo-print-document + .rdo-print-document {
-  border-top: 1px solid var(--line);
+  margin-top: 18px;
 }
 
-.rdo-print-branding {
+.rdo-pdf-page {
+  width: 794px;
+  min-height: 1123px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 30px 28px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.rdo-print-document + .rdo-print-document .rdo-pdf-page:first-child {
+  margin-top: 0;
+}
+
+.rdo-print-title-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 14px;
-  padding-bottom: 10px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
 }
 
-.rdo-company-block {
+.rdo-print-logo-slot {
   display: grid;
-  gap: 8px;
   align-items: center;
 }
 
-.rdo-company-block.left {
+.rdo-print-logo-slot.left {
   justify-items: start;
-  text-align: left;
 }
 
-.rdo-company-block.right {
+.rdo-print-logo-slot.right {
   justify-items: end;
-  text-align: right;
 }
 
-.rdo-company-block.empty {
+.rdo-print-logo-slot.empty {
   min-height: 1px;
 }
 
@@ -547,18 +560,6 @@ body.printing-rdos .rdo-print-area {
   max-width: 170px;
   max-height: 72px;
   object-fit: contain;
-}
-
-.rdo-company-meta {
-  display: grid;
-  gap: 2px;
-}
-
-.rdo-company-label {
-  font-size: 0.78rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .rdo-print-title-block {
@@ -577,14 +578,47 @@ body.printing-rdos .rdo-print-area {
 }
 
 .rdo-print-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
+  display: grid;
+  gap: 12px;
 }
 
-.rdo-print-header h4 {
+.rdo-print-meta-list {
+  display: grid;
+  gap: 8px;
+}
+
+.rdo-print-meta-item {
   margin: 0;
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 0.92rem;
+}
+
+.rdo-print-meta-item strong {
+  color: var(--text);
+}
+
+.rdo-photo-page {
+  grid-template-rows: auto 1fr auto;
+}
+
+.rdo-photo-page-header {
+  display: grid;
+  gap: 4px;
+}
+
+.rdo-photo-page-header h5,
+.rdo-photo-page-header p {
+  margin: 0;
+}
+
+.rdo-photo-page-header p {
+  color: var(--muted);
+}
+
+.rdo-photo-page-separator {
+  margin: 0 6px;
 }
 
 .rdo-print-section h5 {
@@ -612,6 +646,13 @@ body.printing-rdos .rdo-print-area {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+.rdo-photo-page-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+  align-content: start;
 }
 
 .rdo-print-photo {
@@ -645,6 +686,15 @@ body.printing-rdos .rdo-print-area {
   color: var(--muted);
   display: grid;
   gap: 4px;
+}
+
+.rdo-photo-page .rdo-print-photo-media {
+  height: 210px;
+  aspect-ratio: auto;
+}
+
+.rdo-photo-page .rdo-print-photo figcaption {
+  min-height: 40px;
 }
 
 .rdo-print-photo figcaption strong {
@@ -807,19 +857,24 @@ th {
     display: grid;
   }
 
-  .rdo-print-branding {
+  .rdo-print-title-row {
     grid-template-columns: 1fr;
     justify-items: start;
   }
 
-  .rdo-company-block.right,
-  .rdo-company-block.left {
+  .rdo-print-logo-slot.right,
+  .rdo-print-logo-slot.left {
     justify-items: start;
     text-align: left;
   }
 
-  .rdo-print-header {
-    flex-direction: column;
+  .rdo-print-meta-item {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .rdo-photo-page-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -902,7 +957,7 @@ th {
 
   .report-header,
   .rdo-print-header,
-  .rdo-print-branding {
+  .rdo-print-title-row {
     margin-bottom: 4px;
     gap: 8px;
   }
@@ -953,17 +1008,25 @@ th {
   .report-header,
   .cards-grid,
   .rdo-print-section,
-  .rdo-print-header {
+  .rdo-print-header,
+  .rdo-pdf-page {
     break-inside: avoid;
   }
 
   .rdo-print-document {
-    gap: 10px;
+    gap: 0;
+    padding: 0;
+  }
+
+  .rdo-pdf-page {
+    border: none;
+    border-radius: 0;
     padding: 0 0 10mm;
+    min-height: auto;
     page-break-after: always;
   }
 
-  .rdo-print-branding {
+  .rdo-print-title-row {
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     padding-bottom: 6px;
   }
@@ -973,19 +1036,11 @@ th {
     max-height: 48px;
   }
 
-  .rdo-company-label {
-    font-size: 7px;
-  }
-
   .rdo-print-title-block h4 {
     font-size: 12px;
   }
 
-  .rdo-print-title-block p {
-    font-size: 8px;
-  }
-
-  .rdo-print-document:last-child {
+  .rdo-pdf-page:last-child {
     page-break-after: auto;
   }
 
@@ -1000,13 +1055,18 @@ th {
     padding-left: 14px;
   }
 
-  .rdo-print-photo-grid {
+  .rdo-print-photo-grid,
+  .rdo-photo-page-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
 
   .rdo-print-photo-media {
     aspect-ratio: 4 / 3;
+  }
+
+  .rdo-photo-page .rdo-print-photo-media {
+    height: 200px;
   }
 
   .rdo-print-photo figcaption {

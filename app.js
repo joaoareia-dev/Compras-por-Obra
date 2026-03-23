@@ -1934,20 +1934,14 @@ function renderRdoPrintList(title, items) {
   `;
 }
 
-function renderRdoCompanyBlock(title, company, positionClass) {
-  const nome = company?.nome || "";
-  const logo = company?.logo || "";
-  if (!nome && !logo) {
-    return `<div class="rdo-company-block ${positionClass} empty"></div>`;
+function renderRdoHeaderLogo(logo, label, positionClass) {
+  if (!String(logo || "").trim()) {
+    return `<div class="rdo-print-logo-slot ${positionClass} empty"></div>`;
   }
 
   return `
-    <div class="rdo-company-block ${positionClass}">
-      ${logo ? `<img src="${logo}" alt="${escapeHtml(title)}" class="rdo-company-logo" />` : ""}
-      <div class="rdo-company-meta">
-        <span class="rdo-company-label">${title}</span>
-        ${nome ? `<strong>${escapeHtml(nome)}</strong>` : ""}
-      </div>
+    <div class="rdo-print-logo-slot ${positionClass}">
+      <img src="${logo}" alt="${escapeHtml(label)}" class="rdo-company-logo" />
     </div>
   `;
 }
@@ -2007,6 +2001,103 @@ function renderRdoSignatureBlock(obra) {
   `;
 }
 
+function renderRdoMetaList(rdo, obra, obraName) {
+  const rows = [
+    { label: "Nome da Obra", value: obraName || "Obra removida" },
+    { label: "Contratada", value: obra?.contratada?.nome || "-" },
+    { label: "Contratante", value: obra?.contratante?.nome || "-" },
+    { label: "Data", value: formatDate(rdo.data) },
+    { label: "Clima", value: rdo.clima || "-" }
+  ];
+
+  return `
+    <div class="rdo-print-meta-list">
+      ${rows
+        .map(
+          (row) => `
+            <p class="rdo-print-meta-item">
+              <strong>${row.label}</strong>
+              <span>${escapeHtml(row.value)}</span>
+            </p>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderRdoHeaderBlock(obra, rdo, obraName) {
+  return `
+    <header class="rdo-print-header">
+      <div class="rdo-print-title-row">
+        ${renderRdoHeaderLogo(obra?.contratante?.logo, "Logotipo da contratante", "left")}
+        <div class="rdo-print-title-block">
+          <h4>Relatorio Diario de Obras</h4>
+        </div>
+        ${renderRdoHeaderLogo(obra?.contratada?.logo, "Logotipo da contratada", "right")}
+      </div>
+      ${renderRdoMetaList(rdo, obra, obraName)}
+    </header>
+  `;
+}
+
+function chunkItems(items, chunkSize) {
+  const chunks = [];
+
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+
+  return chunks;
+}
+
+function renderRdoPhotoFigure(photo) {
+  return `
+    <figure class="rdo-print-photo">
+      <div class="rdo-print-photo-media">
+        <img src="${photo.dataUrl}" alt="${escapeHtml(photo.name)}" />
+      </div>
+      <figcaption>
+        ${photo.comentario ? `<span>${escapeHtml(photo.comentario)}</span>` : ""}
+      </figcaption>
+    </figure>
+  `;
+}
+
+function renderRdoMainPage(rdo, obra, obraName, hasPhotoPages) {
+  return `
+    <section class="rdo-pdf-page rdo-main-page">
+      ${renderRdoHeaderBlock(obra, rdo, obraName)}
+      ${renderRdoStructuredTable("Mao de obra presente", rdo.maoDeObraPresente, "equipe")}
+      ${renderRdoStructuredTable("Servicos executados", rdo.servicosExecutados)}
+      ${renderRdoStructuredTable("Materiais recebidos", rdo.materiaisRecebidos)}
+      ${renderRdoStructuredTable("Materiais consumidos", rdo.materiaisConsumidos)}
+      ${rdo.observacoesAdicionais ? renderRdoPrintList("Observacoes adicionais", [rdo.observacoesAdicionais]) : ""}
+      ${hasPhotoPages ? "" : renderRdoSignatureBlock(obra)}
+    </section>
+  `;
+}
+
+function renderRdoPhotoPage(rdo, obra, obraName, photos, photoPageIndex, totalPhotoPages) {
+  return `
+    <section class="rdo-pdf-page rdo-photo-page">
+      <div class="rdo-photo-page-header">
+        <h5>Fotos</h5>
+        <p>
+          ${escapeHtml(obraName || "Obra removida")}
+          <span class="rdo-photo-page-separator">|</span>
+          ${formatDate(rdo.data)}
+          ${totalPhotoPages > 1 ? `<span class="rdo-photo-page-separator">|</span>Pagina ${photoPageIndex + 1} de ${totalPhotoPages}` : ""}
+        </p>
+      </div>
+      <div class="rdo-photo-page-grid">
+        ${photos.map(renderRdoPhotoFigure).join("")}
+      </div>
+      ${photoPageIndex === totalPhotoPages - 1 ? renderRdoSignatureBlock(obra) : ""}
+    </section>
+  `;
+}
+
 function renderRdoPrintDocuments(rdos) {
   if (!rdoPrintArea) {
     return;
@@ -2016,61 +2107,15 @@ function renderRdoPrintDocuments(rdos) {
   rdoPrintArea.innerHTML = rdos
     .map((rdo) => {
       const obra = getObraById(rdo.obraId);
-      const meta = [
-        `<span><strong>Obra:</strong> ${escapeHtml(obraMap.get(rdo.obraId) || "Obra removida")}</span>`,
-        obra?.contratada?.nome ? `<span><strong>Empresa contratada:</strong> ${escapeHtml(obra.contratada.nome)}</span>` : "",
-        obra?.contratante?.nome ? `<span><strong>Empresa contratante:</strong> ${escapeHtml(obra.contratante.nome)}</span>` : "",
-        `<span><strong>Data:</strong> ${formatDate(rdo.data)}</span>`,
-        rdo.clima ? `<span><strong>Clima:</strong> ${escapeHtml(rdo.clima)}</span>` : ""
-      ]
-        .filter(Boolean)
-        .join("");
-
-      const photosMarkup = rdo.fotos.length
-        ? `
-          <section class="rdo-print-section">
-            <h5>Fotos</h5>
-            <div class="rdo-print-photo-grid">
-              ${rdo.fotos
-                .map(
-                  (photo) => `
-                    <figure class="rdo-print-photo">
-                      <div class="rdo-print-photo-media">
-                        <img src="${photo.dataUrl}" alt="${escapeHtml(photo.name)}" />
-                      </div>
-                      <figcaption>
-                        ${photo.comentario ? `<span>${escapeHtml(photo.comentario)}</span>` : ""}
-                      </figcaption>
-                    </figure>
-                  `
-                )
-                .join("")}
-            </div>
-          </section>
-        `
-        : "";
+      const obraName = obraMap.get(rdo.obraId) || "Obra removida";
+      const photoPages = chunkItems(rdo.fotos || [], 6);
 
       return `
         <article class="rdo-print-document">
-          <div class="rdo-print-branding">
-            ${renderRdoCompanyBlock("Contratante", obra?.contratante, "left")}
-            <div class="rdo-print-title-block">
-              <h4>Relatorio Diario de Obras</h4>
-            </div>
-            ${renderRdoCompanyBlock("Contratada", obra?.contratada, "right")}
-          </div>
-          <header class="rdo-print-header">
-            <div class="report-meta">
-              ${meta}
-            </div>
-          </header>
-          ${renderRdoStructuredTable("Mao de obra presente", rdo.maoDeObraPresente, "equipe")}
-          ${renderRdoStructuredTable("Servicos executados", rdo.servicosExecutados)}
-          ${renderRdoStructuredTable("Materiais recebidos", rdo.materiaisRecebidos)}
-          ${renderRdoStructuredTable("Materiais consumidos", rdo.materiaisConsumidos)}
-          ${rdo.observacoesAdicionais ? renderRdoPrintList("Observacoes adicionais", [rdo.observacoesAdicionais]) : ""}
-          ${photosMarkup}
-          ${renderRdoSignatureBlock(obra)}
+          ${renderRdoMainPage(rdo, obra, obraName, photoPages.length > 0)}
+          ${photoPages
+            .map((photoGroup, index) => renderRdoPhotoPage(rdo, obra, obraName, photoGroup, index, photoPages.length))
+            .join("")}
         </article>
       `;
     })
@@ -2130,33 +2175,6 @@ async function nextFrame(times = 1) {
   }
 }
 
-function sliceCanvasForPdf(sourceCanvas, sourceTop, sourceHeight) {
-  const sliceCanvas = document.createElement("canvas");
-  sliceCanvas.width = sourceCanvas.width;
-  sliceCanvas.height = sourceHeight;
-
-  const context = sliceCanvas.getContext("2d");
-  if (!context) {
-    throw new Error("Nao foi possivel preparar a pagina do PDF.");
-  }
-
-  context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-  context.drawImage(
-    sourceCanvas,
-    0,
-    sourceTop,
-    sourceCanvas.width,
-    sourceHeight,
-    0,
-    0,
-    sliceCanvas.width,
-    sliceCanvas.height
-  );
-
-  return sliceCanvas;
-}
-
 async function exportarRdosPdfPorIds(rdoIds) {
   if (!rdoIds.length) {
     alert("Selecione pelo menos um RDO para exportar.");
@@ -2180,8 +2198,8 @@ async function exportarRdosPdfPorIds(rdoIds) {
     await waitForImagesToLoad(rdoPrintArea);
     await nextFrame(2);
 
-    const documents = Array.from(rdoPrintArea.querySelectorAll(".rdo-print-document"));
-    if (!documents.length) {
+    const pageElements = Array.from(rdoPrintArea.querySelectorAll(".rdo-pdf-page"));
+    if (!pageElements.length) {
       throw new Error("Nao foi possivel montar o conteudo do RDO para exportacao.");
     }
 
@@ -2198,34 +2216,36 @@ async function exportarRdosPdfPorIds(rdoIds) {
     const usableHeight = pageHeight - margin * 2;
     let isFirstPage = true;
 
-    for (const documentElement of documents) {
-      const canvas = await html2canvas(documentElement, {
+    for (const pageElement of pageElements) {
+      const canvas = await html2canvas(pageElement, {
         backgroundColor: "#ffffff",
         logging: false,
         scale: 1.8,
         useCORS: true,
-        windowWidth: documentElement.scrollWidth,
-        windowHeight: documentElement.scrollHeight
+        windowWidth: pageElement.scrollWidth,
+        windowHeight: pageElement.scrollHeight
       });
 
-      const pixelsPerPage = Math.max(1, Math.floor((usableHeight * canvas.width) / usableWidth));
-      let sourceTop = 0;
+      const scale = Math.min(usableWidth / canvas.width, usableHeight / canvas.height);
+      const renderedWidth = canvas.width * scale;
+      const renderedHeight = canvas.height * scale;
+      const imageData = canvas.toDataURL("image/jpeg", 0.92);
 
-      while (sourceTop < canvas.height) {
-        const remainingHeight = canvas.height - sourceTop;
-        const sliceHeight = Math.min(remainingHeight, pixelsPerPage);
-        const pageCanvas = sliceCanvasForPdf(canvas, sourceTop, sliceHeight);
-        const renderedHeight = (pageCanvas.height * usableWidth) / pageCanvas.width;
-        const imageData = pageCanvas.toDataURL("image/jpeg", 0.92);
-
-        if (!isFirstPage) {
-          pdf.addPage();
-        }
-
-        pdf.addImage(imageData, "JPEG", margin, margin, usableWidth, renderedHeight, undefined, "FAST");
-        isFirstPage = false;
-        sourceTop += sliceHeight;
+      if (!isFirstPage) {
+        pdf.addPage();
       }
+
+      pdf.addImage(
+        imageData,
+        "JPEG",
+        margin + (usableWidth - renderedWidth) / 2,
+        margin,
+        renderedWidth,
+        renderedHeight,
+        undefined,
+        "FAST"
+      );
+      isFirstPage = false;
     }
 
     pdf.save(buildRdoPdfFileName(rdos));
