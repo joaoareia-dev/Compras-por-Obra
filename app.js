@@ -2007,6 +2007,7 @@ function renderRdoPrintDocuments(rdos) {
       const meta = [
         `<span><strong>Obra:</strong> ${escapeHtml(obraMap.get(rdo.obraId) || "Obra removida")}</span>`,
         obra?.contratada?.nome ? `<span><strong>Empresa contratada:</strong> ${escapeHtml(obra.contratada.nome)}</span>` : "",
+        obra?.contratante?.nome ? `<span><strong>Empresa contratante:</strong> ${escapeHtml(obra.contratante.nome)}</span>` : "",
         `<span><strong>Data:</strong> ${formatDate(rdo.data)}</span>`,
         rdo.clima ? `<span><strong>Clima:</strong> ${escapeHtml(rdo.clima)}</span>` : ""
       ]
