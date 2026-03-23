@@ -1137,7 +1137,7 @@ function mergeMedicaoMeasuredValues(items) {
   }));
 }
 
-function buildPdfTextLines(textItems) {
+function buildPdfRows(textItems) {
   const rows = [];
 
   textItems.forEach((item) => {
@@ -1153,19 +1153,21 @@ function buildPdfTextLines(textItems) {
       row = { y, parts: [] };
       rows.push(row);
     }
+
     row.parts.push({ x, text });
   });
 
   return rows
     .sort((left, right) => right.y - left.y)
-    .map((row) =>
-      row.parts
-        .sort((left, right) => left.x - right.x)
-        .map((part) => part.text)
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim()
-    )
+    .map((row) => ({
+      y: row.y,
+      parts: row.parts.sort((left, right) => left.x - right.x)
+    }));
+}
+
+function buildPdfTextLines(textItems) {
+  return buildPdfRows(textItems)
+    .map((row) => row.parts.map((part) => part.text).join(" ").replace(/\s+/g, " ").trim())
     .filter(Boolean);
 }
 
@@ -1207,6 +1209,188 @@ function isLikelyMedicaoStageLine(line) {
   }
 
   return /^[A-Z0-9\s./-]+$/.test(cleaned) || /^(etapa|grupo|servico|servi[cç]o)/i.test(cleaned);
+}
+
+function extractMedicaoPdfRowColumns(row) {
+  const columns = {
+    left: "",
+    code: "",
+    bank: "",
+    desc: "",
+    itemType: "",
+    unit: "",
+    qty: "",
+    unitPrice: "",
+    total: "",
+    rawText: row.parts.map((part) => part.text).join(" ").replace(/\s+/g, " ").trim()
+  };
+
+  const append = (key, value) => {
+    columns[key] = columns[key] ? `${columns[key]} ${value}` : value;
+  };
+
+  row.parts.forEach((part) => {
+    if (part.x < 90) {
+      append("left", part.text);
+    } else if (part.x < 133) {
+      append("code", part.text);
+    } else if (part.x < 180) {
+      append("bank", part.text);
+    } else if (part.x < 585) {
+      if (part.x < 449) {
+        append("desc", part.text);
+      } else {
+        append("itemType", part.text);
+      }
+    } else if (part.x < 635) {
+      append("unit", part.text);
+    } else if (part.x < 674) {
+      append("qty", part.text);
+    } else if (part.x < 732) {
+      append("unitPrice", part.text);
+    } else {
+      append("total", part.text);
+    }
+  });
+
+  return columns;
+}
+
+function isMedicaoStageRow(columns) {
+  return /^\d+$/.test(columns.left || "") && Boolean(columns.desc) && /\d/.test(columns.total || "") && !/c[oó]digo/i.test(columns.rawText);
+}
+
+function isMedicaoItemHeaderRow(columns) {
+  return (
+    /^\d+\.\d+$/.test(columns.left || "") &&
+    /descri/i.test(columns.rawText) &&
+    /(valor unit|quant\.)/i.test(columns.rawText) &&
+    /(und|unid)/i.test(columns.rawText)
+  );
+}
+
+function isMedicaoPrimaryDataRow(columns) {
+  return Boolean(columns.code && columns.bank && columns.desc && columns.unit) && /\d/.test(columns.qty || "") && /\d/.test(columns.total || "");
+}
+
+function isMedicaoDescriptionContinuationRow(columns) {
+  return Boolean(columns.desc) && !columns.left && !columns.code && !columns.bank && !columns.unit && !columns.qty && !columns.unitPrice && !columns.total;
+}
+
+function parseLastNumericToken(text) {
+  const matches = String(text || "").match(/\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:,\d+)?/g);
+  if (!matches || !matches.length) {
+    return 0;
+  }
+
+  return parseLocaleNumber(matches[matches.length - 1]);
+}
+
+function finalizeMedicaoStructuredItem(items, item) {
+  if (!item?.descricao || !item?.unidade) {
+    return;
+  }
+
+  const quantidadeTotal = Number(item.quantidadeTotal || 0);
+  const valorUnitario = Number(item.valorUnitario || 0);
+  const valorTotal = Number(item.valorTotal || 0);
+  const normalized = normalizeMedicaoItem({
+    codigo: item.codigo || "",
+    etapa: item.etapa || "",
+    descricao: item.descricao,
+    unidade: item.unidade,
+    quantidadeTotal,
+    valorUnitario: valorUnitario || (quantidadeTotal > 0 && valorTotal > 0 ? valorTotal / quantidadeTotal : 0),
+    valorTotal: valorTotal || (quantidadeTotal * valorUnitario),
+    quantidadeMedida: 0
+  });
+
+  if (normalized) {
+    items.push({
+      ...normalized,
+      id: createClientId("medicao-item")
+    });
+  }
+}
+
+function parseStructuredMedicaoItemsFromRows(rows) {
+  const items = [];
+  let currentStage = "";
+  let currentItem = null;
+
+  rows.forEach((row) => {
+    const columns = extractMedicaoPdfRowColumns(row);
+    const normalizedText = normalizeValue(columns.rawText);
+
+    if (!normalizedText) {
+      return;
+    }
+
+    if (isMedicaoStageRow(columns)) {
+      finalizeMedicaoStructuredItem(items, currentItem);
+      currentItem = null;
+      currentStage = `${columns.left} - ${columns.desc}`.trim();
+      return;
+    }
+
+    if (isMedicaoItemHeaderRow(columns)) {
+      finalizeMedicaoStructuredItem(items, currentItem);
+      currentItem = {
+        codigo: String(columns.left || "").trim(),
+        etapa: currentStage,
+        descricao: "",
+        unidade: "",
+        quantidadeTotal: 0,
+        valorUnitario: 0,
+        valorTotal: 0,
+        primaryCaptured: false,
+        captureDescription: false
+      };
+      return;
+    }
+
+    if (!currentItem) {
+      return;
+    }
+
+    if (isMedicaoPrimaryDataRow(columns) && !currentItem.primaryCaptured) {
+      currentItem.primaryCaptured = true;
+      currentItem.captureDescription = true;
+      currentItem.descricao = columns.desc;
+      currentItem.unidade = columns.unit;
+      return;
+    }
+
+    if (currentItem.captureDescription && isMedicaoDescriptionContinuationRow(columns)) {
+      currentItem.descricao = `${currentItem.descricao} ${columns.desc}`.replace(/\s+/g, " ").trim();
+      return;
+    }
+
+    currentItem.captureDescription = false;
+
+    if (/valor (do|com) bdi/i.test(normalizedText)) {
+      const unitValue = parseLocaleNumber(columns.total) || parseLastNumericToken(columns.rawText);
+      if (unitValue > 0) {
+        currentItem.valorUnitario = unitValue;
+      }
+      return;
+    }
+
+    if (/quant/i.test(columns.unit || columns.rawText) && /total/i.test(columns.unitPrice || columns.rawText)) {
+      const quantidadeTotal = parseLocaleNumber(columns.qty) || parseLastNumericToken(columns.unit);
+      const valorTotal = parseLocaleNumber(columns.total);
+      if (quantidadeTotal > 0) {
+        currentItem.quantidadeTotal = quantidadeTotal;
+      }
+      if (valorTotal > 0) {
+        currentItem.valorTotal = valorTotal;
+      }
+      return;
+    }
+  });
+
+  finalizeMedicaoStructuredItem(items, currentItem);
+  return items;
 }
 
 function parseMedicaoBudgetLine(line, etapaAtual = "", pendingPrefix = "") {
@@ -1299,14 +1483,18 @@ async function importMedicaoPdf(file) {
   const data = await file.arrayBuffer();
   const pdf = await pdfjs.getDocument({ data }).promise;
   const lines = [];
+  const rows = [];
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber);
     const textContent = await page.getTextContent();
-    lines.push(...buildPdfTextLines(textContent.items || []));
+    const pageRows = buildPdfRows(textContent.items || []);
+    rows.push(...pageRows);
+    lines.push(...pageRows.map((row) => row.parts.map((part) => part.text).join(" ").replace(/\s+/g, " ").trim()).filter(Boolean));
   }
 
-  const parsedItems = parseMedicaoItemsFromPdfLines(lines);
+  const structuredItems = parseStructuredMedicaoItemsFromRows(rows);
+  const parsedItems = structuredItems.length ? structuredItems : parseMedicaoItemsFromPdfLines(lines);
   if (!parsedItems.length) {
     throw new Error("Nao foi possivel identificar itens no PDF. Confirme se o arquivo possui texto selecionavel e tabela de orcamento.");
   }
