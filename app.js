@@ -1504,6 +1504,29 @@ async function importMedicaoPdf(file) {
   formatMedicaoPdfStatus(`${parsedItems.length} itens lidos do PDF ${file.name}. Revise as quantidades medidas antes de salvar.`);
 }
 
+async function importMedicaoPdfWithAi(file) {
+  const dataUrl = await readFileAsDataUrl(file);
+  const result = await apiFetch("/api/medicoes/parse-pdf-ai", {
+    method: "POST",
+    body: JSON.stringify({
+      fileName: file.name,
+      dataUrl
+    })
+  });
+
+  const parsedItems = Array.isArray(result.items)
+    ? result.items.map((item, index) => normalizeMedicaoItem(item, index)).filter(Boolean)
+    : [];
+
+  if (!parsedItems.length) {
+    throw new Error("A leitura assistida por IA nao retornou itens validos para este PDF.");
+  }
+
+  setMedicaoPdfDraft({ name: file.name, source: "importado-ia" });
+  setMedicaoDraftItems(mergeMedicaoMeasuredValues(parsedItems));
+  formatMedicaoPdfStatus(`${parsedItems.length} itens lidos com apoio de IA a partir do PDF ${file.name}. Revise os dados antes de salvar.`);
+}
+
 function populateRdoAutocomplete() {
   const catalogos = getRdoCatalogos();
   updateDatalist(
@@ -3832,8 +3855,13 @@ if (medicaoImportPdfBtn) {
     try {
       await importMedicaoPdf(arquivo);
     } catch (error) {
-      formatMedicaoPdfStatus("Falha na leitura do PDF.");
-      alert(error.message);
+      try {
+        formatMedicaoPdfStatus(`Leitura local falhou. Tentando interpretar ${arquivo.name} com IA...`);
+        await importMedicaoPdfWithAi(arquivo);
+      } catch (aiError) {
+        formatMedicaoPdfStatus("Falha na leitura do PDF.");
+        alert(aiError.message || error.message);
+      }
     } finally {
       medicaoImportPdfBtn.disabled = false;
     }
