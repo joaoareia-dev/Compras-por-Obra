@@ -955,6 +955,38 @@ function clearPrintMode() {
   document.body.classList.remove("printing-relatorios", "printing-rdos");
 }
 
+async function waitForImagesToLoad(container) {
+  if (!container) {
+    return;
+  }
+
+  const images = Array.from(container.querySelectorAll("img"));
+  if (!images.length) {
+    return;
+  }
+
+  await Promise.all(
+    images.map(
+      (image) =>
+        new Promise((resolve) => {
+          if (image.complete && image.naturalWidth > 0) {
+            resolve();
+            return;
+          }
+
+          const finish = () => {
+            image.removeEventListener("load", finish);
+            image.removeEventListener("error", finish);
+            resolve();
+          };
+
+          image.addEventListener("load", finish);
+          image.addEventListener("error", finish);
+        })
+    )
+  );
+}
+
 function refreshCompraAutocomplete() {
   const compras = getCompras();
   updateDatalist(descricaoOptions, buildUniqueValues(compras.map((compra) => compra.descricao)));
@@ -1818,10 +1850,10 @@ function renderRdoPrintDocuments(rdos) {
               ${meta}
             </div>
           </header>
+          ${renderRdoStructuredTable("Mao de obra presente", rdo.maoDeObraPresente, "equipe")}
           ${renderRdoStructuredTable("Servicos executados", rdo.servicosExecutados)}
           ${renderRdoStructuredTable("Materiais recebidos", rdo.materiaisRecebidos)}
           ${renderRdoStructuredTable("Materiais consumidos", rdo.materiaisConsumidos)}
-          ${renderRdoStructuredTable("Mao de obra presente", rdo.maoDeObraPresente, "equipe")}
           ${rdo.observacoesAdicionais ? renderRdoPrintList("Observacoes adicionais", [rdo.observacoesAdicionais]) : ""}
           ${photosMarkup}
         </article>
@@ -1841,6 +1873,8 @@ async function imprimirRdosPorIds(rdoIds) {
     renderRdoPrintDocuments(rdos);
     clearPrintMode();
     document.body.classList.add("printing-rdos");
+    await waitForImagesToLoad(rdoPrintArea);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     window.print();
   } catch (error) {
     alert(error.message);

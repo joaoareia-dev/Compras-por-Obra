@@ -459,6 +459,15 @@ textarea:focus {
   display: none;
 }
 
+body.printing-rdos .rdo-print-area {
+  display: block;
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 794px;
+  background: #fff;
+}
+
 .rdo-print-document {
   display: grid;
   gap: 14px;
