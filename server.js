@@ -23,9 +23,23 @@ const pool = new Pool({
 const SESSION_COOKIE = "gc_session";
 const SESSION_TTL_DAYS = 7;
 const JSON_BODY_LIMIT_BYTES = Number(process.env.JSON_BODY_LIMIT_BYTES) || 20 * 1024 * 1024;
-const noCacheExtensions = new Set([".html", ".js", ".css"]);
+const noCacheExtensions = new Set([".html", ".js", ".css", ".webmanifest"]);
 const RDO_CLIMA_OPTIONS = new Set(["Ensolarado", "Nublado", "Chuvoso"]);
 const AUDIT_ACTIONS = new Set(["cadastro", "edicao", "exclusao"]);
+const CLIENT_VERSION_TARGETS = {
+  mobile: [
+    "rdo-mobile.html",
+    "rdo-mobile.js",
+    "rdo-mobile.css",
+    "rdo-mobile.webmanifest",
+    "rdo-mobile-sw.js"
+  ],
+  portal: [
+    "index.html",
+    "app.js",
+    "style.css"
+  ]
+};
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -198,6 +212,24 @@ function clearSessionCookie() {
   }
 
   return parts.join("; ");
+}
+
+function getClientVersion(target = "portal") {
+  if (process.env.RENDER_GIT_COMMIT) {
+    return process.env.RENDER_GIT_COMMIT;
+  }
+
+  const files = CLIENT_VERSION_TARGETS[target] || CLIENT_VERSION_TARGETS.portal;
+  const latestTimestamp = files.reduce((currentMax, relativeFilePath) => {
+    try {
+      const stats = fs.statSync(path.join(rootDir, relativeFilePath));
+      return Math.max(currentMax, Number(stats.mtimeMs || 0));
+    } catch (error) {
+      return currentMax;
+    }
+  }, 0);
+
+  return latestTimestamp ? String(Math.trunc(latestTimestamp)) : "0";
 }
 
 function requireFields(body, fields) {
@@ -779,6 +811,16 @@ async function verifyCurrentUserPassword(userId, password) {
 async function handleApi(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/healthz") {
     sendJson(res, 200, { status: "ok", environment: process.env.NODE_ENV });
+    return true;
+  }
+
+  if (req.method === "GET" && pathname === "/api/client-version") {
+    const target = new URL(req.url, `http://${req.headers.host || "localhost"}`).searchParams.get("target") || "portal";
+    sendJson(res, 200, {
+      target,
+      version: getClientVersion(target),
+      generatedAt: new Date().toISOString()
+    });
     return true;
   }
 

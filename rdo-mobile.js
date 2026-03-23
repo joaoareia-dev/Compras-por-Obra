@@ -7,7 +7,10 @@ const state = {
     maoDeObra: []
   },
   draftPhotos: [],
-  deferredInstallPrompt: null
+  deferredInstallPrompt: null,
+  deployedVersion: "",
+  pendingHotUpdate: false,
+  updateCheckIntervalId: null
 };
 
 const MOBILE_STRUCTURED_CONFIGS = {
@@ -85,6 +88,7 @@ const rdoList = document.getElementById("mobileRdoList");
 
 const materialOptions = document.getElementById("mobileMaterialDescricaoOptions");
 const maoDeObraCargoOptions = document.getElementById("mobileMaoDeObraCargoOptions");
+const MOBILE_UPDATE_CHECK_INTERVAL_MS = 60 * 1000;
 
 async function apiFetch(path, options = {}) {
   const response = await fetch(path, {
@@ -223,6 +227,83 @@ function setSession(user) {
     : null;
 }
 
+function isEditorOpen() {
+  return !editorPanel.classList.contains("hidden");
+}
+
+async function fetchClientVersion() {
+  const result = await apiFetch("/api/client-version?target=mobile", {
+    headers: {
+      "Cache-Control": "no-cache"
+    }
+  });
+  return String(result.version || "");
+}
+
+async function clearServiceWorkerCaches() {
+  if (!("caches" in window)) {
+    return;
+  }
+
+  const keys = await caches.keys();
+  await Promise.all(keys.filter((key) => key.startsWith("rdo-mobile-")).map((key) => caches.delete(key)));
+}
+
+async function refreshServiceWorkerRegistration() {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+
+  const registration = await navigator.serviceWorker.register(`/rdo-mobile-sw.js?v=${Date.now()}`).catch(() => null);
+  if (!registration) {
+    return;
+  }
+
+  await registration.update().catch(() => null);
+}
+
+async function applyAutomaticUpdateIfAvailable(force = false) {
+  try {
+    const latestVersion = await fetchClientVersion();
+    if (!latestVersion) {
+      return;
+    }
+
+    if (!state.deployedVersion) {
+      state.deployedVersion = latestVersion;
+      return;
+    }
+
+    if (latestVersion === state.deployedVersion) {
+      if (force && state.pendingHotUpdate && !isEditorOpen()) {
+        state.pendingHotUpdate = false;
+        window.location.reload();
+      }
+      return;
+    }
+
+    state.deployedVersion = latestVersion;
+    if (force || !isEditorOpen()) {
+      window.location.reload();
+      return;
+    }
+
+    state.pendingHotUpdate = true;
+  } catch (error) {
+    // Ignore transient version-check failures and keep the current session running.
+  }
+}
+
+function startAutomaticUpdateChecks() {
+  if (state.updateCheckIntervalId) {
+    clearInterval(state.updateCheckIntervalId);
+  }
+
+  state.updateCheckIntervalId = window.setInterval(() => {
+    applyAutomaticUpdateIfAvailable(false);
+  }, MOBILE_UPDATE_CHECK_INTERVAL_MS);
+}
+
 function showLogin() {
   loginView.classList.remove("hidden");
   appView.classList.add("hidden");
@@ -241,6 +322,10 @@ function openEditor() {
 function closeEditor() {
   editorPanel.classList.add("hidden");
   resetRdoForm();
+  if (state.pendingHotUpdate) {
+    state.pendingHotUpdate = false;
+    window.location.reload();
+  }
 }
 
 function normalizeRdoPhoto(photo, index = 0) {
@@ -732,7 +817,12 @@ async function initializeApp() {
 
   welcomeText.textContent = `Conectado como ${state.user?.name || "Usuário"}`;
   showApp();
+  await clearServiceWorkerCaches().catch(() => null);
+  await refreshServiceWorkerRegistration().catch(() => null);
+  state.deployedVersion = await fetchClientVersion().catch(() => "");
   await refreshData();
+  await applyAutomaticUpdateIfAvailable(false);
+  startAutomaticUpdateChecks();
   resetRdoForm();
 }
 
@@ -781,6 +871,10 @@ logoutBtn.addEventListener("click", () => {
   apiFetch("/api/logout", { method: "POST" })
     .catch(() => null)
     .finally(() => {
+      if (state.updateCheckIntervalId) {
+        clearInterval(state.updateCheckIntervalId);
+        state.updateCheckIntervalId = null;
+      }
       setSession(null);
       showLogin();
     });
@@ -974,8 +1068,18 @@ renderPhotos();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/rdo-mobile-sw.js").catch(() => null);
+    refreshServiceWorkerRegistration().catch(() => null);
   });
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    applyAutomaticUpdateIfAvailable(true);
+  }
+});
+
+window.addEventListener("focus", () => {
+  applyAutomaticUpdateIfAvailable(true);
+});
 
 initializeApp();

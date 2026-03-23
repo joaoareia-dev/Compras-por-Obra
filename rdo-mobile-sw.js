@@ -1,16 +1,6 @@
-const CACHE_NAME = "rdo-mobile-v1";
-const APP_SHELL = [
-  "/rdo-mobile.html",
-  "/rdo-mobile.css?v=20260323-1",
-  "/rdo-mobile.js?v=20260323-1",
-  "/rdo-mobile.webmanifest?v=20260323-1",
-  "/rdo-mobile-icon.svg"
-];
+const CACHE_NAME = "rdo-mobile-runtime-v2";
 
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
-  );
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
@@ -38,6 +28,16 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => cachedResponse || fetch(event.request))
+    fetch(event.request)
+      .then((response) => {
+        if (!response || response.status !== 200 || requestUrl.origin !== self.location.origin) {
+          return response;
+        }
+
+        const responseClone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone)).catch(() => null);
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
