@@ -8,9 +8,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="RDO Obras" />
   <title>RDO Obras</title>
-  <link rel="manifest" href="rdo-mobile.webmanifest?v=20260323-4" />
+  <link rel="manifest" href="rdo-mobile.webmanifest?v=20260323-5" />
   <link rel="icon" href="rdo-mobile-icon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="rdo-mobile.css?v=20260323-4" />
+  <link rel="stylesheet" href="rdo-mobile.css?v=20260323-5" />
 </head>
 <body>
   <main class="mobile-shell">
@@ -157,6 +157,17 @@
         </form>
       </section>
 
+      <section id="mobileViewPanel" class="mobile-card hidden">
+        <div class="panel-head">
+          <div>
+            <h3 id="mobileViewTitle">Visualizar RDO</h3>
+            <p id="mobileViewSubtitle" class="subtitle">Acompanhe os detalhes do diário de obra em modo leitura.</p>
+          </div>
+          <button type="button" id="mobileCloseViewBtn" class="btn ghost">Fechar</button>
+        </div>
+        <div id="mobileRdoViewContent" class="mobile-rdo-view"></div>
+      </section>
+
       <section class="mobile-card">
         <div class="panel-head">
           <div>
@@ -207,6 +218,6 @@
   <datalist id="mobileMaterialDescricaoOptions"></datalist>
   <datalist id="mobileMaoDeObraCargoOptions"></datalist>
 
-  <script src="rdo-mobile.js?v=20260323-4"></script>
+  <script src="rdo-mobile.js?v=20260323-5"></script>
 </body>
 </html>

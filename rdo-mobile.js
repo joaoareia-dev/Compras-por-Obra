@@ -64,6 +64,11 @@ const editorTitle = document.getElementById("mobileEditorTitle");
 const editorSubtitle = document.getElementById("mobileEditorSubtitle");
 const closeEditorBtn = document.getElementById("mobileCloseEditorBtn");
 const cancelEditBtn = document.getElementById("mobileCancelEditBtn");
+const viewPanel = document.getElementById("mobileViewPanel");
+const viewTitle = document.getElementById("mobileViewTitle");
+const viewSubtitle = document.getElementById("mobileViewSubtitle");
+const closeViewBtn = document.getElementById("mobileCloseViewBtn");
+const rdoViewContent = document.getElementById("mobileRdoViewContent");
 const rdoForm = document.getElementById("mobileRdoForm");
 const saveRdoBtn = document.getElementById("mobileSaveRdoBtn");
 const rdoEditIdInput = document.getElementById("mobileRdoEditId");
@@ -144,6 +149,18 @@ function formatDate(value) {
   return `${day}/${month}/${year}`;
 }
 
+function formatQuantity(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) {
+    return "-";
+  }
+
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3
+  }).format(numeric);
+}
+
 function compareIsoDatesDesc(left, right) {
   return String(right || "").localeCompare(String(left || ""));
 }
@@ -158,6 +175,10 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll("\"", "&quot;");
+}
+
+function escapeMultilineText(value) {
+  return escapeHtml(value).replaceAll("\n", "<br />");
 }
 
 function createClientId(prefix = "item") {
@@ -229,6 +250,10 @@ function setSession(user) {
 
 function isEditorOpen() {
   return !editorPanel.classList.contains("hidden");
+}
+
+function isViewOpen() {
+  return !viewPanel.classList.contains("hidden");
 }
 
 async function fetchClientVersion() {
@@ -315,6 +340,7 @@ function showApp() {
 }
 
 function openEditor() {
+  closeView();
   editorPanel.classList.remove("hidden");
   editorPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -322,7 +348,16 @@ function openEditor() {
 function closeEditor() {
   editorPanel.classList.add("hidden");
   resetRdoForm();
-  if (state.pendingHotUpdate) {
+  if (state.pendingHotUpdate && !isViewOpen()) {
+    state.pendingHotUpdate = false;
+    window.location.reload();
+  }
+}
+
+function closeView() {
+  viewPanel.classList.add("hidden");
+  rdoViewContent.innerHTML = "";
+  if (state.pendingHotUpdate && !isEditorOpen()) {
     state.pendingHotUpdate = false;
     window.location.reload();
   }
@@ -684,6 +719,7 @@ function renderRdoList() {
             <div class="mobile-rdo-actions">
               <button type="button" class="btn ghost wide" data-rdo-edit="${rdo.id}">Editar RDO</button>
               <button type="button" class="btn delete wide" data-rdo-delete="${rdo.id}">Excluir RDO</button>
+              <button type="button" class="btn primary wide" data-rdo-view="${rdo.id}">Visualizar RDO</button>
             </div>
           </article>
         `;
@@ -708,6 +744,97 @@ function promptPasswordForRdoDeletion() {
   }
 
   return password;
+}
+
+function renderViewList(title, items) {
+  if (!items.length) {
+    return `
+      <section class="mobile-rdo-view-list">
+        <h4>${title}</h4>
+        <p class="mobile-rdo-view-empty">Nenhum item informado.</p>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="mobile-rdo-view-list">
+      <h4>${title}</h4>
+      ${items
+        .map((item) => `<p>${item}</p>`)
+        .join("")}
+    </section>
+  `;
+}
+
+function renderStructuredViewItems(title, items, type = "itens") {
+  const lines = (items || []).map((item) => {
+    if (type === "equipe") {
+      return `${escapeHtml(item.cargo || "-")} - Quantidade: ${escapeHtml(formatQuantity(item.quantidade))}`;
+    }
+
+    return `${escapeHtml(item.descricao || "-")} - Unidade: ${escapeHtml(item.unidade || "-")} - Quantidade: ${escapeHtml(formatQuantity(item.quantidade))}`;
+  });
+
+  return renderViewList(title, lines);
+}
+
+function renderPhotoViewItems(photos) {
+  if (!photos.length) {
+    return `
+      <section class="mobile-rdo-view-photos">
+        <h4>Fotos</h4>
+        <p class="mobile-rdo-view-empty">Nenhuma foto anexada.</p>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="mobile-rdo-view-photos">
+      <h4>Fotos</h4>
+      <div class="mobile-rdo-view-photo-grid">
+        ${photos
+          .map(
+            (photo, index) => `
+              <figure class="mobile-rdo-view-photo">
+                <img src="${photo.dataUrl}" alt="Foto ${index + 1} do RDO" />
+                <p>${escapeMultilineText(photo.comentario || "-")}</p>
+              </figure>
+            `
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function openRdoView(rdo) {
+  closeEditor();
+  const obra = getObraById(rdo.obraId);
+  const obraNome = obra?.nome || "Obra removida";
+
+  viewTitle.textContent = `Visualizar RDO`;
+  viewSubtitle.textContent = `${obraNome} • ${formatDate(rdo.data)}`;
+  rdoViewContent.innerHTML = `
+    <section class="mobile-rdo-view-card">
+      <div class="mobile-rdo-view-meta">
+        <p><strong>Obra:</strong> ${escapeHtml(obraNome)}</p>
+        <p><strong>Data:</strong> ${escapeHtml(formatDate(rdo.data))}</p>
+        <p><strong>Clima:</strong> ${escapeHtml(rdo.clima || "-")}</p>
+        <p><strong>Fotos:</strong> ${escapeHtml(String((rdo.fotos || []).length))}</p>
+      </div>
+    </section>
+    ${renderPhotoViewItems(rdo.fotos || [])}
+    ${renderStructuredViewItems("Mão de Obra Presente", rdo.maoDeObraPresente || [], "equipe")}
+    ${renderStructuredViewItems("Serviços Executados", rdo.servicosExecutados || [])}
+    ${renderStructuredViewItems("Materiais Recebidos", rdo.materiaisRecebidos || [])}
+    ${renderStructuredViewItems("Materiais Consumidos", rdo.materiaisConsumidos || [])}
+    <section class="mobile-rdo-view-obs">
+      <h4>Observações Adicionais</h4>
+      <p>${rdo.observacoesAdicionais ? escapeMultilineText(rdo.observacoesAdicionais) : '<span class="mobile-rdo-view-empty">Nenhuma observação adicional.</span>'}</p>
+    </section>
+  `;
+  viewPanel.classList.remove("hidden");
+  viewPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 async function confirmAdminAuthorization(actionLabel) {
@@ -903,6 +1030,7 @@ refreshBtn.addEventListener("click", async () => {
 
 closeEditorBtn.addEventListener("click", closeEditor);
 cancelEditBtn.addEventListener("click", closeEditor);
+closeViewBtn.addEventListener("click", closeView);
 
 filterBtn.addEventListener("click", () => {
   if (filtroDataInicioInput.value && filtroDataFimInput.value && filtroDataFimInput.value < filtroDataInicioInput.value) {
@@ -1004,6 +1132,17 @@ rdoForm.addEventListener("submit", async (event) => {
 });
 
 rdoList.addEventListener("click", async (event) => {
+  const viewButton = event.target.closest("[data-rdo-view]");
+  if (viewButton) {
+    try {
+      const rdo = await fetchRdoDetail(viewButton.getAttribute("data-rdo-view"));
+      openRdoView(rdo);
+    } catch (error) {
+      alert(error.message);
+    }
+    return;
+  }
+
   const editButton = event.target.closest("[data-rdo-edit]");
   if (editButton) {
     try {
@@ -1038,6 +1177,7 @@ rdoList.addEventListener("click", async (event) => {
     });
     await refreshData();
     closeEditor();
+    closeView();
   } catch (error) {
     alert(error.message);
   }
