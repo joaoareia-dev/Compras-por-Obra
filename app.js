@@ -2011,14 +2011,23 @@ function renderRdoMetaList(rdo, obra, obraName) {
   ];
 
   return `
-    <div class="rdo-print-meta-list">
-      ${rows
+    <div class="rdo-print-meta-grid">
+      ${chunkItems(rows, 2)
         .map(
-          (row) => `
-            <p class="rdo-print-meta-item">
-              <strong>${row.label}</strong>
-              <span>${escapeHtml(row.value)}</span>
-            </p>
+          (rowGroup) => `
+            <div class="rdo-print-meta-row">
+              ${rowGroup
+                .map(
+                  (row) => `
+                    <p class="rdo-print-meta-item">
+                      <strong>${row.label}</strong>
+                      <span>${escapeHtml(row.value)}</span>
+                    </p>
+                  `
+                )
+                .join("")}
+              ${rowGroup.length < 2 ? `<span class="rdo-print-meta-item empty" aria-hidden="true"></span>` : ""}
+            </div>
           `
         )
         .join("")}
@@ -2222,8 +2231,8 @@ async function exportarRdosPdfPorIds(rdoIds) {
         logging: false,
         scale: 1.8,
         useCORS: true,
-        windowWidth: pageElement.scrollWidth,
-        windowHeight: pageElement.scrollHeight
+        windowWidth: 1280,
+        windowHeight: Math.max(1600, pageElement.scrollHeight)
       });
 
       const scale = Math.min(usableWidth / canvas.width, usableHeight / canvas.height);

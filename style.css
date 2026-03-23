@@ -532,7 +532,7 @@ body.printing-rdos .rdo-print-area {
 
 .rdo-print-title-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr) minmax(120px, 1fr);
+  grid-template-columns: 160px minmax(0, 1fr) 160px;
   align-items: center;
   gap: 14px;
   padding-bottom: 12px;
@@ -542,6 +542,8 @@ body.printing-rdos .rdo-print-area {
 .rdo-print-logo-slot {
   display: grid;
   align-items: center;
+  width: 160px;
+  min-height: 72px;
 }
 
 .rdo-print-logo-slot.left {
@@ -567,6 +569,9 @@ body.printing-rdos .rdo-print-area {
   display: grid;
   gap: 4px;
   justify-items: center;
+  grid-column: 2;
+  width: 100%;
+  justify-self: center;
 }
 
 .rdo-print-title-block h4,
@@ -578,6 +583,8 @@ body.printing-rdos .rdo-print-area {
   font-size: 1.65rem;
   line-height: 1.1;
   letter-spacing: 0.02em;
+  width: 100%;
+  text-align: center;
 }
 
 .rdo-print-title-block p {
@@ -589,7 +596,12 @@ body.printing-rdos .rdo-print-area {
   gap: 12px;
 }
 
-.rdo-print-meta-list {
+.rdo-print-meta-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.rdo-print-meta-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px 18px;
@@ -608,8 +620,8 @@ body.printing-rdos .rdo-print-area {
   color: var(--text);
 }
 
-.rdo-print-meta-item:last-child:nth-child(odd) {
-  grid-column: 1 / 2;
+.rdo-print-meta-item.empty {
+  visibility: hidden;
 }
 
 .rdo-photo-page {
@@ -668,6 +680,7 @@ body.printing-rdos .rdo-print-area {
   gap: 14px 16px;
   align-content: stretch;
   min-height: 0;
+  height: 100%;
 }
 
 .rdo-print-photo {
@@ -704,21 +717,31 @@ body.printing-rdos .rdo-print-area {
 }
 
 .rdo-photo-page .rdo-print-photo-media {
-  height: auto;
-  aspect-ratio: 16 / 9;
+  height: 155px;
+  aspect-ratio: auto;
 }
 
 .rdo-photo-page .rdo-print-photo figcaption {
   min-height: 34px;
+  max-height: 46px;
+  overflow: hidden;
 }
 
 .rdo-photo-page .rdo-print-photo {
   grid-template-rows: minmax(0, 1fr) auto;
   align-content: stretch;
+  min-height: 0;
 }
 
 .rdo-photo-page .rdo-print-photo img {
   object-fit: contain;
+}
+
+.rdo-photo-page .rdo-print-photo figcaption span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 
 .rdo-print-photo figcaption strong {
@@ -892,7 +915,7 @@ th {
     text-align: left;
   }
 
-  .rdo-print-meta-list,
+  .rdo-print-meta-row,
   .rdo-photo-page-grid {
     grid-template-columns: 1fr;
     grid-template-rows: none;
@@ -1053,8 +1076,13 @@ th {
   }
 
   .rdo-print-title-row {
-    grid-template-columns: minmax(90px, 1fr) minmax(0, 2fr) minmax(90px, 1fr);
+    grid-template-columns: 120px minmax(0, 1fr) 120px;
     padding-bottom: 6px;
+  }
+
+  .rdo-print-logo-slot {
+    width: 120px;
+    min-height: 48px;
   }
 
   .rdo-company-logo {
@@ -1093,8 +1121,8 @@ th {
   }
 
   .rdo-photo-page .rdo-print-photo-media {
-    height: auto;
-    aspect-ratio: 16 / 9;
+    height: 150px;
+    aspect-ratio: auto;
   }
 
   .rdo-print-photo figcaption {
