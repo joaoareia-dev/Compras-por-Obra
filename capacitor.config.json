@@ -1,0 +1,12 @@
+{
+  "appId": "com.joaoareia.rdoobras",
+  "appName": "RDO Obras",
+  "webDir": "capacitor-shell",
+  "server": {
+    "url": "https://compras-por-obra.onrender.com/rdo-mobile.html",
+    "cleartext": false,
+    "allowNavigation": [
+      "compras-por-obra.onrender.com"
+    ]
+  }
+}

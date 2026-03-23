@@ -5,9 +5,16 @@
   "description": "Aplicacao web para gerenciamento de custos em obras.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "android:sync": "npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:run": "npx cap run android",
+    "android:build:debug": "cd android && gradlew.bat assembleDebug"
   },
   "dependencies": {
+    "@capacitor/android": "^8.2.0",
+    "@capacitor/cli": "^8.2.0",
+    "@capacitor/core": "^8.2.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "pg": "^8.13.1"

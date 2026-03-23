@@ -133,6 +133,28 @@ Erros comuns a evitar:
   - `Tirar foto` com a camera do celular
   - `Galeria` para selecionar fotos ja salvas
 
+## Empacotamento Android
+
+O projeto agora tambem inclui uma casca Android com `Capacitor`, apontando para a rota mobile do sistema:
+
+- URL usada no app Android:
+  - `https://compras-por-obra.onrender.com/rdo-mobile.html`
+- Arquivos principais do empacotamento:
+  - [capacitor.config.json](C:\Users\joaof\Documents\New project\capacitor.config.json)
+  - diretório [android](C:\Users\joaof\Documents\New project\android)
+
+Scripts disponiveis:
+
+- `npm run android:sync`
+- `npm run android:open`
+- `npm run android:run`
+- `npm run android:build:debug`
+
+Observacao importante:
+
+- para gerar o APK localmente, a maquina precisa ter `Java/JDK` e ambiente Android configurados
+- neste workspace, o projeto Android foi gerado, mas a compilacao do APK nao concluiu porque o `JAVA_HOME` nao esta configurado
+
 ## Estrutura principal
 
 - [index.html](C:\Users\joaof\Documents\New project\index.html)

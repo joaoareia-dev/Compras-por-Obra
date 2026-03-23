@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RDO Obras</string>
+    <string name="title_activity_main">RDO Obras</string>
+    <string name="package_name">com.joaoareia.rdoobras</string>
+    <string name="custom_url_scheme">com.joaoareia.rdoobras</string>
+</resources>
