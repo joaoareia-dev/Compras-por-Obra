@@ -667,27 +667,27 @@ function renderRdoList() {
   rdoList.innerHTML = filtered
     .map((rdo) => {
       const obra = getObraById(rdo.obraId);
-      return `
-        <article class="mobile-rdo-card">
-          <div class="mobile-rdo-head">
-            <div>
-              <h4>${escapeHtml(obra?.nome || "Obra removida")}</h4>
-              <p class="subtitle">${formatDate(rdo.data)}</p>
+        return `
+          <article class="mobile-rdo-card">
+            <div class="mobile-rdo-head">
+              <div>
+                <h4>${escapeHtml(obra?.nome || "Obra removida")}</h4>
+                <p class="subtitle">${formatDate(rdo.data)}</p>
+              </div>
+            </div>
+            <div class="mobile-rdo-meta">
+              <p><strong>Fotos:</strong> ${rdo.fotosCount}</p>
+              <p><strong>Serviços:</strong> ${rdo.servicosCount}</p>
+              <p><strong>Recebidos:</strong> ${rdo.materiaisRecebidosCount}</p>
+              <p><strong>Consumidos:</strong> ${rdo.materiaisConsumidosCount}</p>
             </div>
             <div class="mobile-rdo-actions">
-              <button type="button" class="btn ghost" data-rdo-edit="${rdo.id}">Editar</button>
-              <button type="button" class="btn delete" data-rdo-delete="${rdo.id}">Excluir</button>
+              <button type="button" class="btn ghost wide" data-rdo-edit="${rdo.id}">Editar RDO</button>
+              <button type="button" class="btn delete wide" data-rdo-delete="${rdo.id}">Excluir RDO</button>
             </div>
-          </div>
-          <div class="mobile-rdo-meta">
-            <p><strong>Fotos:</strong> ${rdo.fotosCount}</p>
-            <p><strong>Serviços:</strong> ${rdo.servicosCount}</p>
-            <p><strong>Recebidos:</strong> ${rdo.materiaisRecebidosCount}</p>
-            <p><strong>Consumidos:</strong> ${rdo.materiaisConsumidosCount}</p>
-          </div>
-        </article>
-      `;
-    })
+          </article>
+        `;
+      })
     .join("");
 }
 
