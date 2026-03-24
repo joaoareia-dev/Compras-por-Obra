@@ -1214,12 +1214,12 @@ if ("serviceWorker" in navigator) {
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
-    applyAutomaticUpdateIfAvailable(true);
+    applyAutomaticUpdateIfAvailable(false);
   }
 });
 
 window.addEventListener("focus", () => {
-  applyAutomaticUpdateIfAvailable(true);
+  applyAutomaticUpdateIfAvailable(false);
 });
 
 initializeApp();

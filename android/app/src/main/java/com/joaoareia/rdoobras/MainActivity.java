@@ -11,15 +11,6 @@ public class MainActivity extends BridgeActivity {
     configureWebViewForLiveUpdates();
   }
 
-  @Override
-  public void onResume() {
-    super.onResume();
-    configureWebViewForLiveUpdates();
-    if (bridge != null && bridge.getWebView() != null) {
-      bridge.getWebView().reload();
-    }
-  }
-
   private void configureWebViewForLiveUpdates() {
     if (bridge == null || bridge.getWebView() == null) {
       return;
@@ -27,7 +18,5 @@ public class MainActivity extends BridgeActivity {
 
     WebSettings settings = bridge.getWebView().getSettings();
     settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
-    bridge.getWebView().clearCache(true);
-    bridge.getWebView().clearHistory();
   }
 }
