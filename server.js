@@ -23,7 +23,6 @@ const pool = new Pool({
 const SESSION_COOKIE = "gc_session";
 const SESSION_TTL_DAYS = 7;
 const JSON_BODY_LIMIT_BYTES = Number(process.env.JSON_BODY_LIMIT_BYTES) || 20 * 1024 * 1024;
-const OPENAI_PDF_MODEL = process.env.OPENAI_PDF_MODEL || "gpt-4o-mini";
 const noCacheExtensions = new Set([".html", ".js", ".mjs", ".css", ".webmanifest"]);
 const RDO_CLIMA_OPTIONS = new Set(["Ensolarado", "Nublado", "Chuvoso"]);
 const AUDIT_ACTIONS = new Set(["cadastro", "edicao", "exclusao"]);
@@ -184,19 +183,6 @@ function parseCookies(req) {
   return cookies;
 }
 
-function parsePdfDataUrl(dataUrl) {
-  const value = String(dataUrl || "").trim();
-  const match = value.match(/^data:(application\/pdf|application\/octet-stream);base64,([a-z0-9+/=\r\n]+)$/i);
-  if (!match) {
-    throw new Error("Arquivo PDF invalido para leitura por IA.");
-  }
-
-  return {
-    mimeType: match[1],
-    base64: match[2].replace(/\s+/g, "")
-  };
-}
-
 function buildSessionCookie(token, expiresAt) {
   const parts = [
     `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
@@ -211,126 +197,6 @@ function buildSessionCookie(token, expiresAt) {
   }
 
   return parts.join("; ");
-}
-
-function extractResponseOutputText(payload) {
-  if (typeof payload?.output_text === "string" && payload.output_text.trim()) {
-    return payload.output_text.trim();
-  }
-
-  const output = Array.isArray(payload?.output) ? payload.output : [];
-  const texts = [];
-
-  output.forEach((item) => {
-    const content = Array.isArray(item?.content) ? item.content : [];
-    content.forEach((part) => {
-      if (typeof part?.text === "string" && part.text.trim()) {
-        texts.push(part.text.trim());
-      }
-    });
-  });
-
-  return texts.join("\n").trim();
-}
-
-async function parseMedicaoPdfWithOpenAI({ fileName, dataUrl }) {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("A leitura local do PDF falhou e a leitura assistida por IA não está habilitada neste servidor. Defina OPENAI_API_KEY no Render para ativar esse fallback.");
-  }
-
-  const { mimeType, base64 } = parsePdfDataUrl(dataUrl);
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: OPENAI_PDF_MODEL,
-      input: [
-        {
-          role: "system",
-          content: [
-            {
-              type: "input_text",
-              text:
-                "Extraia um orçamento analítico de obra e devolva somente os itens principais de medição. Ignore insumos, composições auxiliares, memórias de cálculo e subtotais intermediários. Para cada item, devolva apenas o item principal da planilha, com etapa, código do item, descrição completa consolidada, unidade, quantidade total, valor unitário final com BDI e valor total final."
-            }
-          ]
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_file",
-              filename: String(fileName || "orcamento.pdf").trim() || "orcamento.pdf",
-              file_data: `data:${mimeType};base64,${base64}`
-            },
-            {
-              type: "input_text",
-              text:
-                "Leia este PDF de orçamento analítico e retorne JSON válido. Regras: 1) cada item principal geralmente usa códigos como 1.1, 1.2, 2.3; 2) ignore linhas de composição auxiliar, insumo, MO/LS, e textos de apoio; 3) use os valores finais do item, como Quant., Valor com BDI e Preço Total quando existirem; 4) mantenha a etapa no formato legível; 5) não invente itens."
-            }
-          ]
-        }
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "medicao_pdf_items",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              items: {
-                type: "array",
-                items: {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: {
-                    codigo: { type: "string" },
-                    etapa: { type: "string" },
-                    descricao: { type: "string" },
-                    unidade: { type: "string" },
-                    quantidadeTotal: { type: "number" },
-                    valorUnitario: { type: "number" },
-                    valorTotal: { type: "number" }
-                  },
-                  required: ["codigo", "etapa", "descricao", "unidade", "quantidadeTotal", "valorUnitario", "valorTotal"]
-                }
-              }
-            },
-            required: ["items"]
-          }
-        }
-      }
-    })
-  });
-
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload?.error?.message || "Falha ao interpretar o PDF com OpenAI.");
-  }
-
-  const outputText = extractResponseOutputText(payload);
-  if (!outputText) {
-    throw new Error("A OpenAI não retornou dados estruturados para este PDF.");
-  }
-
-  let parsed;
-  try {
-    parsed = JSON.parse(outputText);
-  } catch (error) {
-    throw new Error("A OpenAI retornou uma resposta inválida para a leitura do PDF.");
-  }
-
-  const items = normalizeMedicaoItemList(parsed.items);
-  if (!items.length) {
-    throw new Error("A OpenAI não conseguiu identificar itens válidos no PDF.");
-  }
-
-  return items;
 }
 
 function clearSessionCookie() {
@@ -1719,22 +1585,11 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
-  if (req.method === "POST" && pathname === "/api/medicoes/parse-pdf-ai") {
-    const body = await parseRequestBody(req);
-    requireFields(body, ["fileName", "dataUrl"]);
-    const items = await parseMedicaoPdfWithOpenAI({
-      fileName: body.fileName,
-      dataUrl: body.dataUrl
-    });
-    sendJson(res, 200, { items });
-    return true;
-  }
-
   if (req.method === "GET" && pathname.startsWith("/api/medicoes/")) {
     const medicaoId = getResourceId(pathname);
     const result = await pool.query("SELECT * FROM medicoes WHERE id = $1 LIMIT 1", [medicaoId]);
     if (!result.rows.length) {
-      sendJson(res, 404, { error: "Medição não encontrada." });
+      sendJson(res, 404, { error: "Medicao nao encontrada." });
       return true;
     }
 
@@ -1747,7 +1602,7 @@ async function handleApi(req, res, pathname) {
     requireFields(body, ["obraId", "data"]);
     const items = normalizeMedicaoItemList(body.items);
     if (!items.length) {
-      sendJson(res, 400, { error: "Importe ou carregue os itens da medição antes de salvar." });
+      sendJson(res, 400, { error: "Importe ou carregue os itens da medicao antes de salvar." });
       return true;
     }
 
@@ -1770,7 +1625,7 @@ async function handleApi(req, res, pathname) {
       ]
     );
 
-    await createAuditLog(req, user, "cadastro", "medicao", id, `Medição de ${body.data} cadastrada.`, {
+    await createAuditLog(req, user, "cadastro", "medicao", id, `Medicao de ${body.data} cadastrada.`, {
       obraId: body.obraId,
       data: body.data,
       itensCount: items.length
@@ -1785,7 +1640,7 @@ async function handleApi(req, res, pathname) {
     requireFields(body, ["obraId", "data"]);
     const items = normalizeMedicaoItemList(body.items);
     if (!items.length) {
-      sendJson(res, 400, { error: "A medição precisa conter ao menos um item." });
+      sendJson(res, 400, { error: "A medicao precisa conter ao menos um item." });
       return true;
     }
 
@@ -1811,7 +1666,7 @@ async function handleApi(req, res, pathname) {
       ]
     );
 
-    await createAuditLog(req, user, "edicao", "medicao", medicaoId, `Medição de ${body.data} atualizada.`, {
+    await createAuditLog(req, user, "edicao", "medicao", medicaoId, `Medicao de ${body.data} atualizada.`, {
       obraId: body.obraId,
       data: body.data,
       itensCount: items.length
@@ -2032,3 +1887,4 @@ ensureDatabase()
     console.error("Falha ao inicializar o banco:", error);
     process.exit(1);
   });
+
