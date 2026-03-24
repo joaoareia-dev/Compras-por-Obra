@@ -87,6 +87,7 @@ const medicaoDataInput = document.getElementById("medicaoData");
 const medicaoReferenciaInput = document.getElementById("medicaoReferencia");
 const medicaoPdfInput = document.getElementById("medicaoPdfInput");
 const medicaoImportPdfBtn = document.getElementById("medicaoImportPdfBtn");
+const medicaoUseObraPdfBtn = document.getElementById("medicaoUseObraPdfBtn");
 const medicaoPdfStatus = document.getElementById("medicaoPdfStatus");
 const medicaoItensTableBody = document.getElementById("medicaoItensTableBody");
 const medicaoSubmitBtn = document.getElementById("medicaoSubmitBtn");
@@ -791,6 +792,31 @@ function parseLocaleNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function isLikelyAnaliticoPdfFileName(fileName) {
+  return /anal[ií]tico/i.test(String(fileName || ""));
+}
+
+function getObraMedicaoPdfPadrao(obra) {
+  if (!obra) {
+    return null;
+  }
+
+  return obra.orcamentoSinteticoArquivo || obra.orcamentoAnaliticoArquivo || null;
+}
+
+async function createFileFromStoredAttachment(fileDraft) {
+  const normalizedDraft = normalizeObraArquivoDraft(fileDraft);
+  if (!normalizedDraft?.dataUrl || !normalizedDraft?.name) {
+    return null;
+  }
+
+  const response = await fetch(normalizedDraft.dataUrl);
+  const blob = await response.blob();
+  return new File([blob], normalizedDraft.name, {
+    type: normalizedDraft.mimeType || blob.type || "application/pdf"
+  });
+}
+
 function normalizeMedicaoItem(item = {}, index = 0) {
   const codigo = String(item.codigo || "").trim();
   const etapa = String(item.etapa || "").trim();
@@ -1031,7 +1057,7 @@ function resetMedicaoForm() {
     medicaoObraSelect.value = obraSelecionada;
   }
 
-  formatMedicaoPdfStatus("Selecione a obra e leia o PDF padrão do orçamento com colunas Item, Código, Banco, Descrição, Und, Quant., Valor Unit com BDI e Total.");
+  formatMedicaoPdfStatus("Selecione a obra e leia o PDF padrão do orçamento com colunas Item, Código, Banco, Descrição, Und, Quant., Valor Unit com BDI e Total. Se a obra já tiver orçamento sintético cadastrado, use o botão dedicado.");
 }
 
 function preencherFormularioMedicao(medicao) {
@@ -1082,7 +1108,7 @@ async function carregarBaseNovaMedicao(obraId) {
   if (!ultimaMedicao) {
     setMedicaoDraftItems([]);
     setMedicaoPdfDraft(null);
-    formatMedicaoPdfStatus("Nenhuma medição anterior encontrada para esta obra. Importe o PDF padrão do orçamento para começar.");
+    formatMedicaoPdfStatus("Nenhuma medição anterior encontrada para esta obra. Importe o PDF padrão do orçamento para começar ou use o PDF sintético já cadastrado na obra.");
     return;
   }
 
@@ -1702,7 +1728,13 @@ async function importMedicaoPdf(file) {
     ? standardItems
     : (structuredItems.length ? structuredItems : parseMedicaoItemsFromPdfLines(lines));
   if (!parsedItems.length) {
-    throw new Error("Nao foi possivel identificar itens no PDF. Confirme se o arquivo possui texto selecionavel e tabela de orcamento.");
+    throw new Error(
+      `Nao foi possivel identificar itens no PDF. Confirme se o arquivo possui texto selecionavel e tabela de orcamento.${
+        isLikelyAnaliticoPdfFileName(file.name)
+          ? " O arquivo selecionado parece ser o orcamento analitico; a leitura local foi preparada para o PDF padrao/sintetico."
+          : ""
+      }`
+    );
   }
 
   setMedicaoPdfDraft({ name: file.name, source: "importado" });
@@ -4074,6 +4106,39 @@ if (medicaoImportPdfBtn) {
       }
     } finally {
       medicaoImportPdfBtn.disabled = false;
+    }
+  });
+}
+
+if (medicaoUseObraPdfBtn) {
+  medicaoUseObraPdfBtn.addEventListener("click", async () => {
+    const obra = getObraById(medicaoObraSelect?.value || "");
+    const arquivoObra = getObraMedicaoPdfPadrao(obra);
+    if (!obra) {
+      alert("Selecione uma obra antes de carregar o PDF.");
+      return;
+    }
+
+    if (!arquivoObra) {
+      alert("Esta obra nao possui PDF de orcamento cadastrado.");
+      return;
+    }
+
+    medicaoUseObraPdfBtn.disabled = true;
+    formatMedicaoPdfStatus(`Lendo o PDF cadastrado da obra ${obra.nome}...`);
+
+    try {
+      const file = await createFileFromStoredAttachment(arquivoObra);
+      if (!file) {
+        throw new Error("Nao foi possivel abrir o PDF cadastrado da obra.");
+      }
+
+      await importMedicaoPdf(file);
+    } catch (error) {
+      formatMedicaoPdfStatus("Falha na leitura do PDF cadastrado da obra.");
+      alert(error.message);
+    } finally {
+      medicaoUseObraPdfBtn.disabled = false;
     }
   });
 }
