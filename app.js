@@ -1201,8 +1201,8 @@ let pdfJsModulePromise;
 
 async function getPdfJsModule() {
   if (!pdfJsModulePromise) {
-    pdfJsModulePromise = import("/node_modules/pdfjs-dist/build/pdf.mjs").then((module) => {
-      module.GlobalWorkerOptions.workerSrc = "/node_modules/pdfjs-dist/build/pdf.worker.mjs";
+    pdfJsModulePromise = import("/vendor/pdfjs/pdf.mjs").then((module) => {
+      module.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.mjs";
       return module;
     });
   }
