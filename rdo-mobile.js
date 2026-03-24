@@ -94,6 +94,7 @@ const rdoList = document.getElementById("mobileRdoList");
 const materialOptions = document.getElementById("mobileMaterialDescricaoOptions");
 const maoDeObraCargoOptions = document.getElementById("mobileMaoDeObraCargoOptions");
 const MOBILE_UPDATE_CHECK_INTERVAL_MS = 60 * 1000;
+const MOBILE_RDO_DRAFT_STORAGE_KEY = "rdo_mobile_draft_v2";
 
 async function apiFetch(path, options = {}) {
   const response = await fetch(path, {
@@ -256,6 +257,126 @@ function isViewOpen() {
   return !viewPanel.classList.contains("hidden");
 }
 
+function safeParseJson(value, fallback = null) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function buildCurrentRdoDraftPayload() {
+  return {
+    userId: state.user?.id || "",
+    editId: rdoEditIdInput.value || "",
+    obraId: rdoObraSelect.value || "",
+    data: normalizeDateInputValue(rdoDataInput.value),
+    clima: rdoClimaSelect.value || "",
+    observacoesAdicionais: rdoObservacoesInput.value.trimStart(),
+    fotos: getDraftPhotos(),
+    maoDeObraPresente: getStructuredContainerValues(equipeContainer, MOBILE_STRUCTURED_CONFIGS.equipe),
+    servicosExecutados: getStructuredContainerValues(servicosContainer, MOBILE_STRUCTURED_CONFIGS.servicos),
+    materiaisRecebidos: getStructuredContainerValues(materiaisRecebidosContainer, MOBILE_STRUCTURED_CONFIGS.materiais),
+    materiaisConsumidos: getStructuredContainerValues(materiaisConsumidosContainer, MOBILE_STRUCTURED_CONFIGS.materiais)
+  };
+}
+
+function hasMeaningfulRdoDraftContent(draft = buildCurrentRdoDraftPayload()) {
+  if (!draft || typeof draft !== "object") {
+    return false;
+  }
+
+  return Boolean(
+    String(draft.editId || "").trim()
+    || String(draft.clima || "").trim()
+    || String(draft.observacoesAdicionais || "").trim()
+    || (draft.fotos || []).length
+    || (draft.maoDeObraPresente || []).length
+    || (draft.servicosExecutados || []).length
+    || (draft.materiaisRecebidos || []).length
+    || (draft.materiaisConsumidos || []).length
+  );
+}
+
+function saveRdoDraftSnapshot() {
+  if (!isEditorOpen()) {
+    return;
+  }
+
+  const payload = buildCurrentRdoDraftPayload();
+  if (!hasMeaningfulRdoDraftContent(payload)) {
+    window.localStorage.removeItem(MOBILE_RDO_DRAFT_STORAGE_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(MOBILE_RDO_DRAFT_STORAGE_KEY, JSON.stringify(payload));
+}
+
+function loadRdoDraftSnapshot() {
+  return safeParseJson(window.localStorage.getItem(MOBILE_RDO_DRAFT_STORAGE_KEY), null);
+}
+
+function clearRdoDraftSnapshot() {
+  window.localStorage.removeItem(MOBILE_RDO_DRAFT_STORAGE_KEY);
+}
+
+function restoreRdoDraftSnapshot() {
+  const draft = loadRdoDraftSnapshot();
+  if (!hasMeaningfulRdoDraftContent(draft)) {
+    clearRdoDraftSnapshot();
+    return false;
+  }
+
+  if (draft.userId && state.user?.id && draft.userId !== state.user.id) {
+    clearRdoDraftSnapshot();
+    return false;
+  }
+
+  resetRdoForm();
+  rdoEditIdInput.value = String(draft.editId || "");
+  rdoObraSelect.value = String(draft.obraId || "");
+  rdoDataInput.value = normalizeDateInputValue(draft.data) || getTodayIsoDate();
+  rdoClimaSelect.value = String(draft.clima || "");
+  rdoObservacoesInput.value = String(draft.observacoesAdicionais || "");
+  setDraftPhotos(Array.isArray(draft.fotos) ? draft.fotos : []);
+
+  hydrateStructuredContainer(
+    equipeContainer,
+    MOBILE_STRUCTURED_CONFIGS.equipe,
+    Array.isArray(draft.maoDeObraPresente) ? draft.maoDeObraPresente : []
+  );
+  hydrateStructuredContainer(
+    servicosContainer,
+    MOBILE_STRUCTURED_CONFIGS.servicos,
+    Array.isArray(draft.servicosExecutados) ? draft.servicosExecutados : []
+  );
+  hydrateStructuredContainer(
+    materiaisRecebidosContainer,
+    MOBILE_STRUCTURED_CONFIGS.materiais,
+    Array.isArray(draft.materiaisRecebidos) ? draft.materiaisRecebidos : []
+  );
+  hydrateStructuredContainer(
+    materiaisConsumidosContainer,
+    MOBILE_STRUCTURED_CONFIGS.materiais,
+    Array.isArray(draft.materiaisConsumidos) ? draft.materiaisConsumidos : []
+  );
+
+  if (rdoEditIdInput.value) {
+    editorTitle.textContent = "Editar RDO";
+    editorSubtitle.textContent = "Rascunho restaurado automaticamente.";
+    saveRdoBtn.textContent = "Atualizar RDO";
+    cancelEditBtn.classList.remove("hidden");
+  } else {
+    editorTitle.textContent = "Cadastrar RDO";
+    editorSubtitle.textContent = "Rascunho restaurado automaticamente.";
+    saveRdoBtn.textContent = "Salvar RDO";
+    cancelEditBtn.classList.add("hidden");
+  }
+
+  openEditor();
+  return true;
+}
+
 async function fetchClientVersion() {
   const result = await apiFetch("/api/client-version?target=mobile", {
     headers: {
@@ -343,10 +464,15 @@ function openEditor() {
   closeView();
   editorPanel.classList.remove("hidden");
   editorPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  saveRdoDraftSnapshot();
 }
 
-function closeEditor() {
+function closeEditor(options = {}) {
+  const discardDraft = options.discardDraft !== false;
   editorPanel.classList.add("hidden");
+  if (discardDraft) {
+    clearRdoDraftSnapshot();
+  }
   resetRdoForm();
   if (state.pendingHotUpdate && !isViewOpen()) {
     state.pendingHotUpdate = false;
@@ -386,6 +512,7 @@ function setDraftPhotos(photos) {
     ? photos.map((photo, index) => normalizeRdoPhoto(photo, index)).filter(Boolean)
     : [];
   renderPhotos();
+  saveRdoDraftSnapshot();
 }
 
 function renderPhotos() {
@@ -632,6 +759,7 @@ function bindStructuredContainer(container, config) {
     }
 
     syncStructuredContainer(container, config);
+    saveRdoDraftSnapshot();
   });
 
   container.addEventListener("change", (event) => {
@@ -641,6 +769,7 @@ function bindStructuredContainer(container, config) {
     }
 
     applyStructuredAutocomplete(input.closest(".mobile-dynamic-row"), config);
+    saveRdoDraftSnapshot();
   });
 
   container.addEventListener("click", (event) => {
@@ -651,6 +780,7 @@ function bindStructuredContainer(container, config) {
 
     removeButton.closest(".mobile-dynamic-row")?.remove();
     syncStructuredContainer(container, config);
+    saveRdoDraftSnapshot();
   });
 }
 
@@ -911,6 +1041,7 @@ function fillRdoForm(rdo) {
   editorSubtitle.textContent = "Atualize o diário de obra já cadastrado.";
   saveRdoBtn.textContent = "Atualizar RDO";
   cancelEditBtn.classList.remove("hidden");
+  saveRdoDraftSnapshot();
 }
 
 async function fetchRdoDetail(rdoId) {
@@ -950,7 +1081,9 @@ async function initializeApp() {
   await refreshData();
   await applyAutomaticUpdateIfAvailable(false);
   startAutomaticUpdateChecks();
-  resetRdoForm();
+  if (!restoreRdoDraftSnapshot()) {
+    resetRdoForm();
+  }
 }
 
 loginForm.addEventListener("submit", async (event) => {
@@ -1002,6 +1135,7 @@ logoutBtn.addEventListener("click", () => {
         clearInterval(state.updateCheckIntervalId);
         state.updateCheckIntervalId = null;
       }
+      clearRdoDraftSnapshot();
       setSession(null);
       showLogin();
     });
@@ -1012,6 +1146,7 @@ newRdoBtn.addEventListener("click", () => {
   editorSubtitle.textContent = "Registre o andamento diário da obra direto do celular.";
   resetRdoForm();
   openEditor();
+  saveRdoDraftSnapshot();
 });
 
 refreshBtn.addEventListener("click", async () => {
@@ -1078,6 +1213,7 @@ photoList.addEventListener("input", (event) => {
   state.draftPhotos = getDraftPhotos().map((photo) => (
     photo.id === photoId ? { ...photo, comentario: commentField.value.trimStart() } : photo
   ));
+  saveRdoDraftSnapshot();
 });
 
 photoList.addEventListener("click", (event) => {
@@ -1124,6 +1260,7 @@ rdoForm.addEventListener("submit", async (event) => {
       body: JSON.stringify(payload)
     });
 
+    clearRdoDraftSnapshot();
     await refreshData();
     closeEditor();
   } catch (error) {
@@ -1211,6 +1348,14 @@ if ("serviceWorker" in navigator) {
     refreshServiceWorkerRegistration().catch(() => null);
   });
 }
+
+rdoForm.addEventListener("input", () => {
+  saveRdoDraftSnapshot();
+});
+
+rdoForm.addEventListener("change", () => {
+  saveRdoDraftSnapshot();
+});
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
