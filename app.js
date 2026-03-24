@@ -1031,7 +1031,7 @@ function resetMedicaoForm() {
     medicaoObraSelect.value = obraSelecionada;
   }
 
-  formatMedicaoPdfStatus("Selecione a obra e, se necessário, leia o PDF do orçamento para montar a medição.");
+  formatMedicaoPdfStatus("Selecione a obra e leia o PDF padrão do orçamento com colunas Item, Código, Banco, Descrição, Und, Quant., Valor Unit com BDI e Total.");
 }
 
 function preencherFormularioMedicao(medicao) {
@@ -1082,7 +1082,7 @@ async function carregarBaseNovaMedicao(obraId) {
   if (!ultimaMedicao) {
     setMedicaoDraftItems([]);
     setMedicaoPdfDraft(null);
-    formatMedicaoPdfStatus("Nenhuma medição anterior encontrada para esta obra. Importe o PDF do orçamento para começar.");
+    formatMedicaoPdfStatus("Nenhuma medição anterior encontrada para esta obra. Importe o PDF padrão do orçamento para começar.");
     return;
   }
 
@@ -1209,6 +1209,209 @@ function isLikelyMedicaoStageLine(line) {
   }
 
   return /^[A-Z0-9\s./-]+$/.test(cleaned) || /^(etapa|grupo|servico|servi[cç]o)/i.test(cleaned);
+}
+
+function extractStandardMedicaoPdfRowColumns(row) {
+  const columns = {
+    item: "",
+    code: "",
+    bank: "",
+    desc: "",
+    unit: "",
+    qty: "",
+    unitPrice: "",
+    unitPriceBdi: "",
+    total: "",
+    weight: "",
+    rawText: row.parts.map((part) => part.text).join(" ").replace(/\s+/g, " ").trim()
+  };
+
+  const append = (key, value) => {
+    columns[key] = columns[key] ? `${columns[key]} ${value}` : value;
+  };
+
+  row.parts.forEach((part) => {
+    if (part.x < 70) {
+      append("item", part.text);
+    } else if (part.x < 120) {
+      append("code", part.text);
+    } else if (part.x < 170) {
+      append("bank", part.text);
+    } else if (part.x < 470) {
+      append("desc", part.text);
+    } else if (part.x < 525) {
+      append("unit", part.text);
+    } else if (part.x < 580) {
+      append("qty", part.text);
+    } else if (part.x < 640) {
+      append("unitPrice", part.text);
+    } else if (part.x < 700) {
+      append("unitPriceBdi", part.text);
+    } else if (part.x < 760) {
+      append("total", part.text);
+    } else {
+      append("weight", part.text);
+    }
+  });
+
+  return columns;
+}
+
+function isStandardMedicaoHeaderRow(columns) {
+  const normalized = normalizeValue(columns.rawText);
+  return (
+    normalized.includes("item") &&
+    normalized.includes("codigo") &&
+    normalized.includes("banco") &&
+    normalized.includes("descricao") &&
+    normalized.includes("quant") &&
+    normalized.includes("total")
+  );
+}
+
+function isStandardMedicaoNumericCode(value) {
+  return /^\d+(?:\.\d+)*$/.test(String(value || "").trim());
+}
+
+function isStandardMedicaoItemRow(columns) {
+  return (
+    isStandardMedicaoNumericCode(columns.item) &&
+    Boolean(String(columns.code || "").trim()) &&
+    Boolean(String(columns.bank || "").trim()) &&
+    Boolean(String(columns.desc || "").trim()) &&
+    Boolean(String(columns.unit || "").trim()) &&
+    /\d/.test(String(columns.qty || "")) &&
+    (/\d/.test(String(columns.unitPriceBdi || "")) || /\d/.test(String(columns.unitPrice || ""))) &&
+    /\d/.test(String(columns.total || ""))
+  );
+}
+
+function isStandardMedicaoStageRow(columns) {
+  return (
+    isStandardMedicaoNumericCode(columns.item) &&
+    !String(columns.code || "").trim() &&
+    !String(columns.bank || "").trim() &&
+    Boolean(String(columns.desc || "").trim()) &&
+    !String(columns.unit || "").trim() &&
+    /\d/.test(String(columns.total || "")) &&
+    !/peso|valor unit|quant/i.test(String(columns.rawText || ""))
+  );
+}
+
+function isStandardMedicaoDescriptionContinuationRow(columns) {
+  return (
+    Boolean(String(columns.desc || "").trim()) &&
+    !String(columns.item || "").trim() &&
+    !String(columns.code || "").trim() &&
+    !String(columns.bank || "").trim() &&
+    !String(columns.unit || "").trim() &&
+    !String(columns.qty || "").trim() &&
+    !String(columns.unitPrice || "").trim() &&
+    !String(columns.unitPriceBdi || "").trim() &&
+    !String(columns.total || "").trim() &&
+    !String(columns.weight || "").trim()
+  );
+}
+
+function getStandardMedicaoHierarchyLevel(code) {
+  const normalized = String(code || "").trim();
+  return normalized ? normalized.split(".").filter(Boolean).length : 0;
+}
+
+function updateStandardMedicaoStageTrail(stageTrail, code, description) {
+  const level = getStandardMedicaoHierarchyLevel(code);
+  if (!level || !description) {
+    return;
+  }
+
+  stageTrail[level - 1] = `${code} - ${description}`.trim();
+  stageTrail.length = level;
+}
+
+function buildStandardMedicaoStagePath(stageTrail, itemCode) {
+  const itemLevel = getStandardMedicaoHierarchyLevel(itemCode);
+  if (!itemLevel) {
+    return stageTrail.filter(Boolean).join(" / ");
+  }
+
+  return stageTrail.slice(0, Math.max(0, itemLevel - 1)).filter(Boolean).join(" / ");
+}
+
+function finalizeStandardMedicaoItem(items, item) {
+  if (!item?.descricao || !item?.unidade) {
+    return;
+  }
+
+  const normalized = normalizeMedicaoItem({
+    codigo: item.codigo || "",
+    etapa: item.etapa || "",
+    descricao: item.descricao,
+    unidade: item.unidade,
+    quantidadeTotal: Number(item.quantidadeTotal || 0),
+    valorUnitario: Number(item.valorUnitario || 0),
+    valorTotal: Number(item.valorTotal || 0),
+    quantidadeMedida: 0
+  });
+
+  if (normalized) {
+    items.push({
+      ...normalized,
+      id: createClientId("medicao-item")
+    });
+  }
+}
+
+function parseStandardMedicaoItemsFromRows(rows) {
+  const items = [];
+  const stageTrail = [];
+  let currentItem = null;
+  let sawHeader = false;
+
+  rows.forEach((row) => {
+    const columns = extractStandardMedicaoPdfRowColumns(row);
+    if (!columns.rawText) {
+      return;
+    }
+
+    if (!sawHeader) {
+      if (isStandardMedicaoHeaderRow(columns)) {
+        sawHeader = true;
+      }
+      return;
+    }
+
+    if (isStandardMedicaoHeaderRow(columns)) {
+      return;
+    }
+
+    if (isStandardMedicaoStageRow(columns)) {
+      finalizeStandardMedicaoItem(items, currentItem);
+      currentItem = null;
+      updateStandardMedicaoStageTrail(stageTrail, columns.item, String(columns.desc || "").trim());
+      return;
+    }
+
+    if (isStandardMedicaoItemRow(columns)) {
+      finalizeStandardMedicaoItem(items, currentItem);
+      currentItem = {
+        codigo: String(columns.item || "").trim(),
+        etapa: buildStandardMedicaoStagePath(stageTrail, columns.item),
+        descricao: String(columns.desc || "").trim(),
+        unidade: String(columns.unit || "").trim(),
+        quantidadeTotal: parseLocaleNumber(columns.qty),
+        valorUnitario: parseLocaleNumber(columns.unitPriceBdi) || parseLocaleNumber(columns.unitPrice),
+        valorTotal: parseLocaleNumber(columns.total)
+      };
+      return;
+    }
+
+    if (currentItem && isStandardMedicaoDescriptionContinuationRow(columns)) {
+      currentItem.descricao = `${currentItem.descricao} ${String(columns.desc || "").trim()}`.replace(/\s+/g, " ").trim();
+    }
+  });
+
+  finalizeStandardMedicaoItem(items, currentItem);
+  return items;
 }
 
 function extractMedicaoPdfRowColumns(row) {
@@ -1493,15 +1696,22 @@ async function importMedicaoPdf(file) {
     lines.push(...pageRows.map((row) => row.parts.map((part) => part.text).join(" ").replace(/\s+/g, " ").trim()).filter(Boolean));
   }
 
-  const structuredItems = parseStructuredMedicaoItemsFromRows(rows);
-  const parsedItems = structuredItems.length ? structuredItems : parseMedicaoItemsFromPdfLines(lines);
+  const standardItems = parseStandardMedicaoItemsFromRows(rows);
+  const structuredItems = standardItems.length ? [] : parseStructuredMedicaoItemsFromRows(rows);
+  const parsedItems = standardItems.length
+    ? standardItems
+    : (structuredItems.length ? structuredItems : parseMedicaoItemsFromPdfLines(lines));
   if (!parsedItems.length) {
     throw new Error("Nao foi possivel identificar itens no PDF. Confirme se o arquivo possui texto selecionavel e tabela de orcamento.");
   }
 
   setMedicaoPdfDraft({ name: file.name, source: "importado" });
   setMedicaoDraftItems(mergeMedicaoMeasuredValues(parsedItems));
-  formatMedicaoPdfStatus(`${parsedItems.length} itens lidos do PDF ${file.name}. Revise as quantidades medidas antes de salvar.`);
+  formatMedicaoPdfStatus(
+    `${parsedItems.length} itens lidos do PDF ${file.name}.${
+      standardItems.length ? " Leitura pelo layout padrao de colunas." : ""
+    } Revise as quantidades medidas antes de salvar.`
+  );
 }
 
 async function importMedicaoPdfWithAi(file) {
