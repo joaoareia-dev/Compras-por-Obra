@@ -146,7 +146,7 @@
               <div class="obra-form-section-head">
                 <div>
                   <h4>Planilhas de Orçamento</h4>
-                  <p class="subtitle">Anexe os arquivos sintético e analítico, se quiser manter tudo centralizado na obra.</p>
+                  <p class="subtitle">Cadastre apenas a planilha sintética padrão da obra, em formato XLS/XLSX.</p>
                 </div>
               </div>
               <div class="logo-upload-grid">
@@ -154,21 +154,12 @@
                   <div class="dynamic-block-header">
                     <div>
                       <h4>Orçamento Sintético</h4>
-                      <p class="subtitle">Campo opcional para upload da planilha sintética.</p>
+                      <p class="subtitle">Use o modelo padrão com as colunas Item, Código, Banco, Descrição, Und, Quant., Valor Unit, Valor Unit com BDI, Total e Peso (%).</p>
                     </div>
+                    <button type="button" id="obraOrcamentoTemplateBtn" class="btn ghost">Baixar Modelo XLS</button>
                   </div>
-                  <input type="file" id="obraOrcamentoSinteticoInput" accept=".xlsx,.xls,.csv,.ods" />
+                  <input type="file" id="obraOrcamentoSinteticoInput" accept=".xls,.xlsx" />
                   <div id="obraOrcamentoSinteticoPreview" class="file-preview empty">Nenhuma planilha sintética anexada.</div>
-                </div>
-                <div class="logo-upload-card">
-                  <div class="dynamic-block-header">
-                    <div>
-                      <h4>Orçamento Analítico</h4>
-                      <p class="subtitle">Campo opcional para upload da planilha analítica.</p>
-                    </div>
-                  </div>
-                  <input type="file" id="obraOrcamentoAnaliticoInput" accept=".xlsx,.xls,.csv,.ods" />
-                  <div id="obraOrcamentoAnaliticoPreview" class="file-preview empty">Nenhuma planilha analítica anexada.</div>
                 </div>
               </div>
             </section>
@@ -249,7 +240,7 @@
           <div class="subpanel-header">
             <div>
               <h4 id="medicaoEditorTitle">Nova Medição</h4>
-              <p id="medicaoEditorSubtitle" class="subtitle">Importe o orçamento em PDF quando necessário e informe as quantidades medidas.</p>
+              <p id="medicaoEditorSubtitle" class="subtitle">Leia a planilha sintética padrão da obra e informe as quantidades medidas.</p>
             </div>
             <button type="button" id="medicaoCloseEditorBtn" class="btn ghost">Fechar</button>
           </div>
@@ -274,16 +265,14 @@
             <section class="dynamic-block">
               <div class="dynamic-block-header">
                 <div>
-                  <h4>Leitura do PDF do Orçamento</h4>
-                  <p class="subtitle">Na primeira medição da obra, o PDF é obrigatório. Nas próximas, você pode reaproveitar os itens da última medição ou importar um novo PDF.</p>
+                  <h4>Leitura da Planilha Sintética</h4>
+                  <p class="subtitle">Na primeira medição da obra, carregue a planilha sintética cadastrada no menu Obras. Nas próximas, você pode reaproveitar os itens da última medição ou reler a planilha da obra.</p>
                 </div>
               </div>
               <div class="medicao-import-bar">
-                <input type="file" id="medicaoPdfInput" accept="application/pdf,.pdf" />
-                <button type="button" id="medicaoImportPdfBtn" class="btn ghost">Ler PDF do Orçamento</button>
-                <button type="button" id="medicaoUseObraPdfBtn" class="btn ghost">Usar PDF Sintético da Obra</button>
+                <button type="button" id="medicaoUseObraPlanilhaBtn" class="btn ghost">Ler Planilha Sintética da Obra</button>
               </div>
-              <p id="medicaoPdfStatus" class="subtitle"></p>
+              <p id="medicaoPlanilhaStatus" class="subtitle"></p>
             </section>
 
             <div class="table-wrap medicao-table-wrap">
@@ -751,6 +740,7 @@
 
   <script src="node_modules/html2canvas/dist/html2canvas.min.js?v=20260323-12"></script>
   <script src="node_modules/jspdf/dist/jspdf.umd.min.js?v=20260323-12"></script>
-  <script src="app.js?v=20260323-12"></script>
+  <script src="vendor/xlsx/xlsx.full.min.js?v=20260324-1"></script>
+  <script src="app.js?v=20260324-2"></script>
 </body>
 </html>

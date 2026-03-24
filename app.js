@@ -1,4 +1,4 @@
-const state = {
+﻿const state = {
   obras: [],
   compras: [],
   maoDeObra: [],
@@ -23,11 +23,10 @@ const state = {
     contratada: ""
   },
   obraArquivoDrafts: {
-    orcamentoSintetico: null,
-    orcamentoAnalitico: null
+    orcamentoSintetico: null
   },
   medicaoDraftItems: [],
-  medicaoPdfDraft: null,
+  medicaoBaseDraft: null,
   medicaoHistory: [],
   medicaoHistoryObraId: "",
   rdoDraftPhotos: [],
@@ -52,10 +51,9 @@ const obraContratanteLogoInput = document.getElementById("obraContratanteLogoInp
 const obraContratadaLogoInput = document.getElementById("obraContratadaLogoInput");
 const obraContratanteLogoPreview = document.getElementById("obraContratanteLogoPreview");
 const obraContratadaLogoPreview = document.getElementById("obraContratadaLogoPreview");
+const obraOrcamentoTemplateBtn = document.getElementById("obraOrcamentoTemplateBtn");
 const obraOrcamentoSinteticoInput = document.getElementById("obraOrcamentoSinteticoInput");
-const obraOrcamentoAnaliticoInput = document.getElementById("obraOrcamentoAnaliticoInput");
 const obraOrcamentoSinteticoPreview = document.getElementById("obraOrcamentoSinteticoPreview");
-const obraOrcamentoAnaliticoPreview = document.getElementById("obraOrcamentoAnaliticoPreview");
 const obraSubmitBtn = document.getElementById("obraSubmitBtn");
 const obraCancelEditBtn = document.getElementById("obraCancelEditBtn");
 const obraNewBtn = document.getElementById("obraNewBtn");
@@ -85,10 +83,8 @@ const medicaoEditIdInput = document.getElementById("medicaoEditId");
 const medicaoObraSelect = document.getElementById("medicaoObra");
 const medicaoDataInput = document.getElementById("medicaoData");
 const medicaoReferenciaInput = document.getElementById("medicaoReferencia");
-const medicaoPdfInput = document.getElementById("medicaoPdfInput");
-const medicaoImportPdfBtn = document.getElementById("medicaoImportPdfBtn");
-const medicaoUseObraPdfBtn = document.getElementById("medicaoUseObraPdfBtn");
-const medicaoPdfStatus = document.getElementById("medicaoPdfStatus");
+const medicaoUseObraPlanilhaBtn = document.getElementById("medicaoUseObraPlanilhaBtn");
+const medicaoPlanilhaStatus = document.getElementById("medicaoPlanilhaStatus");
 const medicaoItensTableBody = document.getElementById("medicaoItensTableBody");
 const medicaoSubmitBtn = document.getElementById("medicaoSubmitBtn");
 const medicaoCancelEditBtn = document.getElementById("medicaoCancelEditBtn");
@@ -454,7 +450,7 @@ function calcularClasseCurvaAbc(percentualAcumulado) {
 
 function getPeriodoRelatorioTexto() {
   if (relatorioTodasComprasInput.checked) {
-    return "Todos os lançamentos da obra";
+    return "Todos os lanÃ§amentos da obra";
   }
 
   const dataInicio = document.getElementById("relatorioDataInicio").value;
@@ -570,8 +566,8 @@ function compareIsoDatesDesc(left, right) {
 
 function getCategoriaLancamentoDisplay(categoria) {
   const normalized = normalizeValue(categoria);
-  if (normalized === "mao de obra" || normalized === "mão de obra") {
-    return "Mão de Obra";
+  if (normalized === "mao de obra" || normalized === "mÃ£o de obra") {
+    return "MÃ£o de Obra";
   }
 
   return String(categoria || "").trim() || "Sem categoria";
@@ -597,7 +593,7 @@ function getLancamentosRelatorio() {
     obraId: pagamento.obraId,
     dataReferencia: pagamento.dataPagamento,
     descricao: pagamento.descricao,
-    categoria: "Mão de Obra",
+    categoria: "MÃ£o de Obra",
     unidade: "-",
     quantidade: 1,
     total: getPagamentoMaoDeObraTotal(pagamento),
@@ -756,15 +752,9 @@ function renderObraArquivoPreview(container, label, fileDraft, type) {
 function renderObraArquivoPreviews() {
   renderObraArquivoPreview(
     obraOrcamentoSinteticoPreview,
-    "planilha sintética",
+    "planilha sintÃ©tica",
     state.obraArquivoDrafts.orcamentoSintetico,
     "orcamentoSintetico"
-  );
-  renderObraArquivoPreview(
-    obraOrcamentoAnaliticoPreview,
-    "planilha analítica",
-    state.obraArquivoDrafts.orcamentoAnalitico,
-    "orcamentoAnalitico"
   );
 }
 
@@ -792,16 +782,12 @@ function parseLocaleNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function isLikelyAnaliticoPdfFileName(fileName) {
-  return /anal[ií]tico/i.test(String(fileName || ""));
-}
-
-function getObraMedicaoPdfPadrao(obra) {
+function getObraMedicaoBaseArquivo(obra) {
   if (!obra) {
     return null;
   }
 
-  return obra.orcamentoSinteticoArquivo || obra.orcamentoAnaliticoArquivo || null;
+  return obra.orcamentoSinteticoArquivo || null;
 }
 
 async function createFileFromStoredAttachment(fileDraft) {
@@ -813,7 +799,7 @@ async function createFileFromStoredAttachment(fileDraft) {
   const response = await fetch(normalizedDraft.dataUrl);
   const blob = await response.blob();
   return new File([blob], normalizedDraft.name, {
-    type: normalizedDraft.mimeType || blob.type || "application/pdf"
+    type: normalizedDraft.mimeType || blob.type || "application/vnd.ms-excel"
   });
 }
 
@@ -876,15 +862,15 @@ function setMedicaoDraftItems(items) {
   renderMedicaoDraftTable();
 }
 
-function setMedicaoPdfDraft(fileDraft = null) {
+function setMedicaoBaseDraft(fileDraft = null) {
   if (!fileDraft || typeof fileDraft !== "object") {
-    state.medicaoPdfDraft = null;
+    state.medicaoBaseDraft = null;
     return;
   }
 
   const name = String(fileDraft.name || "").trim();
   const source = String(fileDraft.source || "").trim();
-  state.medicaoPdfDraft = name ? { name, source } : null;
+  state.medicaoBaseDraft = name ? { name, source } : null;
 }
 
 function setMedicaoHistory(obraId, medicoes = []) {
@@ -933,9 +919,9 @@ function buildMedicaoAcumuladoAnteriorMap(obraId, currentMedicaoId = "") {
   return totais;
 }
 
-function formatMedicaoPdfStatus(message = "") {
-  if (medicaoPdfStatus) {
-    medicaoPdfStatus.textContent = message;
+function formatMedicaoBaseStatus(message = "") {
+  if (medicaoPlanilhaStatus) {
+    medicaoPlanilhaStatus.textContent = message;
   }
 }
 
@@ -963,7 +949,7 @@ function renderMedicoes() {
   const obraMap = buildObraNameMap(getObras());
 
   if (!medicoes.length) {
-    medicoesTableBody.innerHTML = `<tr><td colspan="6" class="empty">Nenhuma mediÃ§Ã£o encontrada para os filtros selecionados.</td></tr>`;
+    medicoesTableBody.innerHTML = `<tr><td colspan="6" class="empty">Nenhuma mediÃƒÂ§ÃƒÂ£o encontrada para os filtros selecionados.</td></tr>`;
     return;
   }
 
@@ -992,7 +978,7 @@ function renderMedicaoDraftTable() {
 
   const items = getMedicaoDraftItems();
   if (!items.length) {
-    medicaoItensTableBody.innerHTML = `<tr><td colspan="10" class="empty">Importe o PDF do orÃ§amento ou reaproveite os itens da Ãºltima mediÃ§Ã£o da obra.</td></tr>`;
+    medicaoItensTableBody.innerHTML = `<tr><td colspan="10" class="empty">Leia a planilha sintética da obra ou reaproveite os itens da última medição.</td></tr>`;
     return;
   }
 
@@ -1045,11 +1031,10 @@ function resetMedicaoForm() {
   medicaoEditIdInput.value = "";
   medicaoDataInput.value = getTodayIsoDate();
   medicaoReferenciaInput.value = "";
-  medicaoSubmitBtn.textContent = "Salvar Medição";
+  medicaoSubmitBtn.textContent = "Salvar MediÃ§Ã£o";
   medicaoCancelEditBtn.classList.add("hidden");
-  medicaoPdfInput.value = "";
   setMedicaoHistory("", []);
-  setMedicaoPdfDraft(null);
+  setMedicaoBaseDraft(null);
   setMedicaoDraftItems([]);
 
   const obraSelecionada = medicaoFiltroObraSelect?.value || medicaoObraSelect?.value || "";
@@ -1057,7 +1042,7 @@ function resetMedicaoForm() {
     medicaoObraSelect.value = obraSelecionada;
   }
 
-  formatMedicaoPdfStatus("Selecione a obra e leia o PDF padrão do orçamento com colunas Item, Código, Banco, Descrição, Und, Quant., Valor Unit com BDI e Total. Se a obra já tiver orçamento sintético cadastrado, use o botão dedicado.");
+  formatMedicaoBaseStatus("Selecione a obra e leia a planilha sintÃ©tica padrÃ£o cadastrada, com colunas Item, CÃ³digo, Banco, DescriÃ§Ã£o, Und, Quant., Valor Unit, Valor Unit com BDI, Total e Peso (%).");
 }
 
 function preencherFormularioMedicao(medicao) {
@@ -1066,14 +1051,13 @@ function preencherFormularioMedicao(medicao) {
   medicaoObraSelect.value = medicao.obraId;
   medicaoDataInput.value = normalizeDateInputValue(medicao.data);
   medicaoReferenciaInput.value = medicao.referencia || "";
-  medicaoSubmitBtn.textContent = "Atualizar Medição";
+  medicaoSubmitBtn.textContent = "Atualizar MediÃ§Ã£o";
   medicaoCancelEditBtn.classList.remove("hidden");
-  medicaoPdfInput.value = "";
-  setMedicaoPdfDraft(medicao.pdfNome ? { name: medicao.pdfNome, source: "salvo" } : null);
-  formatMedicaoPdfStatus(
+  setMedicaoBaseDraft(medicao.pdfNome ? { name: medicao.pdfNome, source: "salvo" } : null);
+  formatMedicaoBaseStatus(
     medicao.pdfNome
-      ? `Base carregada da medição salva. PDF de origem: ${medicao.pdfNome}.`
-      : "Base carregada da medição salva."
+      ? `Base carregada da mediÃ§Ã£o salva. Planilha de origem: ${medicao.pdfNome}.`
+      : "Base carregada da mediÃ§Ã£o salva."
   );
   setMedicaoDraftItems(cloneMedicaoItems(medicao.items));
 }
@@ -1093,8 +1077,8 @@ async function carregarBaseNovaMedicao(obraId) {
   if (!obraId) {
     setMedicaoHistory("", []);
     setMedicaoDraftItems([]);
-    setMedicaoPdfDraft(null);
-    formatMedicaoPdfStatus("Selecione uma obra para iniciar a medição.");
+    setMedicaoBaseDraft(null);
+    formatMedicaoBaseStatus("Selecione uma obra para iniciar a mediÃ§Ã£o.");
     return;
   }
 
@@ -1102,21 +1086,21 @@ async function carregarBaseNovaMedicao(obraId) {
   const ultimaMedicao = medicoes[0] || null;
 
   if (!medicaoReferenciaInput.value.trim()) {
-    medicaoReferenciaInput.value = `Medição ${String(medicoes.length + 1).padStart(2, "0")}`;
+    medicaoReferenciaInput.value = `MediÃ§Ã£o ${String(medicoes.length + 1).padStart(2, "0")}`;
   }
 
   if (!ultimaMedicao) {
     setMedicaoDraftItems([]);
-    setMedicaoPdfDraft(null);
-    formatMedicaoPdfStatus("Nenhuma medição anterior encontrada para esta obra. Importe o PDF padrão do orçamento para começar ou use o PDF sintético já cadastrado na obra.");
+    setMedicaoBaseDraft(null);
+    formatMedicaoBaseStatus("Nenhuma mediÃ§Ã£o anterior encontrada para esta obra. Cadastre a planilha sintÃ©tica da obra no menu Obras e use a leitura local da planilha.");
     return;
   }
 
   setMedicaoDraftItems(cloneMedicaoItems(ultimaMedicao.items, { zeroMeasured: true }));
-  setMedicaoPdfDraft(ultimaMedicao.pdfNome ? { name: ultimaMedicao.pdfNome, source: "historico" } : null);
-  formatMedicaoPdfStatus(
-    `Itens reaproveitados da última medição da obra (${formatDate(ultimaMedicao.data)}). ${
-      ultimaMedicao.pdfNome ? `PDF de origem: ${ultimaMedicao.pdfNome}.` : ""
+  setMedicaoBaseDraft(ultimaMedicao.pdfNome ? { name: ultimaMedicao.pdfNome, source: "historico" } : null);
+  formatMedicaoBaseStatus(
+    `Itens reaproveitados da Ãºltima mediÃ§Ã£o da obra (${formatDate(ultimaMedicao.data)}). ${
+      ultimaMedicao.pdfNome ? `Planilha de origem: ${ultimaMedicao.pdfNome}.` : ""
     }`
   );
 }
@@ -1129,15 +1113,15 @@ async function openMedicaoEditor(medicao = null) {
   medicaoEditorPanel.classList.remove("hidden");
 
   if (medicao) {
-    medicaoEditorTitle.textContent = "Editar Medição";
-    medicaoEditorSubtitle.textContent = "Atualize as quantidades medidas mantendo o histórico do item por obra.";
+    medicaoEditorTitle.textContent = "Editar MediÃ§Ã£o";
+    medicaoEditorSubtitle.textContent = "Atualize as quantidades medidas mantendo o histÃ³rico do item por obra.";
     await loadMedicaoHistoryForObra(medicao.obraId);
     preencherFormularioMedicao(medicao);
     return;
   }
 
-  medicaoEditorTitle.textContent = "Nova Medição";
-  medicaoEditorSubtitle.textContent = "Reaproveite a base da última medição da obra ou leia um novo PDF do orçamento.";
+  medicaoEditorTitle.textContent = "Nova MediÃ§Ã£o";
+  medicaoEditorSubtitle.textContent = "Reaproveite a base da Ãºltima mediÃ§Ã£o da obra ou releia a planilha sintÃ©tica padrÃ£o.";
   resetMedicaoForm();
   const obraPrefill = medicaoFiltroObraSelect?.value || medicaoObraSelect?.value || "";
   if (obraPrefill && Array.from(medicaoObraSelect.options).some((option) => option.value === obraPrefill)) {
@@ -1197,146 +1181,33 @@ function buildPdfTextLines(textItems) {
     .filter(Boolean);
 }
 
-let pdfJsModulePromise;
+const ORCAMENTO_SINTETICO_TEMPLATE_HEADERS = [
+  "Item",
+  "Código",
+  "Banco",
+  "Descrição",
+  "Und",
+  "Quant.",
+  "Valor Unit",
+  "Valor Unit com BDI",
+  "Total",
+  "Peso (%)"
+];
 
-async function getPdfJsModule() {
-  if (!pdfJsModulePromise) {
-    pdfJsModulePromise = import("/vendor/pdfjs/pdf.mjs").then((module) => {
-      module.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.mjs";
-      return module;
-    });
+function getXlsxLibrary() {
+  if (!window.XLSX) {
+    throw new Error("A biblioteca de planilhas não foi carregada. Atualize a página e tente novamente.");
   }
 
-  return pdfJsModulePromise;
+  return window.XLSX;
 }
 
-function isLikelyMedicaoHeaderLine(line) {
-  const normalized = normalizeValue(line);
-  return (
-    normalized.includes("valor unit") ||
-    normalized.includes("valor total") ||
-    normalized.includes("quantidade") ||
-    normalized.includes("unid") ||
-    normalized.includes("descricao") ||
-    normalized.includes("item orc") ||
-    normalized.includes("orcamento")
-  );
-}
-
-function isLikelyMedicaoStageLine(line) {
-  const cleaned = String(line || "").trim();
-  if (!cleaned || cleaned.length > 110 || isLikelyMedicaoHeaderLine(cleaned)) {
-    return false;
-  }
-
-  const numberCount = (cleaned.match(/\d/g) || []).length;
-  if (numberCount > 6) {
-    return false;
-  }
-
-  return /^[A-Z0-9\s./-]+$/.test(cleaned) || /^(etapa|grupo|servico|servi[cç]o)/i.test(cleaned);
-}
-
-function extractStandardMedicaoPdfRowColumns(row) {
-  const columns = {
-    item: "",
-    code: "",
-    bank: "",
-    desc: "",
-    unit: "",
-    qty: "",
-    unitPrice: "",
-    unitPriceBdi: "",
-    total: "",
-    weight: "",
-    rawText: row.parts.map((part) => part.text).join(" ").replace(/\s+/g, " ").trim()
-  };
-
-  const append = (key, value) => {
-    columns[key] = columns[key] ? `${columns[key]} ${value}` : value;
-  };
-
-  row.parts.forEach((part) => {
-    if (part.x < 70) {
-      append("item", part.text);
-    } else if (part.x < 120) {
-      append("code", part.text);
-    } else if (part.x < 170) {
-      append("bank", part.text);
-    } else if (part.x < 470) {
-      append("desc", part.text);
-    } else if (part.x < 525) {
-      append("unit", part.text);
-    } else if (part.x < 580) {
-      append("qty", part.text);
-    } else if (part.x < 640) {
-      append("unitPrice", part.text);
-    } else if (part.x < 700) {
-      append("unitPriceBdi", part.text);
-    } else if (part.x < 760) {
-      append("total", part.text);
-    } else {
-      append("weight", part.text);
-    }
-  });
-
-  return columns;
-}
-
-function isStandardMedicaoHeaderRow(columns) {
-  const normalized = normalizeValue(columns.rawText);
-  return (
-    normalized.includes("item") &&
-    normalized.includes("codigo") &&
-    normalized.includes("banco") &&
-    normalized.includes("descricao") &&
-    normalized.includes("quant") &&
-    normalized.includes("total")
-  );
+function normalizeSpreadsheetHeader(value) {
+  return normalizeValue(value).replace(/[^a-z0-9%]+/g, "");
 }
 
 function isStandardMedicaoNumericCode(value) {
   return /^\d+(?:\.\d+)*$/.test(String(value || "").trim());
-}
-
-function isStandardMedicaoItemRow(columns) {
-  return (
-    isStandardMedicaoNumericCode(columns.item) &&
-    Boolean(String(columns.code || "").trim()) &&
-    Boolean(String(columns.bank || "").trim()) &&
-    Boolean(String(columns.desc || "").trim()) &&
-    Boolean(String(columns.unit || "").trim()) &&
-    /\d/.test(String(columns.qty || "")) &&
-    (/\d/.test(String(columns.unitPriceBdi || "")) || /\d/.test(String(columns.unitPrice || ""))) &&
-    /\d/.test(String(columns.total || ""))
-  );
-}
-
-function isStandardMedicaoStageRow(columns) {
-  return (
-    isStandardMedicaoNumericCode(columns.item) &&
-    !String(columns.code || "").trim() &&
-    !String(columns.bank || "").trim() &&
-    Boolean(String(columns.desc || "").trim()) &&
-    !String(columns.unit || "").trim() &&
-    /\d/.test(String(columns.total || "")) &&
-    !/peso|valor unit|quant/i.test(String(columns.rawText || ""))
-  );
-}
-
-function isStandardMedicaoDescriptionContinuationRow(columns) {
-  return (
-    Boolean(String(columns.desc || "").trim()) &&
-    !String(columns.item || "").trim() &&
-    !String(columns.code || "").trim() &&
-    !String(columns.bank || "").trim() &&
-    !String(columns.unit || "").trim() &&
-    !String(columns.qty || "").trim() &&
-    !String(columns.unitPrice || "").trim() &&
-    !String(columns.unitPriceBdi || "").trim() &&
-    !String(columns.total || "").trim() &&
-    !String(columns.weight || "").trim()
-  );
 }
 
 function getStandardMedicaoHierarchyLevel(code) {
@@ -1387,363 +1258,180 @@ function finalizeStandardMedicaoItem(items, item) {
   }
 }
 
-function parseStandardMedicaoItemsFromRows(rows) {
+function findOrcamentoSinteticoHeaderIndexes(rows) {
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+    const row = Array.isArray(rows[rowIndex]) ? rows[rowIndex] : [];
+    const indexes = {};
+
+    row.forEach((cell, cellIndex) => {
+      const normalized = normalizeSpreadsheetHeader(cell);
+      if (normalized === "item") {
+        indexes.item = cellIndex;
+      } else if (normalized === "codigo") {
+        indexes.codigo = cellIndex;
+      } else if (normalized === "banco") {
+        indexes.banco = cellIndex;
+      } else if (normalized === "descricao") {
+        indexes.descricao = cellIndex;
+      } else if (normalized === "und" || normalized === "unid" || normalized === "unidade") {
+        indexes.unidade = cellIndex;
+      } else if (normalized.startsWith("quant")) {
+        indexes.quantidade = cellIndex;
+      } else if (normalized === "valorunit") {
+        indexes.valorUnit = cellIndex;
+      } else if (normalized === "valorunitcombdi") {
+        indexes.valorUnitBdi = cellIndex;
+      } else if (normalized === "total") {
+        indexes.total = cellIndex;
+      } else if (normalized.startsWith("peso")) {
+        indexes.peso = cellIndex;
+      }
+    });
+
+    if (
+      Number.isInteger(indexes.item) &&
+      Number.isInteger(indexes.codigo) &&
+      Number.isInteger(indexes.banco) &&
+      Number.isInteger(indexes.descricao) &&
+      Number.isInteger(indexes.unidade) &&
+      Number.isInteger(indexes.quantidade) &&
+      Number.isInteger(indexes.valorUnitBdi) &&
+      Number.isInteger(indexes.total)
+    ) {
+      return {
+        headerRowIndex: rowIndex,
+        indexes
+      };
+    }
+  }
+
+  return null;
+}
+
+function readSpreadsheetCell(row, index) {
+  if (!Array.isArray(row) || !Number.isInteger(index)) {
+    return "";
+  }
+
+  return String(row[index] ?? "").trim();
+}
+
+function isEmptySpreadsheetRow(row) {
+  return !Array.isArray(row) || row.every((cell) => String(cell ?? "").trim() === "");
+}
+
+function parseStandardMedicaoItemsFromSpreadsheetRows(rows) {
+  const headerInfo = findOrcamentoSinteticoHeaderIndexes(rows);
+  if (!headerInfo) {
+    return [];
+  }
+
+  const { headerRowIndex, indexes } = headerInfo;
   const items = [];
   const stageTrail = [];
   let currentItem = null;
-  let sawHeader = false;
 
-  rows.forEach((row) => {
-    const columns = extractStandardMedicaoPdfRowColumns(row);
-    if (!columns.rawText) {
-      return;
+  for (let rowIndex = headerRowIndex + 1; rowIndex < rows.length; rowIndex += 1) {
+    const row = rows[rowIndex];
+    if (isEmptySpreadsheetRow(row)) {
+      continue;
     }
 
-    if (!sawHeader) {
-      if (isStandardMedicaoHeaderRow(columns)) {
-        sawHeader = true;
-      }
-      return;
-    }
+    const columns = {
+      item: readSpreadsheetCell(row, indexes.item),
+      code: readSpreadsheetCell(row, indexes.codigo),
+      bank: readSpreadsheetCell(row, indexes.banco),
+      desc: readSpreadsheetCell(row, indexes.descricao),
+      unit: readSpreadsheetCell(row, indexes.unidade),
+      qty: readSpreadsheetCell(row, indexes.quantidade),
+      unitPrice: readSpreadsheetCell(row, indexes.valorUnit),
+      unitPriceBdi: readSpreadsheetCell(row, indexes.valorUnitBdi),
+      total: readSpreadsheetCell(row, indexes.total),
+      weight: readSpreadsheetCell(row, indexes.peso)
+    };
 
-    if (isStandardMedicaoHeaderRow(columns)) {
-      return;
-    }
+    const hasItemCode = isStandardMedicaoNumericCode(columns.item);
+    const hasCodeBank = Boolean(columns.code && columns.bank);
+    const hasDescription = Boolean(columns.desc);
+    const hasUnit = Boolean(columns.unit);
+    const hasQty = Boolean(columns.qty);
+    const hasBdiValue = Boolean(columns.unitPriceBdi || columns.unitPrice);
+    const hasTotal = Boolean(columns.total);
 
-    if (isStandardMedicaoStageRow(columns)) {
+    if (hasItemCode && !hasCodeBank && hasDescription && !hasUnit && hasTotal) {
       finalizeStandardMedicaoItem(items, currentItem);
       currentItem = null;
-      updateStandardMedicaoStageTrail(stageTrail, columns.item, String(columns.desc || "").trim());
-      return;
+      updateStandardMedicaoStageTrail(stageTrail, columns.item, columns.desc);
+      continue;
     }
 
-    if (isStandardMedicaoItemRow(columns)) {
+    if (hasItemCode && hasCodeBank && hasDescription && hasUnit && hasQty && hasBdiValue && hasTotal) {
       finalizeStandardMedicaoItem(items, currentItem);
       currentItem = {
-        codigo: String(columns.item || "").trim(),
+        codigo: columns.item,
         etapa: buildStandardMedicaoStagePath(stageTrail, columns.item),
-        descricao: String(columns.desc || "").trim(),
-        unidade: String(columns.unit || "").trim(),
+        descricao: columns.desc,
+        unidade: columns.unit,
         quantidadeTotal: parseLocaleNumber(columns.qty),
         valorUnitario: parseLocaleNumber(columns.unitPriceBdi) || parseLocaleNumber(columns.unitPrice),
         valorTotal: parseLocaleNumber(columns.total)
       };
-      return;
+      continue;
     }
 
-    if (currentItem && isStandardMedicaoDescriptionContinuationRow(columns)) {
-      currentItem.descricao = `${currentItem.descricao} ${String(columns.desc || "").trim()}`.replace(/\s+/g, " ").trim();
+    if (currentItem && !columns.item && !columns.code && !columns.bank && hasDescription) {
+      currentItem.descricao = `${currentItem.descricao} ${columns.desc}`.replace(/\s+/g, " ").trim();
     }
-  });
+  }
 
   finalizeStandardMedicaoItem(items, currentItem);
   return items;
 }
 
-function extractMedicaoPdfRowColumns(row) {
-  const columns = {
-    left: "",
-    code: "",
-    bank: "",
-    desc: "",
-    itemType: "",
-    unit: "",
-    qty: "",
-    unitPrice: "",
-    total: "",
-    rawText: row.parts.map((part) => part.text).join(" ").replace(/\s+/g, " ").trim()
-  };
-
-  const append = (key, value) => {
-    columns[key] = columns[key] ? `${columns[key]} ${value}` : value;
-  };
-
-  row.parts.forEach((part) => {
-    if (part.x < 90) {
-      append("left", part.text);
-    } else if (part.x < 133) {
-      append("code", part.text);
-    } else if (part.x < 180) {
-      append("bank", part.text);
-    } else if (part.x < 585) {
-      if (part.x < 449) {
-        append("desc", part.text);
-      } else {
-        append("itemType", part.text);
-      }
-    } else if (part.x < 635) {
-      append("unit", part.text);
-    } else if (part.x < 674) {
-      append("qty", part.text);
-    } else if (part.x < 732) {
-      append("unitPrice", part.text);
-    } else {
-      append("total", part.text);
-    }
-  });
-
-  return columns;
+function buildOrcamentoSinteticoTemplateWorkbook() {
+  const XLSX = getXlsxLibrary();
+  const worksheetRows = [
+    ORCAMENTO_SINTETICO_TEMPLATE_HEADERS,
+    ["1", "", "", "SERVIÇOS PRELIMINARES", "", "1", "", "451872,55", "451872,55", "8,69"],
+    ["1.1", "103689", "SINAPI", "FORNECIMENTO E INSTALAÇÃO DE PLACA DE OBRA COM CHAPA GALVANIZADA E ESTRUTURA DE MADEIRA. AF_03/2022_PS", "m²", "6,48", "405,25", "506,56", "3282,50", "0,06"]
+  ];
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Orcamento Sintetico");
+  return workbook;
 }
 
-function isMedicaoStageRow(columns) {
-  return /^\d+$/.test(columns.left || "") && Boolean(columns.desc) && /\d/.test(columns.total || "") && !/c[oó]digo/i.test(columns.rawText);
+function downloadOrcamentoSinteticoTemplate() {
+  const XLSX = getXlsxLibrary();
+  const workbook = buildOrcamentoSinteticoTemplateWorkbook();
+  XLSX.writeFile(workbook, "modelo_orcamento_sintetico.xls", { bookType: "xls" });
 }
 
-function isMedicaoItemHeaderRow(columns) {
-  return (
-    /^\d+\.\d+$/.test(columns.left || "") &&
-    /descri/i.test(columns.rawText) &&
-    /(valor unit|quant\.)/i.test(columns.rawText) &&
-    /(und|unid)/i.test(columns.rawText)
-  );
-}
-
-function isMedicaoPrimaryDataRow(columns) {
-  return Boolean(columns.code && columns.bank && columns.desc && columns.unit) && /\d/.test(columns.qty || "") && /\d/.test(columns.total || "");
-}
-
-function isMedicaoDescriptionContinuationRow(columns) {
-  return Boolean(columns.desc) && !columns.left && !columns.code && !columns.bank && !columns.unit && !columns.qty && !columns.unitPrice && !columns.total;
-}
-
-function parseLastNumericToken(text) {
-  const matches = String(text || "").match(/\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:,\d+)?/g);
-  if (!matches || !matches.length) {
-    return 0;
-  }
-
-  return parseLocaleNumber(matches[matches.length - 1]);
-}
-
-function finalizeMedicaoStructuredItem(items, item) {
-  if (!item?.descricao || !item?.unidade) {
-    return;
-  }
-
-  const quantidadeTotal = Number(item.quantidadeTotal || 0);
-  const valorUnitario = Number(item.valorUnitario || 0);
-  const valorTotal = Number(item.valorTotal || 0);
-  const normalized = normalizeMedicaoItem({
-    codigo: item.codigo || "",
-    etapa: item.etapa || "",
-    descricao: item.descricao,
-    unidade: item.unidade,
-    quantidadeTotal,
-    valorUnitario: valorUnitario || (quantidadeTotal > 0 && valorTotal > 0 ? valorTotal / quantidadeTotal : 0),
-    valorTotal: valorTotal || (quantidadeTotal * valorUnitario),
-    quantidadeMedida: 0
-  });
-
-  if (normalized) {
-    items.push({
-      ...normalized,
-      id: createClientId("medicao-item")
-    });
-  }
-}
-
-function parseStructuredMedicaoItemsFromRows(rows) {
-  const items = [];
-  let currentStage = "";
-  let currentItem = null;
-
-  rows.forEach((row) => {
-    const columns = extractMedicaoPdfRowColumns(row);
-    const normalizedText = normalizeValue(columns.rawText);
-
-    if (!normalizedText) {
-      return;
-    }
-
-    if (isMedicaoStageRow(columns)) {
-      finalizeMedicaoStructuredItem(items, currentItem);
-      currentItem = null;
-      currentStage = `${columns.left} - ${columns.desc}`.trim();
-      return;
-    }
-
-    if (isMedicaoItemHeaderRow(columns)) {
-      finalizeMedicaoStructuredItem(items, currentItem);
-      currentItem = {
-        codigo: String(columns.left || "").trim(),
-        etapa: currentStage,
-        descricao: "",
-        unidade: "",
-        quantidadeTotal: 0,
-        valorUnitario: 0,
-        valorTotal: 0,
-        primaryCaptured: false,
-        captureDescription: false
-      };
-      return;
-    }
-
-    if (!currentItem) {
-      return;
-    }
-
-    if (isMedicaoPrimaryDataRow(columns) && !currentItem.primaryCaptured) {
-      currentItem.primaryCaptured = true;
-      currentItem.captureDescription = true;
-      currentItem.descricao = columns.desc;
-      currentItem.unidade = columns.unit;
-      return;
-    }
-
-    if (currentItem.captureDescription && isMedicaoDescriptionContinuationRow(columns)) {
-      currentItem.descricao = `${currentItem.descricao} ${columns.desc}`.replace(/\s+/g, " ").trim();
-      return;
-    }
-
-    currentItem.captureDescription = false;
-
-    if (/valor (do|com) bdi/i.test(normalizedText)) {
-      const unitValue = parseLocaleNumber(columns.total) || parseLastNumericToken(columns.rawText);
-      if (unitValue > 0) {
-        currentItem.valorUnitario = unitValue;
-      }
-      return;
-    }
-
-    if (/quant/i.test(columns.unit || columns.rawText) && /total/i.test(columns.unitPrice || columns.rawText)) {
-      const quantidadeTotal = parseLocaleNumber(columns.qty) || parseLastNumericToken(columns.unit);
-      const valorTotal = parseLocaleNumber(columns.total);
-      if (quantidadeTotal > 0) {
-        currentItem.quantidadeTotal = quantidadeTotal;
-      }
-      if (valorTotal > 0) {
-        currentItem.valorTotal = valorTotal;
-      }
-      return;
-    }
-  });
-
-  finalizeMedicaoStructuredItem(items, currentItem);
-  return items;
-}
-
-function parseMedicaoBudgetLine(line, etapaAtual = "", pendingPrefix = "") {
-  const cleaned = String(line || "")
-    .replace(/\s+/g, " ")
-    .replace(/R\$/gi, "")
-    .trim();
-  if (!cleaned || isLikelyMedicaoHeaderLine(cleaned)) {
-    return null;
-  }
-
-  const numberPattern = String.raw`(?:\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:,\d+)?)`;
-  const pattern = new RegExp(`^(.*?)(?:\\s+([A-Za-zÀ-ÿ0-9%°ºª./-]{1,12}))\\s+(${numberPattern})\\s+(${numberPattern})\\s+(${numberPattern})$`);
-  const match = cleaned.match(pattern);
-  if (!match) {
-    return null;
-  }
-
-  const leftPart = [pendingPrefix, match[1]].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-  const unidade = String(match[2] || "").trim();
-  const quantidadeTotal = parseLocaleNumber(match[3]);
-  const valorUnitario = parseLocaleNumber(match[4]);
-  const valorTotal = parseLocaleNumber(match[5]);
-
-  if (!leftPart || !unidade) {
-    return null;
-  }
-
-  let codigo = "";
-  let descricao = leftPart;
-  const codeMatch = leftPart.match(/^([A-Za-z0-9]+(?:[./-][A-Za-z0-9]+)*)\s+(.*)$/);
-  if (codeMatch && codeMatch[2]) {
-    codigo = codeMatch[1];
-    descricao = codeMatch[2].trim();
-  }
-
-  if (!descricao) {
-    return null;
-  }
-
-  return normalizeMedicaoItem({
-    codigo,
-    etapa: etapaAtual,
-    descricao,
-    unidade,
-    quantidadeTotal,
-    valorUnitario,
-    valorTotal,
-    quantidadeMedida: 0
-  });
-}
-
-function parseMedicaoItemsFromPdfLines(lines) {
-  const items = [];
-  let etapaAtual = "";
-  let pendingPrefix = "";
-
-  lines.forEach((line) => {
-    const cleaned = String(line || "").replace(/\s+/g, " ").trim();
-    if (!cleaned) {
-      return;
-    }
-
-    if (isLikelyMedicaoStageLine(cleaned)) {
-      etapaAtual = cleaned;
-      pendingPrefix = "";
-      return;
-    }
-
-    const parsed = parseMedicaoBudgetLine(cleaned, etapaAtual, pendingPrefix);
-    if (parsed) {
-      items.push(parsed);
-      pendingPrefix = "";
-      return;
-    }
-
-    if (!isLikelyMedicaoHeaderLine(cleaned) && cleaned.length <= 140) {
-      pendingPrefix = [pendingPrefix, cleaned].filter(Boolean).join(" ").trim();
-    }
-  });
-
-  return items.map((item, index) => ({
-    ...item,
-    id: createClientId(`medicao-item-${index + 1}`)
-  }));
-}
-
-async function importMedicaoPdf(file) {
-  const pdfjs = await getPdfJsModule();
+async function importMedicaoPlanilha(file) {
+  const XLSX = getXlsxLibrary();
   const data = await file.arrayBuffer();
-  const pdf = await pdfjs.getDocument({ data }).promise;
-  const lines = [];
-  const rows = [];
-
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-    const page = await pdf.getPage(pageNumber);
-    const textContent = await page.getTextContent();
-    const pageRows = buildPdfRows(textContent.items || []);
-    rows.push(...pageRows);
-    lines.push(...pageRows.map((row) => row.parts.map((part) => part.text).join(" ").replace(/\s+/g, " ").trim()).filter(Boolean));
+  const workbook = XLSX.read(data, { type: "array" });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) {
+    throw new Error("A planilha selecionada nao possui abas legiveis.");
   }
 
-  const standardItems = parseStandardMedicaoItemsFromRows(rows);
-  const structuredItems = standardItems.length ? [] : parseStructuredMedicaoItemsFromRows(rows);
-  const parsedItems = standardItems.length
-    ? standardItems
-    : (structuredItems.length ? structuredItems : parseMedicaoItemsFromPdfLines(lines));
+  const sheet = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
+    defval: "",
+    raw: false,
+    blankrows: false
+  });
+
+  const parsedItems = parseStandardMedicaoItemsFromSpreadsheetRows(rows);
   if (!parsedItems.length) {
-    throw new Error(
-      `Nao foi possivel identificar itens no PDF. Confirme se o arquivo possui texto selecionavel e tabela de orcamento.${
-        isLikelyAnaliticoPdfFileName(file.name)
-          ? " O arquivo selecionado parece ser o orcamento analitico; a leitura local foi preparada para o PDF padrao/sintetico."
-          : ""
-      }`
-    );
+    throw new Error("Nao foi possivel identificar itens na planilha. Use o modelo padrao do orcamento sintetico.");
   }
 
-  setMedicaoPdfDraft({ name: file.name, source: "importado" });
+  setMedicaoBaseDraft({ name: file.name, source: "importado" });
   setMedicaoDraftItems(mergeMedicaoMeasuredValues(parsedItems));
-  formatMedicaoPdfStatus(
-    `${parsedItems.length} itens lidos do PDF ${file.name}.${
-      standardItems.length ? " Leitura pelo layout padrao de colunas." : ""
-    } Revise as quantidades medidas antes de salvar.`
-  );
+  formatMedicaoBaseStatus(`${parsedItems.length} itens lidos da planilha ${file.name}. Revise as quantidades medidas antes de salvar.`);
 }
 
 function populateRdoAutocomplete() {
@@ -2184,6 +1872,11 @@ async function handleObraArquivoFileInput(input, type) {
   }
 
   try {
+    const extensaoValida = /\.xlsx?$/i.test(file.name || "");
+    if (type === "orcamentoSintetico" && !extensaoValida) {
+      throw new Error("Use apenas a planilha sintética em formato XLS ou XLSX.");
+    }
+
     const dataUrl = await readFileAsDataUrl(file);
     setObraArquivoDraft(type, {
       name: file.name,
@@ -2291,8 +1984,8 @@ function refreshCompraAutocomplete() {
 function populateRelatorioCategorias() {
   const categorias = buildUniqueValues([
     ...getCompras().map((compra) => getCategoriaLancamentoDisplay(compra.categoria)),
-    ...getPagamentosMaoDeObra().map(() => "Mão de Obra"),
-    "Mão de Obra"
+    ...getPagamentosMaoDeObra().map(() => "MÃ£o de Obra"),
+    "MÃ£o de Obra"
   ]);
   const selectedValues = new Set(Array.from(relatorioCategoriasSelect.selectedOptions).map((option) => option.value));
 
@@ -2454,16 +2147,12 @@ function resetObraForm() {
   if (obraOrcamentoSinteticoInput) {
     obraOrcamentoSinteticoInput.value = "";
   }
-  if (obraOrcamentoAnaliticoInput) {
-    obraOrcamentoAnaliticoInput.value = "";
-  }
   state.obraLogoDrafts = {
     contratante: "",
     contratada: ""
   };
   state.obraArquivoDrafts = {
-    orcamentoSintetico: null,
-    orcamentoAnalitico: null
+    orcamentoSintetico: null
   };
   renderObraLogoPreviews();
   renderObraArquivoPreviews();
@@ -2480,7 +2169,7 @@ function openObraEditor(obra = null) {
 
   if (obra) {
     obraEditorTitle.textContent = "Editar Obra";
-    obraEditorSubtitle.textContent = "Atualize os dados da obra e, se necessário, finalize a entrega.";
+    obraEditorSubtitle.textContent = "Atualize os dados da obra e, se necessÃ¡rio, finalize a entrega.";
     preencherFormularioObra(obra);
     finalizacaoPanel.classList.remove("hidden");
     finalizacaoObraSelect.value = obra.id;
@@ -2574,7 +2263,7 @@ function preencherFormularioObra(obra) {
   };
   state.obraArquivoDrafts = {
     orcamentoSintetico: normalizeObraArquivoDraft(obra.orcamentoSinteticoArquivo),
-    orcamentoAnalitico: normalizeObraArquivoDraft(obra.orcamentoAnaliticoArquivo)
+    
   };
   if (obraContratanteLogoInput) {
     obraContratanteLogoInput.value = "";
@@ -2584,9 +2273,6 @@ function preencherFormularioObra(obra) {
   }
   if (obraOrcamentoSinteticoInput) {
     obraOrcamentoSinteticoInput.value = "";
-  }
-  if (obraOrcamentoAnaliticoInput) {
-    obraOrcamentoAnaliticoInput.value = "";
   }
   renderObraLogoPreviews();
   renderObraArquivoPreviews();
@@ -2646,8 +2332,8 @@ function openSenhaPanel(usuario) {
   senhaTargetUserIdInput.value = usuario.id;
   senhaPanelTitle.textContent = isOwnUser ? "Trocar minha Senha" : `Trocar senha de ${usuario.name}`;
   senhaPanelSubtitle.textContent = exigeSenhaAtual
-    ? "Confirme a senha atual para concluir a alteração."
-    : "Como gerente, você pode definir uma nova senha para este usuário.";
+    ? "Confirme a senha atual para concluir a alteraÃ§Ã£o."
+    : "Como gerente, vocÃª pode definir uma nova senha para este usuÃ¡rio.";
   senhaAtualGroup.classList.toggle("hidden", !exigeSenhaAtual);
   document.getElementById("senhaAtual").required = exigeSenhaAtual;
   senhaPanel.classList.remove("hidden");
@@ -2718,8 +2404,8 @@ function renderUsuarios() {
 function formatAuditAction(action) {
   return {
     cadastro: "Cadastro",
-    edicao: "Edição",
-    exclusao: "Exclusão"
+    edicao: "EdiÃ§Ã£o",
+    exclusao: "ExclusÃ£o"
   }[action] || action || "-";
 }
 
@@ -2727,10 +2413,10 @@ function formatAuditEntityType(entityType) {
   return {
     obra: "Obra",
     compra: "Compra",
-    medicao: "Medição",
-    mao_de_obra: "Mão de Obra",
+    medicao: "MediÃ§Ã£o",
+    mao_de_obra: "MÃ£o de Obra",
     rdo: "RDO",
-    usuario: "Usuário"
+    usuario: "UsuÃ¡rio"
   }[entityType] || entityType || "-";
 }
 
@@ -2746,7 +2432,7 @@ function renderAuditLogs() {
 
   const logs = getAuditLogs();
   if (!logs.length) {
-    auditLogsTableBody.innerHTML = `<tr><td colspan="5" class="empty">Nenhum log de auditoria disponível.</td></tr>`;
+    auditLogsTableBody.innerHTML = `<tr><td colspan="5" class="empty">Nenhum log de auditoria disponÃ­vel.</td></tr>`;
     return;
   }
 
@@ -2847,7 +2533,7 @@ function renderDashboard() {
         <p class="metric-value">${compras.length}</p>
       </article>
       <article class="metric-card">
-        <p class="metric-title">Mão de obra lançada</p>
+        <p class="metric-title">MÃ£o de obra lanÃ§ada</p>
         <p class="metric-value">${pagamentosMaoDeObra.length}</p>
       </article>
       <article class="metric-card">
@@ -3022,7 +2708,7 @@ function renderMaoDeObra() {
   const obraMap = buildObraNameMap(getObras());
 
   if (!pagamentos.length) {
-    maoDeObraTableBody.innerHTML = `<tr><td colspan="6" class="empty">Nenhum pagamento de mão de obra lançado.</td></tr>`;
+    maoDeObraTableBody.innerHTML = `<tr><td colspan="6" class="empty">Nenhum pagamento de mÃ£o de obra lanÃ§ado.</td></tr>`;
     return;
   }
 
@@ -3558,7 +3244,7 @@ function filtrarLancamentosParaRelatorio() {
 function montarCabecalhoRelatorio(lancamentosFiltrados) {
   const obras = getObras();
   const obraSelecionada = obras.find((obra) => obra.id === relatorioObraSelect.value) || null;
-  const tipo = relatorioTipoSelect.value === "mensal" ? "Totais em intervalos mensais" : "Por descrição";
+  const tipo = relatorioTipoSelect.value === "mensal" ? "Totais em intervalos mensais" : "Por descriÃ§Ã£o";
   const categoriasSelecionadas = getSelectedRelatorioCategorias();
   const meta = [
     `<span><strong>Tipo:</strong> ${tipo}</span>`,
@@ -3664,7 +3350,7 @@ function renderRelatorioPorDescricao(lancamentosFiltrados) {
       `
         )
         .join("")
-    : `<tr><td colspan="${relatorioObraSelect.value ? (usarCurvaAbc ? 7 : 5) : (usarCurvaAbc ? 8 : 6)}" class="empty">Nenhum lançamento encontrado para os filtros selecionados.</td></tr>`;
+    : `<tr><td colspan="${relatorioObraSelect.value ? (usarCurvaAbc ? 7 : 5) : (usarCurvaAbc ? 8 : 6)}" class="empty">Nenhum lanÃ§amento encontrado para os filtros selecionados.</td></tr>`;
 }
 
 function renderRelatorioMensal(lancamentosFiltrados) {
@@ -3695,7 +3381,7 @@ function renderRelatorioMensal(lancamentosFiltrados) {
   relatorioTableHead.innerHTML = `
     <tr>
       <th>Mes</th>
-      <th>Quantidade de lançamentos</th>
+      <th>Quantidade de lanÃ§amentos</th>
       <th>Total do mes</th>
     </tr>
   `;
@@ -3712,7 +3398,7 @@ function renderRelatorioMensal(lancamentosFiltrados) {
       `
         )
         .join("")
-    : `<tr><td colspan="3" class="empty">Nenhum lançamento encontrado para os filtros selecionados.</td></tr>`;
+    : `<tr><td colspan="3" class="empty">Nenhum lanÃ§amento encontrado para os filtros selecionados.</td></tr>`;
 }
 
 function renderRelatorios() {
@@ -3860,12 +3546,6 @@ if (obraOrcamentoSinteticoInput) {
   });
 }
 
-if (obraOrcamentoAnaliticoInput) {
-  obraOrcamentoAnaliticoInput.addEventListener("change", () => {
-    handleObraArquivoFileInput(obraOrcamentoAnaliticoInput, "orcamentoAnalitico");
-  });
-}
-
 [obraContratanteLogoPreview, obraContratadaLogoPreview].forEach((container) => {
   if (!container) {
     return;
@@ -3881,7 +3561,7 @@ if (obraOrcamentoAnaliticoInput) {
   });
 });
 
-[obraOrcamentoSinteticoPreview, obraOrcamentoAnaliticoPreview].forEach((container) => {
+[obraOrcamentoSinteticoPreview].forEach((container) => {
   if (!container) {
     return;
   }
@@ -3895,6 +3575,16 @@ if (obraOrcamentoAnaliticoInput) {
     setObraArquivoDraft(clearButton.getAttribute("data-obra-arquivo-clear"), null);
   });
 });
+
+if (obraOrcamentoTemplateBtn) {
+  obraOrcamentoTemplateBtn.addEventListener("click", () => {
+    try {
+      downloadOrcamentoSinteticoTemplate();
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+}
 
 obraForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -3916,7 +3606,7 @@ obraForm.addEventListener("submit", async (event) => {
         contratadaNome: obraContratadaNomeInput.value.trim(),
         contratadaLogo: state.obraLogoDrafts.contratada || "",
         orcamentoSinteticoArquivo: state.obraArquivoDrafts.orcamentoSintetico,
-        orcamentoAnaliticoArquivo: state.obraArquivoDrafts.orcamentoAnalitico
+        
       };
 
     await apiFetch(obraId ? `/api/obras/${obraId}` : "/api/obras", {
@@ -4024,7 +3714,7 @@ if (medicaoObraSelect) {
     if (medicaoId) {
       const originalObraId = medicaoForm?.dataset.originalObraId || "";
       if (originalObraId && medicaoObraSelect.value !== originalObraId) {
-        const confirmed = confirm("Ao trocar a obra, a base de itens da medição será recarregada a partir do histórico da nova obra. Deseja continuar?");
+        const confirmed = confirm("Ao trocar a obra, a base de itens da mediÃ§Ã£o serÃ¡ recarregada a partir do histÃ³rico da nova obra. Deseja continuar?");
         if (!confirmed) {
           medicaoObraSelect.value = originalObraId;
           return;
@@ -4032,7 +3722,7 @@ if (medicaoObraSelect) {
 
         medicaoEditIdInput.value = "";
         medicaoForm.dataset.originalObraId = "";
-        medicaoSubmitBtn.textContent = "Salvar Medição";
+        medicaoSubmitBtn.textContent = "Salvar MediÃ§Ã£o";
         medicaoCancelEditBtn.classList.add("hidden");
         medicaoReferenciaInput.value = "";
         try {
@@ -4060,57 +3750,35 @@ if (medicaoObraSelect) {
   });
 }
 
-if (medicaoImportPdfBtn) {
-  medicaoImportPdfBtn.addEventListener("click", async () => {
-    const arquivo = medicaoPdfInput?.files?.[0];
-    if (!arquivo) {
-      alert("Selecione primeiro o PDF do orcamento para leitura.");
-      return;
-    }
-
-    medicaoImportPdfBtn.disabled = true;
-    formatMedicaoPdfStatus(`Lendo ${arquivo.name}...`);
-
-    try {
-      await importMedicaoPdf(arquivo);
-    } catch (error) {
-      formatMedicaoPdfStatus("Falha na leitura do PDF.");
-      alert(error.message);
-    } finally {
-      medicaoImportPdfBtn.disabled = false;
-    }
-  });
-}
-
-if (medicaoUseObraPdfBtn) {
-  medicaoUseObraPdfBtn.addEventListener("click", async () => {
+if (medicaoUseObraPlanilhaBtn) {
+  medicaoUseObraPlanilhaBtn.addEventListener("click", async () => {
     const obra = getObraById(medicaoObraSelect?.value || "");
-    const arquivoObra = getObraMedicaoPdfPadrao(obra);
+    const arquivoObra = getObraMedicaoBaseArquivo(obra);
     if (!obra) {
-      alert("Selecione uma obra antes de carregar o PDF.");
+      alert("Selecione uma obra antes de carregar a planilha sintética.");
       return;
     }
 
     if (!arquivoObra) {
-      alert("Esta obra nao possui PDF de orcamento cadastrado.");
+      alert("Esta obra não possui planilha sintética cadastrada.");
       return;
     }
 
-    medicaoUseObraPdfBtn.disabled = true;
-    formatMedicaoPdfStatus(`Lendo o PDF cadastrado da obra ${obra.nome}...`);
+    medicaoUseObraPlanilhaBtn.disabled = true;
+    formatMedicaoBaseStatus(`Lendo a planilha sintética cadastrada da obra ${obra.nome}...`);
 
     try {
       const file = await createFileFromStoredAttachment(arquivoObra);
       if (!file) {
-        throw new Error("Nao foi possivel abrir o PDF cadastrado da obra.");
+        throw new Error("Não foi possível abrir a planilha sintética cadastrada da obra.");
       }
 
-      await importMedicaoPdf(file);
+      await importMedicaoPlanilha(file);
     } catch (error) {
-      formatMedicaoPdfStatus("Falha na leitura do PDF cadastrado da obra.");
+      formatMedicaoBaseStatus("Falha na leitura da planilha sintética cadastrada da obra.");
       alert(error.message);
     } finally {
-      medicaoUseObraPdfBtn.disabled = false;
+      medicaoUseObraPlanilhaBtn.disabled = false;
     }
   });
 }
@@ -4162,7 +3830,7 @@ if (medicaoForm) {
 
     const items = getMedicaoDraftItems();
     if (!items.length) {
-      alert("Importe o PDF ou carregue a base da ultima medicao antes de salvar.");
+      alert("Leia a planilha sintética da obra ou carregue a base da última medição antes de salvar.");
       return;
     }
 
@@ -4174,7 +3842,7 @@ if (medicaoForm) {
           obraId,
           data: medicaoDataInput.value,
           referencia: medicaoReferenciaInput.value.trim(),
-          pdfNome: state.medicaoPdfDraft?.name || "",
+          pdfNome: state.medicaoBaseDraft?.name || "",
           items
         })
       });
@@ -4249,17 +3917,17 @@ maoDeObraForm.addEventListener("submit", async (event) => {
   const periodoFimValue = maoDeObraPeriodoFimInput.value;
   const dataPagamentoValue = maoDeObraDataPagamentoInput.value;
   if (!obraId) {
-    alert("Cadastre uma obra antes de lançar pagamentos de mão de obra.");
+    alert("Cadastre uma obra antes de lanÃ§ar pagamentos de mÃ£o de obra.");
     return;
   }
 
   if (periodoFimValue < periodoInicioValue) {
-    alert("A data final do período trabalhado não pode ser anterior à data inicial.");
+    alert("A data final do perÃ­odo trabalhado nÃ£o pode ser anterior Ã  data inicial.");
     return;
   }
 
   try {
-    if (isObraFinalizada(obraId) && !(await confirmarAutorizacaoGerente("lancamento de mão de obra em obra finalizada"))) {
+    if (isObraFinalizada(obraId) && !(await confirmarAutorizacaoGerente("lancamento de mÃ£o de obra em obra finalizada"))) {
       return;
     }
 
@@ -4618,7 +4286,7 @@ maoDeObraTableBody.addEventListener("click", async (event) => {
       return;
     }
 
-    if (isObraFinalizada(pagamento.obraId) && !(await confirmarAutorizacaoGerente("edicao de mão de obra de obra finalizada"))) {
+    if (isObraFinalizada(pagamento.obraId) && !(await confirmarAutorizacaoGerente("edicao de mÃ£o de obra de obra finalizada"))) {
       return;
     }
 
@@ -4636,7 +4304,7 @@ maoDeObraTableBody.addEventListener("click", async (event) => {
     const id = deleteButton.getAttribute("data-mao-de-obra-delete");
     const pagamento = getPagamentosMaoDeObra().find((item) => item.id === id);
     if (pagamento && isObraFinalizada(pagamento.obraId)) {
-      if (!(await confirmarAutorizacaoGerente("exclusao de mão de obra de obra finalizada"))) {
+      if (!(await confirmarAutorizacaoGerente("exclusao de mÃ£o de obra de obra finalizada"))) {
         return;
       }
     }
@@ -4880,3 +4548,4 @@ async function initializeApp() {
 
 clearLegacyBrowserData();
 initializeApp();
+
