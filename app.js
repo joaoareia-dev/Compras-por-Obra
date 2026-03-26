@@ -3043,9 +3043,9 @@ function renderRdoPhotoFigure(photo) {
     <figure class="rdo-print-photo">
       <div class="rdo-print-photo-media">
         <img src="${photo.dataUrl}" alt="${escapeHtml(photo.name)}" />
+        ${locationLabel ? `<span class="rdo-print-photo-overlay">${escapeHtml(locationLabel)}</span>` : ""}
       </div>
       <figcaption>
-        ${locationLabel ? `<strong class="rdo-print-photo-location">${escapeHtml(locationLabel)}</strong>` : ""}
         ${photo.comentario ? `<span>${escapeHtml(photo.comentario)}</span>` : ""}
       </figcaption>
     </figure>
