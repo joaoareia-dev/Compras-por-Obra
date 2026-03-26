@@ -29,7 +29,7 @@ const MOBILE_STRUCTURED_CONFIGS = {
     rowClass: "structured",
     primaryKey: "descricao",
     fields: [
-      { key: "descricao", type: "text", placeholder: "DescriÃ§Ã£o do serviÃ§o" },
+      { key: "descricao", type: "text", placeholder: "Descrição do serviço" },
       { key: "unidade", type: "text", placeholder: "Unidade" },
       { key: "quantidade", type: "number", placeholder: "Qtd.", min: "0", step: "0.001", inputMode: "decimal" }
     ]
@@ -41,7 +41,7 @@ const MOBILE_STRUCTURED_CONFIGS = {
     autocompleteKind: "materiais",
     autoFillFieldKey: "unidade",
     fields: [
-      { key: "descricao", type: "text", placeholder: "DescriÃ§Ã£o do material" },
+      { key: "descricao", type: "text", placeholder: "Descrição do material" },
       { key: "unidade", type: "text", placeholder: "Unidade" },
       { key: "quantidade", type: "number", placeholder: "Qtd.", min: "0", step: "0.001", inputMode: "decimal" }
     ]
@@ -114,7 +114,7 @@ async function apiFetch(path, options = {}) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const error = new Error(data.error || "Falha na comunicaÃ§Ã£o com o servidor.");
+    const error = new Error(data.error || "Falha na comunicação com o servidor.");
     error.code = data.code;
     error.status = response.status;
     throw error;
@@ -711,12 +711,12 @@ function drawPhotoGeoOverlay(context, width, height, captureMeta) {
     return;
   }
 
-  const paddingX = Math.max(16, Math.round(width * 0.02));
-  const paddingY = Math.max(14, Math.round(height * 0.018));
-  const fontSize = Math.max(24, Math.round(width * 0.022));
+  const paddingX = Math.max(24, Math.round(width * 0.026));
+  const paddingY = Math.max(20, Math.round(height * 0.024));
+  const fontSize = Math.max(36, Math.round(width * 0.032));
 
   context.save();
-  context.font = `600 ${fontSize}px Arial`;
+  context.font = `700 ${fontSize}px Arial`;
   context.textBaseline = "top";
 
   const textWidth = context.measureText(overlayText).width;
@@ -725,7 +725,7 @@ function drawPhotoGeoOverlay(context, width, height, captureMeta) {
   const boxX = Math.max(16, width - boxWidth - 18);
   const boxY = Math.max(16, height - boxHeight - 18);
 
-  context.fillStyle = "rgba(8, 24, 32, 0.72)";
+  context.fillStyle = "rgba(8, 24, 32, 0.82)";
   context.fillRect(boxX, boxY, boxWidth, boxHeight);
   context.fillStyle = "#ffffff";
   context.fillText(overlayText, boxX + paddingX, boxY + paddingY);
@@ -749,8 +749,8 @@ function renderPhotos() {
             <strong>${escapeHtml(photo.name)}</strong>
             ${getPhotoMetaLabel(photo) ? `<p class="subtitle">${escapeHtml(getPhotoMetaLabel(photo))}</p>` : ""}
             <label>
-              ComentÃ¡rio obrigatÃ³rio
-              <textarea data-photo-comment="${photo.id}" rows="4" placeholder="Descreva o que estÃ¡ sendo mostrado na foto.">${escapeHtml(photo.comentario || "")}</textarea>
+              Comentário obrigatório
+              <textarea data-photo-comment="${photo.id}" rows="4" placeholder="Descreva o que está sendo mostrado na foto.">${escapeHtml(photo.comentario || "")}</textarea>
             </label>
             <button type="button" class="btn delete" data-photo-remove="${photo.id}">Remover foto</button>
           </div>
@@ -764,7 +764,7 @@ function validateRdoPhotos() {
   const photos = getDraftPhotos();
   for (let index = 0; index < photos.length; index += 1) {
     if (!String(photos[index].comentario || "").trim()) {
-      throw new Error(`Informe o comentÃ¡rio obrigatÃ³rio da foto ${index + 1}.`);
+      throw new Error(`Informe o comentário obrigatório da foto ${index + 1}.`);
     }
   }
 }
@@ -773,7 +773,7 @@ async function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("NÃ£o foi possÃ­vel ler a foto selecionada."));
+    reader.onerror = () => reject(new Error("Não foi possível ler a foto selecionada."));
     reader.readAsDataURL(file);
   });
 }
@@ -1072,7 +1072,7 @@ function renderRdoList() {
             </div>
             <div class="mobile-rdo-meta">
               <p><strong>Fotos:</strong> ${rdo.fotosCount}</p>
-              <p><strong>ServiÃ§os:</strong> ${rdo.servicosCount}</p>
+              <p><strong>Serviços:</strong> ${rdo.servicosCount}</p>
               <p><strong>Recebidos:</strong> ${rdo.materiaisRecebidosCount}</p>
               <p><strong>Consumidos:</strong> ${rdo.materiaisConsumidosCount}</p>
             </div>
@@ -1093,13 +1093,13 @@ function promptPasswordForRdoDeletion() {
     return null;
   }
 
-  const password = window.prompt("Digite a senha do usuÃ¡rio atual para confirmar a exclusÃ£o:");
+  const password = window.prompt("Digite a senha do usuário atual para confirmar a exclusão:");
   if (password === null) {
     return null;
   }
 
   if (!password.trim()) {
-    alert("Informe a senha para concluir a exclusÃ£o.");
+    alert("Informe a senha para concluir a exclusão.");
     return null;
   }
 
@@ -1174,7 +1174,7 @@ function openRdoView(rdo) {
   const obraNome = obra?.nome || "Obra removida";
 
   viewTitle.textContent = `Visualizar RDO`;
-  viewSubtitle.textContent = `${obraNome} â€¢ ${formatDate(rdo.data)}`;
+  viewSubtitle.textContent = `${obraNome} • ${formatDate(rdo.data)}`;
   rdoViewContent.innerHTML = `
     <section class="mobile-rdo-view-card">
       <div class="mobile-rdo-view-meta">
@@ -1185,13 +1185,13 @@ function openRdoView(rdo) {
       </div>
     </section>
     ${renderPhotoViewItems(rdo.fotos || [])}
-    ${renderStructuredViewItems("MÃ£o de Obra Presente", rdo.maoDeObraPresente || [], "equipe")}
-    ${renderStructuredViewItems("ServiÃ§os Executados", rdo.servicosExecutados || [])}
+    ${renderStructuredViewItems("Mão de Obra Presente", rdo.maoDeObraPresente || [], "equipe")}
+    ${renderStructuredViewItems("Serviços Executados", rdo.servicosExecutados || [])}
     ${renderStructuredViewItems("Materiais Recebidos", rdo.materiaisRecebidos || [])}
     ${renderStructuredViewItems("Materiais Consumidos", rdo.materiaisConsumidos || [])}
     <section class="mobile-rdo-view-obs">
-      <h4>ObservaÃ§Ãµes Adicionais</h4>
-      <p>${rdo.observacoesAdicionais ? escapeMultilineText(rdo.observacoesAdicionais) : '<span class="mobile-rdo-view-empty">Nenhuma observaÃ§Ã£o adicional.</span>'}</p>
+      <h4>Observações Adicionais</h4>
+      <p>${rdo.observacoesAdicionais ? escapeMultilineText(rdo.observacoesAdicionais) : '<span class="mobile-rdo-view-empty">Nenhuma observação adicional.</span>'}</p>
     </section>
   `;
   viewPanel.classList.remove("hidden");
@@ -1200,11 +1200,11 @@ function openRdoView(rdo) {
 
 async function confirmAdminAuthorization(actionLabel) {
   if (state.user?.role !== "administrador") {
-    alert("Esta obra estÃ¡ finalizada. Apenas um administrador pode autorizar esta aÃ§Ã£o.");
+    alert("Esta obra está finalizada. Apenas um administrador pode autorizar esta ação.");
     return false;
   }
 
-  const password = window.prompt(`A obra estÃ¡ finalizada. Informe a senha de administrador para liberar ${actionLabel}:`);
+  const password = window.prompt(`A obra está finalizada. Informe a senha de administrador para liberar ${actionLabel}:`);
   if (password === null) {
     return false;
   }
@@ -1218,7 +1218,7 @@ async function confirmAdminAuthorization(actionLabel) {
   });
 
   if (!result.authorized) {
-    alert("Senha de administrador invÃ¡lida.");
+    alert("Senha de administrador inválida.");
     return false;
   }
 
@@ -1269,7 +1269,7 @@ function fillRdoForm(rdo) {
   hydrateStructuredContainer(materiaisConsumidosContainer, MOBILE_STRUCTURED_CONFIGS.materiais, rdo.materiaisConsumidos || []);
 
   editorTitle.textContent = "Editar RDO";
-  editorSubtitle.textContent = "Atualize o diÃ¡rio de obra jÃ¡ cadastrado.";
+  editorSubtitle.textContent = "Atualize o diário de obra já cadastrado.";
   saveRdoBtn.textContent = "Atualizar RDO";
   cancelEditBtn.classList.remove("hidden");
   saveRdoDraftSnapshot();
@@ -1291,7 +1291,7 @@ async function handlePhotoFiles(fileList, options = {}) {
   if (includeCoordinates) {
     captureMeta = await getCurrentCaptureCoordinates();
     if (!captureMeta) {
-      alert(`NÃƒÂ£o foi possÃƒÂ­vel acrescentar a localizaÃƒÂ§ÃƒÂ£o nesta captura. ${getLocationFailureHint()} A foto serÃƒÂ¡ adicionada sem coordenadas.`);
+      alert(`Não foi possível acrescentar a localização nesta captura. ${getLocationFailureHint()} A foto será adicionada sem coordenadas.`);
     }
   }
 
@@ -1316,7 +1316,7 @@ async function initializeApp() {
     return;
   }
 
-  welcomeText.textContent = `Conectado como ${state.user?.name || "UsuÃ¡rio"}`;
+  welcomeText.textContent = `Conectado como ${state.user?.name || "Usuário"}`;
   showApp();
   await clearServiceWorkerCaches().catch(() => null);
   await refreshServiceWorkerRegistration().catch(() => null);
@@ -1346,7 +1346,7 @@ loginForm.addEventListener("submit", async (event) => {
     await initializeApp();
   } catch (error) {
     if (error.code === "SESSION_ACTIVE") {
-      if (!confirm("Este usuÃ¡rio jÃ¡ estÃ¡ logado em outro aparelho. Deseja encerrar a outra sessÃ£o e entrar neste celular?")) {
+      if (!confirm("Este usuário já está logado em outro aparelho. Deseja encerrar a outra sessão e entrar neste celular?")) {
         return;
       }
 
@@ -1386,7 +1386,7 @@ logoutBtn.addEventListener("click", () => {
 
 newRdoBtn.addEventListener("click", () => {
   editorTitle.textContent = "Cadastrar RDO";
-  editorSubtitle.textContent = "Registre o andamento diÃ¡rio da obra direto do celular.";
+  editorSubtitle.textContent = "Registre o andamento diário da obra direto do celular.";
   resetRdoForm();
   openEditor();
   saveRdoDraftSnapshot();
@@ -1412,7 +1412,7 @@ closeViewBtn.addEventListener("click", closeView);
 
 filterBtn.addEventListener("click", () => {
   if (filtroDataInicioInput.value && filtroDataFimInput.value && filtroDataFimInput.value < filtroDataInicioInput.value) {
-    alert("A data final da busca nÃ£o pode ser anterior Ã  data inicial.");
+    alert("A data final da busca não pode ser anterior à data inicial.");
     return;
   }
 
@@ -1484,7 +1484,7 @@ rdoForm.addEventListener("submit", async (event) => {
   }
 
   try {
-    const actionLabel = rdoEditIdInput.value ? "a ediÃ§Ã£o do RDO" : "o lanÃ§amento do RDO";
+    const actionLabel = rdoEditIdInput.value ? "a edição do RDO" : "o lançamento do RDO";
     if (isObraFinalizada(rdoObraSelect.value) && !(await confirmAdminAuthorization(actionLabel))) {
       return;
     }
@@ -1533,7 +1533,7 @@ rdoList.addEventListener("click", async (event) => {
   if (editButton) {
     try {
       const rdoSummary = getRdoById(editButton.getAttribute("data-rdo-edit"));
-      if (rdoSummary && isObraFinalizada(rdoSummary.obraId) && !(await confirmAdminAuthorization("a ediÃ§Ã£o do RDO"))) {
+      if (rdoSummary && isObraFinalizada(rdoSummary.obraId) && !(await confirmAdminAuthorization("a edição do RDO"))) {
         return;
       }
 
@@ -1617,4 +1617,5 @@ window.addEventListener("focus", () => {
 });
 
 initializeApp();
+
 

@@ -243,7 +243,7 @@ h2 {
 
 .mobile-photo-card img {
   width: 108px;
-  height: 84px;
+  height: 101px;
   border-radius: 12px;
   object-fit: cover;
   border: 1px solid #d7e1ee;
@@ -360,7 +360,7 @@ h2 {
 
 .mobile-rdo-view-photo img {
   width: 100%;
-  height: 150px;
+  height: 180px;
   object-fit: cover;
   border-radius: 12px;
   border: 1px solid #d7e1ee;
@@ -399,6 +399,6 @@ h2 {
 
   .mobile-photo-card img {
     width: 100%;
-    height: 180px;
+    height: 216px;
   }
 }
