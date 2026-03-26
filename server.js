@@ -420,7 +420,10 @@ function normalizePhotoList(values, options = {}) {
         id: String(photo.id || randomId()),
         name,
         dataUrl,
-        comentario
+        comentario,
+        latitude: Number.isFinite(Number(photo.latitude)) ? Number(photo.latitude) : null,
+        longitude: Number.isFinite(Number(photo.longitude)) ? Number(photo.longitude) : null,
+        capturedAt: String(photo.capturedAt || "").trim()
       };
     })
     .filter(Boolean);

@@ -95,6 +95,10 @@ const materialOptions = document.getElementById("mobileMaterialDescricaoOptions"
 const maoDeObraCargoOptions = document.getElementById("mobileMaoDeObraCargoOptions");
 const MOBILE_UPDATE_CHECK_INTERVAL_MS = 60 * 1000;
 const MOBILE_RDO_DRAFT_STORAGE_KEY = "rdo_mobile_draft_v2";
+const mobileDateTimeFormatter = new Intl.DateTimeFormat("pt-BR", {
+  dateStyle: "short",
+  timeStyle: "short"
+});
 
 async function apiFetch(path, options = {}) {
   const response = await fetch(path, {
@@ -148,6 +152,15 @@ function formatDate(value) {
 
   const [year, month, day] = normalized.split("-");
   return `${day}/${month}/${year}`;
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return "";
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "" : mobileDateTimeFormatter.format(parsed);
 }
 
 function formatQuantity(value) {
@@ -495,11 +508,18 @@ function normalizeRdoPhoto(photo, index = 0) {
     return null;
   }
 
+  const latitude = Number(photo?.latitude);
+  const longitude = Number(photo?.longitude);
+  const capturedAt = String(photo?.capturedAt || "").trim();
+
   return {
     id: String(photo?.id || createClientId("rdo-foto")),
     name: String(photo?.name || `Foto ${index + 1}`).trim() || `Foto ${index + 1}`,
     dataUrl,
-    comentario: String(photo?.comentario || "").trim()
+    comentario: String(photo?.comentario || "").trim(),
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null,
+    capturedAt
   };
 }
 
@@ -513,6 +533,128 @@ function setDraftPhotos(photos) {
     : [];
   renderPhotos();
   saveRdoDraftSnapshot();
+}
+
+function formatGeoCoordinate(value, positiveHemisphere, negativeHemisphere) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return "";
+  }
+
+  const absValue = Math.abs(numeric).toFixed(6).replace(".", ",");
+  return `${absValue} deg ${numeric >= 0 ? positiveHemisphere : negativeHemisphere}`;
+}
+
+function getPhotoCoordinatesLabel(photo) {
+  if (!Number.isFinite(Number(photo?.latitude)) || !Number.isFinite(Number(photo?.longitude))) {
+    return "";
+  }
+
+  const latitudeLabel = formatGeoCoordinate(photo.latitude, "N", "S");
+  const longitudeLabel = formatGeoCoordinate(photo.longitude, "L", "O");
+  return [latitudeLabel, longitudeLabel].filter(Boolean).join(" | ");
+}
+
+function getPhotoMetaLabel(photo) {
+  const parts = [];
+  const coordinates = getPhotoCoordinatesLabel(photo);
+  const capturedAt = formatDateTime(photo?.capturedAt);
+  if (coordinates) {
+    parts.push(`Coordenadas: ${coordinates}`);
+  }
+  if (capturedAt) {
+    parts.push(`Captura: ${capturedAt}`);
+  }
+  return parts.join(" | ");
+}
+
+function getCapacitorGeolocationPlugin() {
+  return window.Capacitor?.Plugins?.Geolocation || null;
+}
+
+async function getCurrentCaptureCoordinates() {
+  const plugin = getCapacitorGeolocationPlugin();
+
+  if (plugin?.getCurrentPosition) {
+    try {
+      if (plugin.requestPermissions) {
+        await plugin.requestPermissions();
+      }
+
+      const position = await plugin.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      });
+
+      if (Number.isFinite(position?.coords?.latitude) && Number.isFinite(position?.coords?.longitude)) {
+        return {
+          latitude: Number(position.coords.latitude),
+          longitude: Number(position.coords.longitude),
+          capturedAt: new Date().toISOString()
+        };
+      }
+    } catch (error) {
+      // Falls back to the browser geolocation API when the native bridge is unavailable.
+    }
+  }
+
+  if (!navigator.geolocation) {
+    return null;
+  }
+
+  try {
+    const position = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (result) => resolve(result),
+        (error) => reject(error),
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0
+        }
+      );
+    });
+
+    if (Number.isFinite(position?.coords?.latitude) && Number.isFinite(position?.coords?.longitude)) {
+      return {
+        latitude: Number(position.coords.latitude),
+        longitude: Number(position.coords.longitude),
+        capturedAt: new Date().toISOString()
+      };
+    }
+  } catch (error) {
+    return null;
+  }
+
+  return null;
+}
+
+function drawPhotoGeoOverlay(context, width, height, captureMeta) {
+  const overlayText = getPhotoCoordinatesLabel(captureMeta);
+  if (!overlayText) {
+    return;
+  }
+
+  const paddingX = Math.max(16, Math.round(width * 0.02));
+  const paddingY = Math.max(14, Math.round(height * 0.018));
+  const fontSize = Math.max(24, Math.round(width * 0.022));
+
+  context.save();
+  context.font = `600 ${fontSize}px Arial`;
+  context.textBaseline = "top";
+
+  const textWidth = context.measureText(overlayText).width;
+  const boxWidth = textWidth + paddingX * 2;
+  const boxHeight = fontSize + paddingY * 2;
+  const boxX = Math.max(16, width - boxWidth - 18);
+  const boxY = Math.max(16, height - boxHeight - 18);
+
+  context.fillStyle = "rgba(8, 24, 32, 0.72)";
+  context.fillRect(boxX, boxY, boxWidth, boxHeight);
+  context.fillStyle = "#ffffff";
+  context.fillText(overlayText, boxX + paddingX, boxY + paddingY);
+  context.restore();
 }
 
 function renderPhotos() {
@@ -530,6 +672,7 @@ function renderPhotos() {
           <img src="${photo.dataUrl}" alt="${escapeHtml(photo.name)}" />
           <div class="mobile-photo-info">
             <strong>${escapeHtml(photo.name)}</strong>
+            ${getPhotoMetaLabel(photo) ? `<p class="subtitle">${escapeHtml(getPhotoMetaLabel(photo))}</p>` : ""}
             <label>
               Comentário obrigatório
               <textarea data-photo-comment="${photo.id}" rows="4" placeholder="Descreva o que está sendo mostrado na foto.">${escapeHtml(photo.comentario || "")}</textarea>
@@ -580,17 +723,26 @@ async function compressImageFile(file) {
           id: createClientId("rdo-foto"),
           name: file.name,
           dataUrl: originalDataUrl,
-          comentario: ""
+          comentario: "",
+          latitude: Number.isFinite(Number(file.captureMeta?.latitude)) ? Number(file.captureMeta.latitude) : null,
+          longitude: Number.isFinite(Number(file.captureMeta?.longitude)) ? Number(file.captureMeta.longitude) : null,
+          capturedAt: String(file.captureMeta?.capturedAt || "").trim()
         });
         return;
       }
 
       context.drawImage(image, 0, 0, width, height);
+      if (file.captureMeta) {
+        drawPhotoGeoOverlay(context, width, height, file.captureMeta);
+      }
       resolve({
         id: createClientId("rdo-foto"),
         name: file.name,
         dataUrl: canvas.toDataURL("image/jpeg", 0.82),
-        comentario: ""
+        comentario: "",
+        latitude: Number.isFinite(Number(file.captureMeta?.latitude)) ? Number(file.captureMeta.latitude) : null,
+        longitude: Number.isFinite(Number(file.captureMeta?.longitude)) ? Number(file.captureMeta.longitude) : null,
+        capturedAt: String(file.captureMeta?.capturedAt || "").trim()
       });
     };
 
@@ -599,7 +751,10 @@ async function compressImageFile(file) {
         id: createClientId("rdo-foto"),
         name: file.name,
         dataUrl: originalDataUrl,
-        comentario: ""
+        comentario: "",
+        latitude: Number.isFinite(Number(file.captureMeta?.latitude)) ? Number(file.captureMeta.latitude) : null,
+        longitude: Number.isFinite(Number(file.captureMeta?.longitude)) ? Number(file.captureMeta.longitude) : null,
+        capturedAt: String(file.captureMeta?.capturedAt || "").trim()
       });
 
     image.src = originalDataUrl;
@@ -927,6 +1082,7 @@ function renderPhotoViewItems(photos) {
             (photo, index) => `
               <figure class="mobile-rdo-view-photo">
                 <img src="${photo.dataUrl}" alt="Foto ${index + 1} do RDO" />
+                ${getPhotoMetaLabel(photo) ? `<p class="subtitle">${escapeHtml(getPhotoMetaLabel(photo))}</p>` : ""}
                 <p>${escapeMultilineText(photo.comentario || "-")}</p>
               </figure>
             `
@@ -1049,14 +1205,26 @@ async function fetchRdoDetail(rdoId) {
   return result.rdo;
 }
 
-async function handlePhotoFiles(fileList) {
+async function handlePhotoFiles(fileList, options = {}) {
   const files = Array.from(fileList || []);
   if (!files.length) {
     return;
   }
 
+  const includeCoordinates = options.source === "camera";
+  let captureMeta = null;
+  if (includeCoordinates) {
+    captureMeta = await getCurrentCaptureCoordinates();
+    if (!captureMeta) {
+      alert("NÃ£o foi possÃ­vel obter a localizaÃ§Ã£o desta captura. A foto serÃ¡ adicionada sem coordenadas.");
+    }
+  }
+
   const compressedPhotos = [];
   for (const file of files) {
+    if (captureMeta) {
+      file.captureMeta = captureMeta;
+    }
     compressedPhotos.push(await compressImageFile(file));
   }
 
@@ -1185,7 +1353,7 @@ clearFilterBtn.addEventListener("click", () => {
 
 photoCameraInput.addEventListener("change", async () => {
   try {
-    await handlePhotoFiles(photoCameraInput.files);
+    await handlePhotoFiles(photoCameraInput.files, { source: "camera" });
   } catch (error) {
     alert(error.message);
   } finally {
@@ -1195,7 +1363,7 @@ photoCameraInput.addEventListener("change", async () => {
 
 photoGalleryInput.addEventListener("change", async () => {
   try {
-    await handlePhotoFiles(photoGalleryInput.files);
+    await handlePhotoFiles(photoGalleryInput.files, { source: "gallery" });
   } catch (error) {
     alert(error.message);
   } finally {
