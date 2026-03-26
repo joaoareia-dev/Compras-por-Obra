@@ -651,12 +651,39 @@ function normalizeRdoPhoto(photo, index = 0) {
     return null;
   }
 
+  const latitude = Number(photo?.latitude);
+  const longitude = Number(photo?.longitude);
+  const capturedAt = String(photo?.capturedAt || "").trim();
+
   return {
     id: String(photo?.id || createClientId("rdo-foto")),
     name: String(photo?.name || `Foto ${index + 1}`).trim() || `Foto ${index + 1}`,
     dataUrl,
-    comentario: String(photo?.comentario || "").trim()
+    comentario: String(photo?.comentario || "").trim(),
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null,
+    capturedAt
   };
+}
+
+function formatRdoPhotoCoordinate(value, positiveHemisphere, negativeHemisphere) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return "";
+  }
+
+  const absValue = Math.abs(numeric).toFixed(6).replace(".", ",");
+  return `${absValue} deg ${numeric >= 0 ? positiveHemisphere : negativeHemisphere}`;
+}
+
+function getRdoPhotoLocationLabel(photo) {
+  if (!Number.isFinite(Number(photo?.latitude)) || !Number.isFinite(Number(photo?.longitude))) {
+    return "";
+  }
+
+  const latitudeLabel = formatRdoPhotoCoordinate(photo.latitude, "N", "S");
+  const longitudeLabel = formatRdoPhotoCoordinate(photo.longitude, "L", "O");
+  return `Lat: ${latitudeLabel} | Lon: ${longitudeLabel}`;
 }
 
 function getRdoDraftPhotos() {
@@ -3017,12 +3044,15 @@ function chunkItems(items, chunkSize) {
 }
 
 function renderRdoPhotoFigure(photo) {
+  const locationLabel = getRdoPhotoLocationLabel(photo);
+
   return `
     <figure class="rdo-print-photo">
       <div class="rdo-print-photo-media">
         <img src="${photo.dataUrl}" alt="${escapeHtml(photo.name)}" />
       </div>
       <figcaption>
+        ${locationLabel ? `<strong class="rdo-print-photo-location">${escapeHtml(locationLabel)}</strong>` : ""}
         ${photo.comentario ? `<span>${escapeHtml(photo.comentario)}</span>` : ""}
       </figcaption>
     </figure>

@@ -818,14 +818,21 @@ body.printing-rdos .rdo-print-area {
   gap: 4px;
 }
 
+.rdo-print-photo-location {
+  color: var(--text);
+  font-size: 0.94rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .rdo-photo-page .rdo-print-photo-media {
-  height: 155px;
+  height: 186px;
   aspect-ratio: auto;
 }
 
 .rdo-photo-page .rdo-print-photo figcaption {
-  min-height: 34px;
-  max-height: 46px;
+  min-height: 44px;
+  max-height: 62px;
   overflow: hidden;
 }
 
@@ -1229,12 +1236,16 @@ th {
   }
 
   .rdo-photo-page .rdo-print-photo-media {
-    height: 150px;
+    height: 180px;
     aspect-ratio: auto;
   }
 
   .rdo-print-photo figcaption {
     font-size: 8px;
+  }
+
+  .rdo-print-photo-location {
+    font-size: 9px;
   }
 
   .rdo-print-signature {
