@@ -666,26 +666,6 @@ function normalizeRdoPhoto(photo, index = 0) {
   };
 }
 
-function formatRdoPhotoCoordinate(value, positiveHemisphere, negativeHemisphere) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return "";
-  }
-
-  const absValue = Math.abs(numeric).toFixed(6).replace(".", ",");
-  return `${absValue} deg ${numeric >= 0 ? positiveHemisphere : negativeHemisphere}`;
-}
-
-function getRdoPhotoLocationLabel(photo) {
-  if (!Number.isFinite(Number(photo?.latitude)) || !Number.isFinite(Number(photo?.longitude))) {
-    return "";
-  }
-
-  const latitudeLabel = formatRdoPhotoCoordinate(photo.latitude, "N", "S");
-  const longitudeLabel = formatRdoPhotoCoordinate(photo.longitude, "L", "O");
-  return `Lat: ${latitudeLabel} | Lon: ${longitudeLabel}`;
-}
-
 function getRdoDraftPhotos() {
   return state.rdoDraftPhotos;
 }
@@ -3037,13 +3017,10 @@ function chunkItems(items, chunkSize) {
 }
 
 function renderRdoPhotoFigure(photo) {
-  const locationLabel = getRdoPhotoLocationLabel(photo);
-
   return `
     <figure class="rdo-print-photo">
       <div class="rdo-print-photo-media">
         <img src="${photo.dataUrl}" alt="${escapeHtml(photo.name)}" />
-        ${locationLabel ? `<span class="rdo-print-photo-overlay">${escapeHtml(locationLabel)}</span>` : ""}
       </div>
       <figcaption>
         ${photo.comentario ? `<span>${escapeHtml(photo.comentario)}</span>` : ""}
