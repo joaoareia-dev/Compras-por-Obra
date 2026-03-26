@@ -1221,12 +1221,20 @@ const ORCAMENTO_SINTETICO_TEMPLATE_HEADERS = [
   "Peso (%)"
 ];
 
-function getXlsxLibrary() {
-  if (!window.XLSX) {
-    throw new Error("A biblioteca de planilhas não foi carregada. Atualize a página e tente novamente.");
+function getReadXlsxLibrary() {
+  if (typeof window.readXlsxFile !== "function") {
+    throw new Error("A biblioteca de leitura de planilhas não foi carregada. Atualize a página e tente novamente.");
   }
 
-  return window.XLSX;
+  return window.readXlsxFile;
+}
+
+function getWriteXlsxLibrary() {
+  if (typeof window.writeXlsxFile !== "function") {
+    throw new Error("A biblioteca de exportação de planilhas não foi carregada. Atualize a página e tente novamente.");
+  }
+
+  return window.writeXlsxFile;
 }
 
 function normalizeSpreadsheetHeader(value) {
@@ -1415,41 +1423,26 @@ function parseStandardMedicaoItemsFromSpreadsheetRows(rows) {
   return items;
 }
 
-function buildOrcamentoSinteticoTemplateWorkbook() {
-  const XLSX = getXlsxLibrary();
-  const worksheetRows = [
+function buildOrcamentoSinteticoTemplateRows() {
+  return [
     ORCAMENTO_SINTETICO_TEMPLATE_HEADERS,
     ["1", "", "", "SERVIÇOS PRELIMINARES", "", "1", "", "451872,55", "451872,55", "8,69"],
     ["1.1", "103689", "SINAPI", "FORNECIMENTO E INSTALAÇÃO DE PLACA DE OBRA COM CHAPA GALVANIZADA E ESTRUTURA DE MADEIRA. AF_03/2022_PS", "m²", "6,48", "405,25", "506,56", "3282,50", "0,06"]
   ];
-  const worksheet = XLSX.utils.aoa_to_sheet(worksheetRows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Orcamento Sintetico");
-  return workbook;
 }
 
-function downloadOrcamentoSinteticoTemplate() {
-  const XLSX = getXlsxLibrary();
-  const workbook = buildOrcamentoSinteticoTemplateWorkbook();
-  XLSX.writeFile(workbook, "modelo_orcamento_sintetico.xls", { bookType: "xls" });
+async function downloadOrcamentoSinteticoTemplate() {
+  const writeXlsxFile = getWriteXlsxLibrary();
+  const rows = buildOrcamentoSinteticoTemplateRows();
+  await writeXlsxFile(rows, {
+    fileName: "modelo_orcamento_sintetico.xlsx",
+    sheet: "Orcamento Sintetico"
+  });
 }
 
 async function importMedicaoPlanilha(file) {
-  const XLSX = getXlsxLibrary();
-  const data = await file.arrayBuffer();
-  const workbook = XLSX.read(data, { type: "array" });
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) {
-    throw new Error("A planilha selecionada nao possui abas legiveis.");
-  }
-
-  const sheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    defval: "",
-    raw: false,
-    blankrows: false
-  });
+  const readXlsxFile = getReadXlsxLibrary();
+  const rows = await readXlsxFile(file);
 
   const parsedItems = parseStandardMedicaoItemsFromSpreadsheetRows(rows);
   if (!parsedItems.length) {
@@ -1899,9 +1892,9 @@ async function handleObraArquivoFileInput(input, type) {
   }
 
   try {
-    const extensaoValida = /\.xlsx?$/i.test(file.name || "");
+    const extensaoValida = /\.xlsx$/i.test(file.name || "");
     if (type === "orcamentoSintetico" && !extensaoValida) {
-      throw new Error("Use apenas a planilha sintética em formato XLS ou XLSX.");
+      throw new Error("Use apenas a planilha sintética em formato XLSX.");
     }
 
     const dataUrl = await readFileAsDataUrl(file);

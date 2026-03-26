@@ -22,7 +22,8 @@
     "jspdf": "^4.2.1",
     "pdfjs-dist": "^5.5.207",
     "pg": "^8.13.1",
-    "xlsx": "^0.18.5"
+    "read-excel-file": "^7.0.3",
+    "write-excel-file": "^3.0.6"
   },
   "engines": {
     "node": "20.x"

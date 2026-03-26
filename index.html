@@ -146,7 +146,7 @@
               <div class="obra-form-section-head">
                 <div>
                   <h4>Planilhas de Orçamento</h4>
-                  <p class="subtitle">Cadastre apenas a planilha sintética padrão da obra, em formato XLS/XLSX.</p>
+                  <p class="subtitle">Cadastre apenas a planilha sintética padrão da obra, em formato XLSX.</p>
                 </div>
               </div>
               <div class="logo-upload-grid">
@@ -156,9 +156,9 @@
                       <h4>Orçamento Sintético</h4>
                       <p class="subtitle">Use o modelo padrão com as colunas Item, Código, Banco, Descrição, Und, Quant., Valor Unit, Valor Unit com BDI, Total e Peso (%).</p>
                     </div>
-                    <button type="button" id="obraOrcamentoTemplateBtn" class="btn ghost">Baixar Modelo XLS</button>
+                    <button type="button" id="obraOrcamentoTemplateBtn" class="btn ghost">Baixar Modelo XLSX</button>
                   </div>
-                  <input type="file" id="obraOrcamentoSinteticoInput" accept=".xls,.xlsx" />
+                  <input type="file" id="obraOrcamentoSinteticoInput" accept=".xlsx" />
                   <div id="obraOrcamentoSinteticoPreview" class="file-preview empty">Nenhuma planilha sintética anexada.</div>
                 </div>
               </div>
@@ -740,7 +740,8 @@
 
   <script src="node_modules/html2canvas/dist/html2canvas.min.js?v=20260323-12"></script>
   <script src="node_modules/jspdf/dist/jspdf.umd.min.js?v=20260323-12"></script>
-  <script src="vendor/xlsx/xlsx.full.min.js?v=20260324-1"></script>
-  <script src="app.js?v=20260326-1"></script>
+  <script src="vendor/read-excel-file.min.js?v=20260326-1"></script>
+  <script src="vendor/write-excel-file.min.js?v=20260326-1"></script>
+  <script src="app.js?v=20260326-2"></script>
 </body>
 </html>
