@@ -30,7 +30,8 @@
   medicaoHistory: [],
   medicaoHistoryObraId: "",
   rdoDraftPhotos: [],
-  selectedRdoIds: new Set()
+  selectedRdoIds: new Set(),
+  previewedRdoId: ""
 };
 
 const loginSection = document.getElementById("loginSection");
@@ -130,6 +131,11 @@ const rdoEditorPanel = document.getElementById("rdoEditorPanel");
 const rdoEditorTitle = document.getElementById("rdoEditorTitle");
 const rdoEditorSubtitle = document.getElementById("rdoEditorSubtitle");
 const rdoCloseEditorBtn = document.getElementById("rdoCloseEditorBtn");
+const rdoPreviewPanel = document.getElementById("rdoPreviewPanel");
+const rdoPreviewTitle = document.getElementById("rdoPreviewTitle");
+const rdoPreviewSubtitle = document.getElementById("rdoPreviewSubtitle");
+const rdoPreviewCloseBtn = document.getElementById("rdoPreviewCloseBtn");
+const rdoPreviewArea = document.getElementById("rdoPreviewArea");
 const rdoObraSelect = document.getElementById("rdoObra");
 const rdoDataInput = document.getElementById("rdoData");
 const rdoClimaSelect = document.getElementById("rdoClima");
@@ -2790,9 +2796,12 @@ function renderRdos() {
           <td>${rdo.materiaisRecebidosCount}</td>
           <td>${rdo.materiaisConsumidosCount}</td>
           <td>
-            <button class="btn ghost" data-rdo-edit="${rdo.id}">Editar</button>
-            <button class="btn ghost" data-rdo-print="${rdo.id}">Exportar PDF</button>
-            <button class="btn delete" data-rdo-delete="${rdo.id}">Excluir</button>
+            <div class="table-action-group">
+              <button class="btn ghost" data-rdo-view="${rdo.id}">Visualizar</button>
+              <button class="btn ghost" data-rdo-edit="${rdo.id}">Editar</button>
+              <button class="btn ghost" data-rdo-print="${rdo.id}">Exportar PDF</button>
+              <button class="btn delete" data-rdo-delete="${rdo.id}">Excluir</button>
+            </div>
           </td>
         </tr>
       `
@@ -2848,6 +2857,7 @@ function openRdoEditor(rdo = null) {
     return;
   }
 
+  closeRdoPreview();
   rdoEditorPanel.classList.remove("hidden");
   if (rdo) {
     rdoEditorTitle.textContent = "Editar RDO";
@@ -2868,6 +2878,38 @@ function closeRdoEditor() {
 
   rdoEditorPanel.classList.add("hidden");
   resetRdoForm();
+}
+
+function openRdoPreview(rdo) {
+  if (!rdoPreviewPanel || !rdoPreviewArea) {
+    return;
+  }
+
+  closeRdoEditor();
+  const obra = getObraById(rdo.obraId);
+  const obraName = obra?.nome || "Obra removida";
+  state.previewedRdoId = rdo.id;
+  rdoPreviewTitle.textContent = "Visualização do RDO";
+  rdoPreviewSubtitle.textContent = `${obraName} • ${formatDate(rdo.data)}${rdo.clima ? ` • ${rdo.clima}` : ""}`;
+  renderRdoDocuments(rdoPreviewArea, [rdo]);
+  rdoPreviewPanel.classList.remove("hidden");
+  rdoPreviewPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function closeRdoPreview() {
+  if (!rdoPreviewPanel || !rdoPreviewArea) {
+    return;
+  }
+
+  state.previewedRdoId = "";
+  rdoPreviewPanel.classList.add("hidden");
+  rdoPreviewArea.innerHTML = "";
+  if (rdoPreviewTitle) {
+    rdoPreviewTitle.textContent = "Visualização do RDO";
+  }
+  if (rdoPreviewSubtitle) {
+    rdoPreviewSubtitle.textContent = "Confira o diário com o mesmo layout base usado na exportação em PDF.";
+  }
 }
 
 async function fetchRdoDetail(rdoId) {
@@ -3063,13 +3105,13 @@ function renderRdoPhotoPage(rdo, obra, obraName, photos, photoPageIndex, totalPh
   `;
 }
 
-function renderRdoPrintDocuments(rdos) {
-  if (!rdoPrintArea) {
+function renderRdoDocuments(target, rdos) {
+  if (!target) {
     return;
   }
 
   const obraMap = buildObraNameMap(getObras());
-  rdoPrintArea.innerHTML = rdos
+  target.innerHTML = rdos
     .map((rdo) => {
       const obra = getObraById(rdo.obraId);
       const obraName = obraMap.get(rdo.obraId) || "Obra removida";
@@ -3085,6 +3127,10 @@ function renderRdoPrintDocuments(rdos) {
       `;
     })
     .join("");
+}
+
+function renderRdoPrintDocuments(rdos) {
+  renderRdoDocuments(rdoPrintArea, rdos);
 }
 
 function compareRdosByChronology(left, right) {
@@ -4122,6 +4168,18 @@ if (rdoTableBody) {
   });
 
   rdoTableBody.addEventListener("click", async (event) => {
+    const viewButton = event.target.closest("[data-rdo-view]");
+    if (viewButton) {
+      try {
+        const rdo = await fetchRdoDetail(viewButton.getAttribute("data-rdo-view"));
+        openRdoPreview(rdo);
+        activatePage("rdos");
+      } catch (error) {
+        alert(error.message);
+      }
+      return;
+    }
+
     const editButton = event.target.closest("[data-rdo-edit]");
     if (editButton) {
       const rdoId = editButton.getAttribute("data-rdo-edit");
@@ -4163,6 +4221,9 @@ if (rdoTableBody) {
         body: JSON.stringify({ password: senhaInformada })
       });
       state.selectedRdoIds.delete(rdoId);
+      if (state.previewedRdoId === rdoId) {
+        closeRdoPreview();
+      }
       if (rdoEditIdInput.value === rdoId) {
         closeRdoEditor();
       }
@@ -4186,6 +4247,12 @@ if (rdoSelectAllInput) {
     });
 
     renderRdos();
+  });
+}
+
+if (rdoPreviewCloseBtn) {
+  rdoPreviewCloseBtn.addEventListener("click", () => {
+    closeRdoPreview();
   });
 }
 

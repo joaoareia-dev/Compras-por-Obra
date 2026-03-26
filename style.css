@@ -225,6 +225,12 @@ textarea:focus {
   margin-bottom: 16px;
 }
 
+.table-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .subpanel {
   margin-bottom: 18px;
   padding: 18px;
@@ -591,6 +597,29 @@ textarea:focus {
 
 .report-print-area {
   margin-top: 10px;
+}
+
+.rdo-preview-area {
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid #d8e1ef;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(247, 250, 255, 0.98) 100%),
+    radial-gradient(circle at top, rgba(181, 205, 240, 0.24), transparent 58%);
+  overflow: auto;
+}
+
+.rdo-preview-area .rdo-print-document {
+  justify-items: center;
+}
+
+.rdo-preview-area .rdo-print-document + .rdo-print-document {
+  margin-top: 24px;
+}
+
+.rdo-preview-area .rdo-pdf-page {
+  box-shadow: 0 20px 46px rgba(39, 62, 102, 0.12);
 }
 
 .rdo-print-area {

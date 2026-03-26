@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260326-3" />
+  <link rel="stylesheet" href="style.css?v=20260326-4" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -555,6 +555,17 @@
           <datalist id="rdoMaoDeObraCargoOptions"></datalist>
         </div>
 
+        <div id="rdoPreviewPanel" class="subpanel hidden">
+          <div class="subpanel-header">
+            <div>
+              <h4 id="rdoPreviewTitle">Visualização do RDO</h4>
+              <p id="rdoPreviewSubtitle" class="subtitle">Confira o diário com o mesmo layout base usado na exportação em PDF.</p>
+            </div>
+            <button type="button" id="rdoPreviewCloseBtn" class="btn ghost">Fechar</button>
+          </div>
+          <div id="rdoPreviewArea" class="rdo-preview-area"></div>
+        </div>
+
         <div id="rdoPrintArea" class="rdo-print-area"></div>
 
         <div class="table-wrap">
@@ -742,6 +753,6 @@
   <script src="node_modules/jspdf/dist/jspdf.umd.min.js?v=20260323-12"></script>
   <script src="vendor/read-excel-file.min.js?v=20260326-1"></script>
   <script src="vendor/write-excel-file.min.js?v=20260326-1"></script>
-  <script src="app.js?v=20260326-4"></script>
+  <script src="app.js?v=20260326-5"></script>
 </body>
 </html>
