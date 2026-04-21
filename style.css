@@ -231,6 +231,60 @@ textarea:focus {
   gap: 8px;
 }
 
+.table-muted-line {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  max-width: 280px;
+}
+
+.compra-itens-block {
+  display: grid;
+  gap: 14px;
+}
+
+.compra-itens-container {
+  display: grid;
+  gap: 12px;
+}
+
+.compra-item-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(90px, 0.65fr) minmax(95px, 0.65fr) minmax(125px, 0.8fr) minmax(125px, 0.8fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid #dbe4f2;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.compra-item-remove {
+  min-height: 38px;
+}
+
+.compra-itens-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.compra-total-resumo {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.compra-total-resumo strong {
+  color: var(--text);
+  font-size: 1.25rem;
+}
+
 .subpanel {
   margin-bottom: 18px;
   padding: 18px;
@@ -1028,6 +1082,7 @@ th {
   }
 
   .dynamic-input-row,
+  .compra-item-row,
   .photo-card,
   .logo-upload-grid {
     grid-template-columns: 1fr;

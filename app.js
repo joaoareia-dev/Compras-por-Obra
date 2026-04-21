@@ -100,11 +100,11 @@ const compraPagoInput = document.getElementById("compraPago");
 const compraDescricaoInput = document.getElementById("compraDescricao");
 const compraCategoriaInput = document.getElementById("compraCategoria");
 const compraFornecedorInput = document.getElementById("compraFornecedor");
-const compraUnidadeInput = document.getElementById("compraUnidade");
-const compraQuantidadeInput = document.getElementById("compraQuantidade");
-const compraPrecoUnitarioInput = document.getElementById("compraPrecoUnitario");
-const compraPrecoTotalInput = document.getElementById("compraPrecoTotal");
+const compraItensContainer = document.getElementById("compraItensContainer");
+const compraAddItemBtn = document.getElementById("compraAddItemBtn");
+const compraItensTotal = document.getElementById("compraItensTotal");
 const descricaoOptions = document.getElementById("descricaoOptions");
+const compraItemDescricaoOptions = document.getElementById("compraItemDescricaoOptions");
 const categoriaOptions = document.getElementById("categoriaOptions");
 const fornecedorOptions = document.getElementById("fornecedorOptions");
 const unidadeOptions = document.getElementById("unidadeOptions");
@@ -477,7 +477,58 @@ function getPeriodoRelatorioTexto() {
   return "Sem periodo informado";
 }
 
+function normalizeCompraItem(item, index = 0) {
+  const descricao = String(item?.descricao || "").trim();
+  const unidade = String(item?.unidade || "").trim();
+  const quantidade = Number(item?.quantidade || 0);
+  const precoUnitario = Number(item?.precoUnitario ?? item?.valor ?? 0);
+  const precoTotalInformado = Number(item?.precoTotal || 0);
+  const precoTotal = precoTotalInformado > 0 ? precoTotalInformado : quantidade * precoUnitario;
+
+  if (!descricao && !unidade && quantidade <= 0 && precoUnitario <= 0) {
+    return null;
+  }
+
+  return {
+    id: String(item?.id || createClientId(`compra-item-${index + 1}`)),
+    descricao,
+    unidade,
+    quantidade: Number.isFinite(quantidade) ? quantidade : 0,
+    precoUnitario: Number.isFinite(precoUnitario) ? precoUnitario : 0,
+    precoTotal: Number.isFinite(precoTotal) ? precoTotal : 0
+  };
+}
+
+function buildLegacyCompraItem(compra) {
+  return normalizeCompraItem({
+    id: `${compra?.id || createClientId("compra")}-item-1`,
+    descricao: compra?.itemDescricao || compra?.descricao || "",
+    unidade: compra?.unidade || "",
+    quantidade: compra?.quantidade,
+    precoUnitario: compra?.precoUnitario,
+    precoTotal: compra?.precoTotal || compra?.valor
+  });
+}
+
+function getCompraItens(compra) {
+  const itens = Array.isArray(compra?.itens)
+    ? compra.itens.map((item, index) => normalizeCompraItem(item, index)).filter(Boolean)
+    : [];
+
+  if (itens.length) {
+    return itens;
+  }
+
+  const legacyItem = buildLegacyCompraItem(compra || {});
+  return legacyItem ? [legacyItem] : [];
+}
+
 function getCompraTotal(compra) {
+  const itens = getCompraItens(compra);
+  if (itens.length) {
+    return itens.reduce((sum, item) => sum + Number(item.precoTotal || 0), 0);
+  }
+
   if (typeof compra.precoTotal === "number") {
     return compra.precoTotal;
   }
@@ -487,6 +538,21 @@ function getCompraTotal(compra) {
   }
 
   return Number(compra.valor || 0);
+}
+
+function getCompraItemCount(compra) {
+  return getCompraItens(compra).length;
+}
+
+function getCompraItensResumo(compra) {
+  const itens = getCompraItens(compra);
+  if (!itens.length) {
+    return "Sem itens detalhados";
+  }
+
+  const descricoes = itens.slice(0, 3).map((item) => item.descricao).filter(Boolean);
+  const sufixo = itens.length > 3 ? ` +${itens.length - 3}` : "";
+  return `${descricoes.join(", ")}${sufixo}` || `${itens.length} item(ns)`;
 }
 
 function getPagamentoMaoDeObraTotal(pagamento) {
@@ -580,18 +646,24 @@ function getCategoriaLancamentoDisplay(categoria) {
 }
 
 function getLancamentosRelatorio() {
-  const compras = getCompras().map((compra) => ({
-    tipo: "compra",
-    id: compra.id,
-    obraId: compra.obraId,
-    dataReferencia: compra.data,
-    descricao: compra.descricao,
-    categoria: getCategoriaLancamentoDisplay(compra.categoria),
-    unidade: compra.unidade || "-",
-    quantidade: Number(compra.quantidade || 0),
-    total: getCompraTotal(compra),
-    pago: Boolean(compra.pago)
-  }));
+  const compras = getCompras().flatMap((compra) => {
+    const itens = getCompraItens(compra);
+    return itens.map((item, index) => ({
+      tipo: "compra",
+      id: `${compra.id}:${item.id || index}`,
+      compraId: compra.id,
+      obraId: compra.obraId,
+      dataReferencia: compra.data,
+      descricao: item.descricao || compra.descricao,
+      compraDescricao: compra.descricao,
+      categoria: getCategoriaLancamentoDisplay(compra.categoria),
+      fornecedor: compra.fornecedor,
+      unidade: item.unidade || "-",
+      quantidade: Number(item.quantidade || 0),
+      total: Number(item.precoTotal || 0),
+      pago: Boolean(compra.pago)
+    }));
+  });
 
   const maoDeObra = getPagamentosMaoDeObra().map((pagamento) => ({
     tipo: "maoDeObra",
@@ -1979,12 +2051,18 @@ async function waitForImagesToLoad(container) {
   );
 }
 
+function getAllCompraItens() {
+  return getCompras().flatMap((compra) => getCompraItens(compra));
+}
+
 function refreshCompraAutocomplete() {
   const compras = getCompras();
+  const itens = getAllCompraItens();
   updateDatalist(descricaoOptions, buildUniqueValues(compras.map((compra) => compra.descricao)));
+  updateDatalist(compraItemDescricaoOptions, buildUniqueValues(itens.map((item) => item.descricao)));
   updateDatalist(categoriaOptions, buildUniqueValues(compras.map((compra) => compra.categoria)));
   updateDatalist(fornecedorOptions, buildUniqueValues(compras.map((compra) => compra.fornecedor)));
-  updateDatalist(unidadeOptions, buildUniqueValues(compras.map((compra) => compra.unidade)));
+  updateDatalist(unidadeOptions, buildUniqueValues(itens.map((item) => item.unidade)));
 }
 
 function populateRelatorioCategorias() {
@@ -2025,6 +2103,26 @@ function findLastCompraByDescricao(descricao) {
   return null;
 }
 
+function findLastCompraItemByDescricao(descricao) {
+  const descricaoAlvo = normalizeValue(descricao);
+  if (!descricaoAlvo) {
+    return null;
+  }
+
+  const compras = getCompras();
+  for (let compraIndex = compras.length - 1; compraIndex >= 0; compraIndex -= 1) {
+    const itens = getCompraItens(compras[compraIndex]);
+    for (let itemIndex = itens.length - 1; itemIndex >= 0; itemIndex -= 1) {
+      const item = itens[itemIndex];
+      if (normalizeValue(item.descricao) === descricaoAlvo) {
+        return item;
+      }
+    }
+  }
+
+  return null;
+}
+
 function preencherCamposPorDescricao() {
   const ultimaCompra = findLastCompraByDescricao(compraDescricaoInput.value);
   if (!ultimaCompra) {
@@ -2033,7 +2131,21 @@ function preencherCamposPorDescricao() {
 
   compraCategoriaInput.value = ultimaCompra.categoria || "";
   compraFornecedorInput.value = ultimaCompra.fornecedor || "";
-  compraUnidadeInput.value = ultimaCompra.unidade || "";
+}
+
+function preencherCompraItemPorDescricao(row) {
+  const descricaoInput = row?.querySelector("[data-compra-item-descricao]");
+  const unidadeInput = row?.querySelector("[data-compra-item-unidade]");
+  if (!descricaoInput || !unidadeInput) {
+    return;
+  }
+
+  const ultimoItem = findLastCompraItemByDescricao(descricaoInput.value);
+  if (!ultimoItem) {
+    return;
+  }
+
+  unidadeInput.value = ultimoItem.unidade || "";
 }
 
 function getSessionUser() {
@@ -2210,8 +2322,7 @@ function resetCompraForm() {
   if (ultimaObra) {
     compraObraSelect.value = ultimaObra;
   }
-  setCurrencyInputValue(compraPrecoUnitarioInput, 0);
-  atualizarPrecoTotalCompraForm();
+  hydrateCompraItensForm([]);
 }
 
 function resetMaoDeObraForm() {
@@ -2234,12 +2345,9 @@ function preencherFormularioCompra(compra) {
   compraDescricaoInput.value = compra.descricao || "";
   compraCategoriaInput.value = compra.categoria || "";
   compraFornecedorInput.value = compra.fornecedor || "";
-  compraUnidadeInput.value = compra.unidade || "";
-  compraQuantidadeInput.value = Number(compra.quantidade || 0);
-  setCurrencyInputValue(compraPrecoUnitarioInput, Number(compra.precoUnitario || 0));
+  hydrateCompraItensForm(getCompraItens(compra));
   compraSubmitBtn.textContent = "Atualizar Compra";
   compraCancelEditBtn.classList.remove("hidden");
-  atualizarPrecoTotalCompraForm();
 }
 
 function preencherFormularioMaoDeObra(pagamento) {
@@ -2680,7 +2788,7 @@ function renderCompras() {
   const obraMap = buildObraNameMap(obras);
 
   if (!compras.length) {
-    comprasTableBody.innerHTML = `<tr><td colspan="10" class="empty">Nenhuma compra lancada.</td></tr>`;
+    comprasTableBody.innerHTML = `<tr><td colspan="8" class="empty">Nenhuma compra lancada.</td></tr>`;
     return;
   }
 
@@ -2692,12 +2800,13 @@ function renderCompras() {
       <tr>
         <td>${formatDate(compra.data)}</td>
         <td>${obraMap.get(compra.obraId) || "Obra removida"}</td>
-        <td>${compra.descricao}</td>
-        <td>${compra.fornecedor}</td>
-        <td>${compra.categoria}</td>
-        <td>${compra.unidade || "-"}</td>
-        <td>${formatNumber(compra.quantidade || 0)}</td>
-        <td>${formatCurrency(compra.precoUnitario || 0)}</td>
+        <td>${escapeHtml(compra.descricao)}</td>
+        <td>${escapeHtml(compra.fornecedor)}</td>
+        <td>${escapeHtml(compra.categoria)}</td>
+        <td>
+          <strong>${getCompraItemCount(compra)} item(ns)</strong>
+          <span class="table-muted-line">${escapeHtml(getCompraItensResumo(compra))}</span>
+        </td>
         <td>${formatCurrency(getCompraTotal(compra))}</td>
         <td>
           <button class="btn ghost" data-compra-edit="${compra.id}">Editar</button>
@@ -3495,10 +3604,129 @@ function renderAll() {
   renderRelatorios();
 }
 
-function atualizarPrecoTotalCompraForm() {
-  const quantidade = Number(compraQuantidadeInput.value || 0);
-  const precoUnitario = parseCurrencyInputValue(compraPrecoUnitarioInput.value);
-  setCurrencyInputValue(compraPrecoTotalInput, quantidade * precoUnitario);
+function appendCompraItemRow(item = {}) {
+  if (!compraItensContainer) {
+    return null;
+  }
+
+  const normalized = normalizeCompraItem(item) || {
+    id: createClientId("compra-item"),
+    descricao: "",
+    unidade: "",
+    quantidade: 0,
+    precoUnitario: 0,
+    precoTotal: 0
+  };
+  const row = document.createElement("div");
+  row.className = "compra-item-row";
+  row.dataset.compraItemRow = "true";
+  row.innerHTML = `
+    <label>
+      Descrição do item
+      <input type="text" value="${escapeHtml(normalized.descricao)}" list="compraItemDescricaoOptions" autocomplete="off" data-compra-item-descricao />
+    </label>
+    <label>
+      Unidade
+      <input type="text" value="${escapeHtml(normalized.unidade)}" list="unidadeOptions" placeholder="un, m2, saco..." autocomplete="off" data-compra-item-unidade />
+    </label>
+    <label>
+      Quantidade
+      <input type="number" min="0" step="0.001" value="${Number(normalized.quantidade || 0)}" data-compra-item-quantidade />
+    </label>
+    <label>
+      Valor unitário
+      <input type="text" inputmode="decimal" autocomplete="off" data-currency="true" data-compra-item-preco-unitario />
+    </label>
+    <label>
+      Valor total
+      <input type="text" inputmode="decimal" autocomplete="off" data-currency="true" data-compra-item-preco-total readonly />
+    </label>
+    <button type="button" class="btn delete compra-item-remove" data-compra-item-remove>Remover</button>
+  `;
+
+  const precoUnitarioInput = row.querySelector("[data-compra-item-preco-unitario]");
+  setCurrencyInputValue(precoUnitarioInput, Number(normalized.precoUnitario || 0));
+  bindCurrencyInput(precoUnitarioInput);
+  compraItensContainer.appendChild(row);
+  atualizarCompraItemRowTotal(row);
+  return row;
+}
+
+function getCompraItemRows() {
+  return Array.from(compraItensContainer?.querySelectorAll("[data-compra-item-row]") || []);
+}
+
+function hydrateCompraItensForm(items = []) {
+  if (!compraItensContainer) {
+    return;
+  }
+
+  compraItensContainer.innerHTML = "";
+  const itens = Array.isArray(items) && items.length ? items : [{}];
+  itens.forEach((item) => appendCompraItemRow(item));
+  atualizarCompraItensTotalForm();
+}
+
+function atualizarCompraItemRowTotal(row) {
+  if (!row) {
+    return;
+  }
+
+  const quantidade = Number(row.querySelector("[data-compra-item-quantidade]")?.value || 0);
+  const precoUnitario = parseCurrencyInputValue(row.querySelector("[data-compra-item-preco-unitario]")?.value || "");
+  setCurrencyInputValue(row.querySelector("[data-compra-item-preco-total]"), quantidade * precoUnitario);
+}
+
+function atualizarCompraItensTotalForm() {
+  const total = getCompraItemRows().reduce((sum, row) => {
+    atualizarCompraItemRowTotal(row);
+    return sum + parseCurrencyInputValue(row.querySelector("[data-compra-item-preco-total]")?.value || "");
+  }, 0);
+
+  if (compraItensTotal) {
+    compraItensTotal.textContent = formatCurrencyInputValue(total);
+  }
+}
+
+function getCompraItensFormValues() {
+  return getCompraItemRows()
+    .map((row) => {
+      const descricao = row.querySelector("[data-compra-item-descricao]")?.value.trim() || "";
+      const unidade = row.querySelector("[data-compra-item-unidade]")?.value.trim() || "";
+      const quantidade = Number(row.querySelector("[data-compra-item-quantidade]")?.value || 0);
+      const precoUnitario = parseCurrencyInputValue(row.querySelector("[data-compra-item-preco-unitario]")?.value || "");
+      const precoTotal = quantidade * precoUnitario;
+      return {
+        descricao,
+        unidade,
+        quantidade,
+        precoUnitario,
+        precoTotal,
+        preenchido: Boolean(descricao || unidade || quantidade > 0 || precoUnitario > 0)
+      };
+    })
+    .filter((item) => item.preenchido);
+}
+
+function coletarCompraItensParaEnvio() {
+  const itens = getCompraItensFormValues();
+  if (!itens.length) {
+    throw new Error("Inclua pelo menos um item na compra.");
+  }
+
+  itens.forEach((item, index) => {
+    if (!item.descricao) {
+      throw new Error(`Informe a descrição do item ${index + 1}.`);
+    }
+    if (!item.unidade) {
+      throw new Error(`Informe a unidade do item ${index + 1}.`);
+    }
+    if (!Number.isFinite(item.quantidade) || item.quantidade <= 0) {
+      throw new Error(`Informe uma quantidade maior que zero para o item ${index + 1}.`);
+    }
+  });
+
+  return itens.map(({ preenchido, ...item }) => item);
 }
 
 function atualizarEstadoPeriodoRelatorio() {
@@ -3920,9 +4148,8 @@ compraForm.addEventListener("submit", async (event) => {
     }
 
     const compraId = compraEditIdInput.value;
-    const quantidade = Number(compraQuantidadeInput.value);
-    const precoUnitario = parseCurrencyInputValue(compraPrecoUnitarioInput.value);
-    const precoTotal = quantidade * precoUnitario;
+    const itens = coletarCompraItensParaEnvio();
+    const precoTotal = itens.reduce((sum, item) => sum + Number(item.precoTotal || 0), 0);
 
     await apiFetch(compraId ? `/api/compras/${compraId}` : "/api/compras", {
       method: compraId ? "PUT" : "POST",
@@ -3932,18 +4159,16 @@ compraForm.addEventListener("submit", async (event) => {
         descricao: compraDescricaoInput.value.trim(),
         categoria: compraCategoriaInput.value.trim(),
         fornecedor: compraFornecedorInput.value.trim(),
-        unidade: compraUnidadeInput.value.trim(),
-        quantidade,
-        precoUnitario,
+        itens,
         precoTotal,
         pago: compraPagoInput.value === "true"
       })
     });
 
     rememberCompraDate(compraDataValue);
-      await refreshData();
-      await refreshAuditLogsIfNeeded();
-      resetCompraForm();
+    await refreshData();
+    await refreshAuditLogsIfNeeded();
+    resetCompraForm();
     renderAll();
     activatePage("compras");
   } catch (error) {
@@ -4256,8 +4481,55 @@ if (rdoPreviewCloseBtn) {
   });
 }
 
-compraQuantidadeInput.addEventListener("input", atualizarPrecoTotalCompraForm);
-compraPrecoUnitarioInput.addEventListener("input", atualizarPrecoTotalCompraForm);
+if (compraAddItemBtn) {
+  compraAddItemBtn.addEventListener("click", () => {
+    appendCompraItemRow({});
+    atualizarCompraItensTotalForm();
+  });
+}
+
+if (compraItensContainer) {
+  compraItensContainer.addEventListener("input", (event) => {
+    const row = event.target.closest("[data-compra-item-row]");
+    if (!row) {
+      return;
+    }
+
+    if (event.target.matches("[data-compra-item-descricao]")) {
+      preencherCompraItemPorDescricao(row);
+    }
+
+    atualizarCompraItemRowTotal(row);
+    atualizarCompraItensTotalForm();
+  });
+
+  compraItensContainer.addEventListener("change", (event) => {
+    const row = event.target.closest("[data-compra-item-row]");
+    if (row && event.target.matches("[data-compra-item-descricao]")) {
+      preencherCompraItemPorDescricao(row);
+      atualizarCompraItemRowTotal(row);
+      atualizarCompraItensTotalForm();
+    }
+  });
+
+  compraItensContainer.addEventListener("click", (event) => {
+    const removeButton = event.target.closest("[data-compra-item-remove]");
+    if (!removeButton) {
+      return;
+    }
+
+    const rows = getCompraItemRows();
+    const row = removeButton.closest("[data-compra-item-row]");
+    if (rows.length <= 1) {
+      hydrateCompraItensForm([]);
+      return;
+    }
+
+    row?.remove();
+    atualizarCompraItensTotalForm();
+  });
+}
+
 compraDescricaoInput.addEventListener("input", preencherCamposPorDescricao);
 compraDescricaoInput.addEventListener("change", preencherCamposPorDescricao);
 compraDescricaoInput.addEventListener("blur", preencherCamposPorDescricao);
@@ -4557,7 +4829,6 @@ relatorioDataFimInput.addEventListener("change", () => {
 [
   obraOrcamentoInput,
   finalizacaoAditivosValorInput,
-  compraPrecoUnitarioInput,
   maoDeObraValorInput
 ].forEach(bindCurrencyInput);
 

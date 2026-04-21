@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260326-4" />
+  <link rel="stylesheet" href="style.css?v=20260421-1" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -333,7 +333,7 @@
             <input type="date" id="compraData" required />
           </label>
           <label>
-            Descrição
+            Descrição da compra
             <input type="text" id="compraDescricao" list="descricaoOptions" autocomplete="off" required />
           </label>
           <label>
@@ -344,26 +344,24 @@
             Fornecedor
             <input type="text" id="compraFornecedor" list="fornecedorOptions" autocomplete="off" required />
           </label>
-          <label>
-            Unidade
-            <input type="text" id="compraUnidade" list="unidadeOptions" placeholder="un, m2, saco..." autocomplete="off" required />
-          </label>
-          <label>
-            Quantidade
-            <input type="number" id="compraQuantidade" min="0" step="0.001" required />
-          </label>
-          <label>
-            Preço unitário (R$)
-            <input type="text" id="compraPrecoUnitario" inputmode="decimal" autocomplete="off" data-currency="true" required />
-          </label>
-          <label>
-            Preço total (R$)
-            <input type="text" id="compraPrecoTotal" inputmode="decimal" autocomplete="off" data-currency="true" readonly />
-          </label>
+          <div class="full-width dynamic-block compra-itens-block">
+            <div class="dynamic-block-header">
+              <div>
+                <h4>Itens da compra</h4>
+                <p class="subtitle">Lance todos os itens da mesma compra. O total de cada item é calculado automaticamente.</p>
+              </div>
+            </div>
+            <div id="compraItensContainer" class="compra-itens-container"></div>
+            <div class="compra-itens-footer">
+              <button type="button" id="compraAddItemBtn" class="btn ghost">Adicionar item</button>
+              <p class="compra-total-resumo"><span>Total da compra</span><strong id="compraItensTotal">0,00</strong></p>
+            </div>
+          </div>
           <button type="submit" id="compraSubmitBtn" class="btn primary">Registrar Compra</button>
           <button type="button" id="compraCancelEditBtn" class="btn ghost hidden">Cancelar edição</button>
         </form>
         <datalist id="descricaoOptions"></datalist>
+        <datalist id="compraItemDescricaoOptions"></datalist>
         <datalist id="categoriaOptions"></datalist>
         <datalist id="fornecedorOptions"></datalist>
         <datalist id="unidadeOptions"></datalist>
@@ -377,10 +375,8 @@
                 <th>Descrição</th>
                 <th>Fornecedor</th>
                 <th>Categoria</th>
-                <th>Unidade</th>
-                <th>Qtd.</th>
-                <th>Preço unit.</th>
-                <th>Preço total</th>
+                <th>Itens</th>
+                <th>Total</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -753,6 +749,6 @@
   <script src="node_modules/jspdf/dist/jspdf.umd.min.js?v=20260323-12"></script>
   <script src="vendor/read-excel-file.min.js?v=20260326-1"></script>
   <script src="vendor/write-excel-file.min.js?v=20260326-1"></script>
-  <script src="app.js?v=20260326-5"></script>
+  <script src="app.js?v=20260421-1"></script>
 </body>
 </html>

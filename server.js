@@ -355,7 +355,77 @@ function mapObra(row) {
   };
 }
 
+function safeParseJson(value, fallback = null) {
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
+
+  try {
+    return typeof value === "string" ? JSON.parse(value) : value;
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeCompraItemList(values, fallback = {}) {
+  const sourceItems = Array.isArray(values) ? values : [];
+  const normalized = sourceItems
+    .map((item, index) => {
+      const descricao = String(item?.descricao || "").trim();
+      const unidade = String(item?.unidade || "").trim();
+      const quantidade = Number(item?.quantidade || 0);
+      const precoUnitario = Number(item?.precoUnitario ?? item?.valor ?? 0);
+      const precoTotalInformado = Number(item?.precoTotal || 0);
+      const precoTotal = precoTotalInformado > 0 ? precoTotalInformado : quantidade * precoUnitario;
+
+      if (!descricao && !unidade && quantidade <= 0 && precoUnitario <= 0) {
+        return null;
+      }
+
+      return {
+        id: String(item?.id || `item-${index + 1}`),
+        descricao,
+        unidade,
+        quantidade: Number.isFinite(quantidade) ? quantidade : 0,
+        precoUnitario: Number.isFinite(precoUnitario) ? precoUnitario : 0,
+        precoTotal: Number.isFinite(precoTotal) ? precoTotal : 0
+      };
+    })
+    .filter(Boolean);
+
+  if (normalized.length) {
+    return normalized;
+  }
+
+  const legacyDescricao = String(fallback.item_descricao || fallback.descricao || "").trim();
+  const legacyUnidade = String(fallback.unidade || "").trim();
+  const legacyQuantidade = Number(fallback.quantidade || 0);
+  const legacyPrecoUnitario = Number(fallback.preco_unitario || fallback.precoUnitario || 0);
+  const legacyPrecoTotal = Number(fallback.preco_total || fallback.precoTotal || 0) || legacyQuantidade * legacyPrecoUnitario;
+
+  if (!legacyDescricao && !legacyUnidade && legacyQuantidade <= 0 && legacyPrecoUnitario <= 0 && legacyPrecoTotal <= 0) {
+    return [];
+  }
+
+  return [{
+    id: "item-1",
+    descricao: legacyDescricao,
+    unidade: legacyUnidade,
+    quantidade: Number.isFinite(legacyQuantidade) ? legacyQuantidade : 0,
+    precoUnitario: Number.isFinite(legacyPrecoUnitario) ? legacyPrecoUnitario : 0,
+    precoTotal: Number.isFinite(legacyPrecoTotal) ? legacyPrecoTotal : 0
+  }];
+}
+
+function getCompraItemsTotal(items) {
+  return items.reduce((sum, item) => sum + Number(item.precoTotal || 0), 0);
+}
+
 function mapCompra(row) {
+  const itens = normalizeCompraItemList(safeParseJson(row.itens, []), row);
+  const primaryItem = itens[0] || {};
+  const total = getCompraItemsTotal(itens) || Number(row.preco_total || 0);
+
   return {
     id: row.id,
     obraId: row.obra_id,
@@ -364,11 +434,12 @@ function mapCompra(row) {
     descricao: row.descricao,
     categoria: row.categoria,
     fornecedor: row.fornecedor,
-    unidade: row.unidade,
-    quantidade: Number(row.quantidade || 0),
-    precoUnitario: Number(row.preco_unitario || 0),
-    precoTotal: Number(row.preco_total || 0),
-    valor: Number(row.preco_total || 0),
+    unidade: primaryItem.unidade || row.unidade,
+    quantidade: Number(primaryItem.quantidade ?? row.quantidade ?? 0),
+    precoUnitario: Number(primaryItem.precoUnitario ?? row.preco_unitario ?? 0),
+    precoTotal: total,
+    valor: total,
+    itens,
     pago: Boolean(row.pago)
   };
 }
@@ -708,8 +779,23 @@ async function ensureDatabase() {
       quantidade NUMERIC(14, 3) NOT NULL,
       preco_unitario NUMERIC(14, 2) NOT NULL,
       preco_total NUMERIC(14, 2) NOT NULL,
-      pago BOOLEAN NOT NULL DEFAULT FALSE
+      pago BOOLEAN NOT NULL DEFAULT FALSE,
+      itens JSONB NOT NULL DEFAULT '[]'::jsonb
     );
+  `);
+
+  await pool.query("ALTER TABLE compras ADD COLUMN IF NOT EXISTS itens JSONB NOT NULL DEFAULT '[]'::jsonb");
+  await pool.query(`
+    UPDATE compras
+    SET itens = jsonb_build_array(jsonb_build_object(
+      'id', 'item-1',
+      'descricao', descricao,
+      'unidade', unidade,
+      'quantidade', quantidade,
+      'precoUnitario', preco_unitario,
+      'precoTotal', preco_total
+    ))
+    WHERE itens = '[]'::jsonb
   `);
 
   await pool.query(`
@@ -1344,13 +1430,21 @@ async function handleApi(req, res, pathname) {
   if (req.method === "POST" && pathname === "/api/compras") {
     const body = await parseRequestBody(req);
     const id = randomId();
+    const itens = normalizeCompraItemList(body.itens, body);
+    if (!itens.length) {
+      sendJson(res, 400, { error: "Inclua pelo menos um item na compra." });
+      return true;
+    }
+    const primaryItem = itens[0];
+    const precoTotal = getCompraItemsTotal(itens);
+
     await pool.query(
       `
         INSERT INTO compras (
           id, obra_id, created_at, data, descricao, categoria, fornecedor, unidade,
-          quantidade, preco_unitario, preco_total, pago
+          quantidade, preco_unitario, preco_total, pago, itens
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
       `,
       [
         id,
@@ -1360,18 +1454,20 @@ async function handleApi(req, res, pathname) {
         body.descricao,
         body.categoria,
         body.fornecedor,
-        body.unidade,
-        Number(body.quantidade || 0),
-        Number(body.precoUnitario || 0),
-        Number(body.precoTotal || 0),
-        Boolean(body.pago)
+        primaryItem.unidade,
+        Number(primaryItem.quantidade || 0),
+        Number(primaryItem.precoUnitario || 0),
+        precoTotal,
+        Boolean(body.pago),
+        JSON.stringify(itens)
       ]
     );
     await createAuditLog(req, user, "cadastro", "compra", id, `Compra ${String(body.descricao || "").trim() || id} cadastrada.`, {
       obraId: body.obraId,
       descricao: String(body.descricao || "").trim(),
       categoria: String(body.categoria || "").trim(),
-      precoTotal: Number(body.precoTotal || 0)
+      itens: itens.length,
+      precoTotal
     });
     sendJson(res, 201, { ok: true, id });
     return true;
@@ -1380,6 +1476,14 @@ async function handleApi(req, res, pathname) {
   if (req.method === "PUT" && pathname.startsWith("/api/compras/")) {
     const compraId = getResourceId(pathname);
     const body = await parseRequestBody(req);
+    const itens = normalizeCompraItemList(body.itens, body);
+    if (!itens.length) {
+      sendJson(res, 400, { error: "Inclua pelo menos um item na compra." });
+      return true;
+    }
+    const primaryItem = itens[0];
+    const precoTotal = getCompraItemsTotal(itens);
+
     await pool.query(
       `
         UPDATE compras
@@ -1392,7 +1496,8 @@ async function handleApi(req, res, pathname) {
             quantidade = $8,
             preco_unitario = $9,
             preco_total = $10,
-            pago = $11
+            pago = $11,
+            itens = $12::jsonb
         WHERE id = $1
       `,
       [
@@ -1402,18 +1507,20 @@ async function handleApi(req, res, pathname) {
         body.descricao,
         body.categoria,
         body.fornecedor,
-        body.unidade,
-        Number(body.quantidade || 0),
-        Number(body.precoUnitario || 0),
-        Number(body.precoTotal || 0),
-        Boolean(body.pago)
+        primaryItem.unidade,
+        Number(primaryItem.quantidade || 0),
+        Number(primaryItem.precoUnitario || 0),
+        precoTotal,
+        Boolean(body.pago),
+        JSON.stringify(itens)
       ]
     );
     await createAuditLog(req, user, "edicao", "compra", compraId, `Compra ${String(body.descricao || "").trim() || compraId} atualizada.`, {
       obraId: body.obraId,
       descricao: String(body.descricao || "").trim(),
       categoria: String(body.categoria || "").trim(),
-      precoTotal: Number(body.precoTotal || 0)
+      itens: itens.length,
+      precoTotal
     });
     sendJson(res, 200, { ok: true });
     return true;
@@ -1421,7 +1528,7 @@ async function handleApi(req, res, pathname) {
 
   if (req.method === "DELETE" && pathname.startsWith("/api/compras/")) {
     const compraId = getResourceId(pathname);
-    const compraResult = await pool.query("SELECT obra_id, descricao, categoria, preco_total FROM compras WHERE id = $1 LIMIT 1", [compraId]);
+    const compraResult = await pool.query("SELECT obra_id, descricao, categoria, preco_total, itens FROM compras WHERE id = $1 LIMIT 1", [compraId]);
     await pool.query("DELETE FROM compras WHERE id = $1", [compraId]);
     if (compraResult.rows.length) {
       const compra = compraResult.rows[0];
