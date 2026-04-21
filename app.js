@@ -47,6 +47,8 @@ const dashboardSection = document.getElementById("dashboard");
 const logoutBtn = document.getElementById("logoutBtn");
 
 const obraForm = document.getElementById("obraForm");
+const obraListActions = document.getElementById("obraListActions");
+const obraListPanel = document.getElementById("obraListPanel");
 const obrasTableBody = document.getElementById("obrasTableBody");
 const obraEditIdInput = document.getElementById("obraEditId");
 const obraOrcamentoInput = document.getElementById("obraOrcamento");
@@ -1181,6 +1183,11 @@ function renderObraRepository(isLoading = false) {
   renderObraFileExplorer(isLoading);
 }
 
+function setObraListVisible(isVisible) {
+  obraListActions?.classList.toggle("hidden", !isVisible);
+  obraListPanel?.classList.toggle("hidden", !isVisible);
+}
+
 async function openObraRepository(obra) {
   if (!obraRepositoryPanel || !obra) {
     return;
@@ -1190,6 +1197,7 @@ async function openObraRepository(obra) {
   closeObraFilePreview();
   state.selectedObraRepositorioId = obra.id;
   state.currentObraFolderId = "";
+  setObraListVisible(false);
   obraRepositoryPanel.classList.remove("hidden");
   renderObraRepository(true);
   obraRepositoryPanel.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1212,6 +1220,7 @@ function closeObraRepository() {
   closeObraFilePreview();
   state.selectedObraRepositorioId = "";
   state.currentObraFolderId = "";
+  setObraListVisible(true);
   if (obraFileUploadInput) {
     obraFileUploadInput.value = "";
   }
