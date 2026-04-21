@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260421-3" />
+  <link rel="stylesheet" href="style.css?v=20260421-4" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -195,6 +195,124 @@
           </div>
         </div>
 
+        <div id="obraRepositoryPanel" class="subpanel obra-repository hidden">
+          <div class="subpanel-header">
+            <div>
+              <h4 id="obraRepositoryTitle">Repositório da Obra</h4>
+              <p id="obraRepositorySubtitle" class="subtitle">Cadastre e visualize os documentos vinculados à obra selecionada.</p>
+            </div>
+            <button type="button" id="obraRepositoryCloseBtn" class="btn ghost">Fechar</button>
+          </div>
+
+          <div class="obra-repository-grid">
+            <section class="obra-repository-card">
+              <div class="dynamic-block-header">
+                <div>
+                  <h4>Contrato e aditivos</h4>
+                  <p class="subtitle">Documentos contratuais em PDF.</p>
+                </div>
+              </div>
+              <form class="repo-upload-form" data-obra-doc-form="contratos">
+                <label>
+                  Tipo
+                  <select name="tipoDocumento" required>
+                    <option value="Contrato">Contrato</option>
+                    <option value="Aditivo">Aditivo</option>
+                  </select>
+                </label>
+                <label>
+                  Descrição
+                  <input type="text" name="titulo" required placeholder="Ex.: Contrato principal" />
+                </label>
+                <label class="full-width">
+                  Arquivo
+                  <input type="file" name="arquivo" accept=".pdf" required />
+                </label>
+                <button type="submit" class="btn primary">Adicionar</button>
+              </form>
+              <div class="repo-doc-list" data-obra-doc-list="contratos"></div>
+            </section>
+
+            <section class="obra-repository-card">
+              <div class="dynamic-block-header">
+                <div>
+                  <h4>Projetos</h4>
+                  <p class="subtitle">Organize os projetos em pastas. Aceita PDF ou DWG.</p>
+                </div>
+              </div>
+              <form class="repo-upload-form" data-obra-doc-form="projetos">
+                <label>
+                  Pasta
+                  <input type="text" name="pasta" required placeholder="Ex.: Arquitetônico, Estrutural" />
+                </label>
+                <label>
+                  Descrição
+                  <input type="text" name="titulo" required placeholder="Ex.: Planta baixa térreo" />
+                </label>
+                <label class="full-width">
+                  Arquivo
+                  <input type="file" name="arquivo" accept=".pdf,.dwg" required />
+                </label>
+                <button type="submit" class="btn primary">Adicionar</button>
+              </form>
+              <div class="repo-doc-list" data-obra-doc-list="projetos"></div>
+            </section>
+
+            <section class="obra-repository-card">
+              <div class="dynamic-block-header">
+                <div>
+                  <h4>Planilhas orçamentárias</h4>
+                  <p class="subtitle">Planilhas do contrato e dos aditivos em XLS, XLSX ou PDF.</p>
+                </div>
+              </div>
+              <form class="repo-upload-form" data-obra-doc-form="planilhas">
+                <label>
+                  Referência
+                  <select name="tipoDocumento" required>
+                    <option value="Contrato">Contrato</option>
+                    <option value="Aditivo">Aditivo</option>
+                  </select>
+                </label>
+                <label>
+                  Descrição
+                  <input type="text" name="titulo" required placeholder="Ex.: Orçamento contrato inicial" />
+                </label>
+                <label class="full-width">
+                  Arquivo
+                  <input type="file" name="arquivo" accept=".xls,.xlsx,.pdf" required />
+                </label>
+                <button type="submit" class="btn primary">Adicionar</button>
+              </form>
+              <div class="repo-doc-list" data-obra-doc-list="planilhas"></div>
+            </section>
+
+            <section class="obra-repository-card">
+              <div class="dynamic-block-header">
+                <div>
+                  <h4>Medições</h4>
+                  <p class="subtitle">Crie pastas por medição. Aceita XLS, XLSX, PDF, ZIP ou RAR.</p>
+                </div>
+              </div>
+              <form class="repo-upload-form" data-obra-doc-form="medicoes">
+                <label>
+                  Pasta da medição
+                  <input type="text" name="pasta" required placeholder="Ex.: Medição 01" />
+                </label>
+                <label>
+                  Descrição
+                  <input type="text" name="titulo" required placeholder="Ex.: Boletim de medição" />
+                </label>
+                <label class="full-width">
+                  Arquivo
+                  <input type="file" name="arquivo" accept=".xls,.xlsx,.pdf,.zip,.rar" required />
+                </label>
+                <button type="submit" class="btn primary">Adicionar</button>
+              </form>
+              <div class="repo-doc-list" data-obra-doc-list="medicoes"></div>
+            </section>
+          </div>
+        </div>
+
         <div class="table-wrap">
           <table>
             <thead>
@@ -375,124 +493,6 @@
             <button type="button" id="compraPreviewCloseBtn" class="btn ghost">Fechar</button>
           </div>
           <div id="compraPreviewArea" class="compra-preview-area"></div>
-        </div>
-
-        <div id="obraRepositoryPanel" class="subpanel obra-repository hidden">
-          <div class="subpanel-header">
-            <div>
-              <h4 id="obraRepositoryTitle">Repositório da Obra</h4>
-              <p id="obraRepositorySubtitle" class="subtitle">Cadastre e visualize os documentos vinculados à obra selecionada.</p>
-            </div>
-            <button type="button" id="obraRepositoryCloseBtn" class="btn ghost">Fechar</button>
-          </div>
-
-          <div class="obra-repository-grid">
-            <section class="obra-repository-card">
-              <div class="dynamic-block-header">
-                <div>
-                  <h4>Contrato e aditivos</h4>
-                  <p class="subtitle">Documentos contratuais em PDF.</p>
-                </div>
-              </div>
-              <form class="repo-upload-form" data-obra-doc-form="contratos">
-                <label>
-                  Tipo
-                  <select name="tipoDocumento" required>
-                    <option value="Contrato">Contrato</option>
-                    <option value="Aditivo">Aditivo</option>
-                  </select>
-                </label>
-                <label>
-                  Descrição
-                  <input type="text" name="titulo" required placeholder="Ex.: Contrato principal" />
-                </label>
-                <label class="full-width">
-                  Arquivo
-                  <input type="file" name="arquivo" accept=".pdf" required />
-                </label>
-                <button type="submit" class="btn primary">Adicionar</button>
-              </form>
-              <div class="repo-doc-list" data-obra-doc-list="contratos"></div>
-            </section>
-
-            <section class="obra-repository-card">
-              <div class="dynamic-block-header">
-                <div>
-                  <h4>Projetos</h4>
-                  <p class="subtitle">Organize os projetos em pastas. Aceita PDF ou DWG.</p>
-                </div>
-              </div>
-              <form class="repo-upload-form" data-obra-doc-form="projetos">
-                <label>
-                  Pasta
-                  <input type="text" name="pasta" required placeholder="Ex.: Arquitetônico, Estrutural" />
-                </label>
-                <label>
-                  Descrição
-                  <input type="text" name="titulo" required placeholder="Ex.: Planta baixa térreo" />
-                </label>
-                <label class="full-width">
-                  Arquivo
-                  <input type="file" name="arquivo" accept=".pdf,.dwg" required />
-                </label>
-                <button type="submit" class="btn primary">Adicionar</button>
-              </form>
-              <div class="repo-doc-list" data-obra-doc-list="projetos"></div>
-            </section>
-
-            <section class="obra-repository-card">
-              <div class="dynamic-block-header">
-                <div>
-                  <h4>Planilhas orçamentárias</h4>
-                  <p class="subtitle">Planilhas do contrato e dos aditivos em XLS, XLSX ou PDF.</p>
-                </div>
-              </div>
-              <form class="repo-upload-form" data-obra-doc-form="planilhas">
-                <label>
-                  Referência
-                  <select name="tipoDocumento" required>
-                    <option value="Contrato">Contrato</option>
-                    <option value="Aditivo">Aditivo</option>
-                  </select>
-                </label>
-                <label>
-                  Descrição
-                  <input type="text" name="titulo" required placeholder="Ex.: Orçamento contrato inicial" />
-                </label>
-                <label class="full-width">
-                  Arquivo
-                  <input type="file" name="arquivo" accept=".xls,.xlsx,.pdf" required />
-                </label>
-                <button type="submit" class="btn primary">Adicionar</button>
-              </form>
-              <div class="repo-doc-list" data-obra-doc-list="planilhas"></div>
-            </section>
-
-            <section class="obra-repository-card">
-              <div class="dynamic-block-header">
-                <div>
-                  <h4>Medições</h4>
-                  <p class="subtitle">Crie pastas por medição. Aceita XLS, XLSX, PDF, ZIP ou RAR.</p>
-                </div>
-              </div>
-              <form class="repo-upload-form" data-obra-doc-form="medicoes">
-                <label>
-                  Pasta da medição
-                  <input type="text" name="pasta" required placeholder="Ex.: Medição 01" />
-                </label>
-                <label>
-                  Descrição
-                  <input type="text" name="titulo" required placeholder="Ex.: Boletim de medição" />
-                </label>
-                <label class="full-width">
-                  Arquivo
-                  <input type="file" name="arquivo" accept=".xls,.xlsx,.pdf,.zip,.rar" required />
-                </label>
-                <button type="submit" class="btn primary">Adicionar</button>
-              </form>
-              <div class="repo-doc-list" data-obra-doc-list="medicoes"></div>
-            </section>
-          </div>
         </div>
 
         <div class="table-wrap">
@@ -878,6 +878,6 @@
   <script src="node_modules/jspdf/dist/jspdf.umd.min.js?v=20260323-12"></script>
   <script src="vendor/read-excel-file.min.js?v=20260326-1"></script>
   <script src="vendor/write-excel-file.min.js?v=20260326-1"></script>
-  <script src="app.js?v=20260421-3"></script>
+  <script src="app.js?v=20260421-4"></script>
 </body>
 </html>
