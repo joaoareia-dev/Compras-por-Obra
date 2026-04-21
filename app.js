@@ -1112,31 +1112,33 @@ function renderObraFileExplorer(isLoading = false) {
   const folders = getObraFolderChildren();
   const files = getObraFileChildren();
   const folderCards = folders.map((folder) => `
-    <article class="cloud-item cloud-folder" data-obra-folder-open="${folder.id}">
+    <article class="cloud-item cloud-folder">
       <button type="button" class="cloud-item-main" data-obra-folder-open="${folder.id}">
-        <span class="cloud-icon">Pasta</span>
         <strong>${escapeHtml(folder.nome)}</strong>
-        ${folder.isSystem ? `<small>Pasta padrao</small>` : `<small>Pasta</small>`}
       </button>
-      <div class="cloud-item-actions">
-        <button type="button" class="btn ghost" data-obra-folder-rename="${folder.id}">Renomear</button>
-        <button type="button" class="btn delete" data-obra-folder-delete="${folder.id}">Excluir</button>
-      </div>
+      <details class="cloud-item-menu">
+        <summary aria-label="Opcoes da pasta">...</summary>
+        <div class="cloud-item-menu-panel">
+          <button type="button" data-obra-folder-rename="${folder.id}">Renomear</button>
+          <button type="button" class="danger" data-obra-folder-delete="${folder.id}">Excluir</button>
+        </div>
+      </details>
     </article>
   `).join("");
 
   const fileCards = files.map((documento) => `
     <article class="cloud-item cloud-file">
-      <div class="cloud-item-main">
-        <span class="cloud-icon">Arquivo</span>
+      <button type="button" class="cloud-item-main" data-obra-file-view="${documento.id}">
         <strong>${escapeHtml(documento.titulo || documento.arquivo.name)}</strong>
         <small>${escapeHtml(documento.arquivo.name)}${documento.createdAt ? ` - ${formatDateTime(documento.createdAt)}` : ""}</small>
-      </div>
-      <div class="cloud-item-actions">
-        <button type="button" class="btn ghost" data-obra-file-view="${documento.id}">Visualizar</button>
-        <a class="btn ghost" href="${documento.arquivo.dataUrl}" download="${escapeHtml(documento.arquivo.name)}">Baixar</a>
-        <button type="button" class="btn delete" data-obra-file-delete="${documento.id}">Excluir</button>
-      </div>
+      </button>
+      <details class="cloud-item-menu">
+        <summary aria-label="Opcoes do arquivo">...</summary>
+        <div class="cloud-item-menu-panel">
+          <a href="${documento.arquivo.dataUrl}" download="${escapeHtml(documento.arquivo.name)}">Baixar</a>
+          <button type="button" class="danger" data-obra-file-delete="${documento.id}">Excluir</button>
+        </div>
+      </details>
     </article>
   `).join("");
 
