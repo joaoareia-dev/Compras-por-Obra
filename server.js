@@ -33,6 +33,14 @@ const DEFAULT_OBRA_FOLDERS = [
   { name: "Medi\u00e7\u00f5es", category: "medicoes" }
 ];
 const DEFAULT_OBRA_FOLDER_CATEGORY_MAP = new Map(DEFAULT_OBRA_FOLDERS.map((folder) => [folder.category, folder.name]));
+const inlineAttachmentMimeTypes = {
+  ".pdf": "application/pdf",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".dwg": "application/acad",
+  ".dgw": "application/acad"
+};
+const FILE_PREVIEW_SECRET = process.env.FILE_PREVIEW_SECRET || process.env.DATABASE_URL || "file-preview-secret";
 const CLIENT_VERSION_TARGETS = {
   mobile: [
     "rdo-mobile.html",
@@ -323,6 +331,61 @@ function normalizeStoredAttachment(value, fieldName = "arquivo") {
   return attachment;
 }
 
+function createDocumentPreviewToken(documentId) {
+  return crypto
+    .createHmac("sha256", FILE_PREVIEW_SECRET)
+    .update(String(documentId || ""))
+    .digest("hex");
+}
+
+function verifyDocumentPreviewToken(documentId, token) {
+  const receivedToken = String(token || "").trim();
+  if (!documentId || !receivedToken) {
+    return false;
+  }
+
+  const expectedToken = createDocumentPreviewToken(documentId);
+  const expectedBuffer = Buffer.from(expectedToken, "utf8");
+  const receivedBuffer = Buffer.from(receivedToken, "utf8");
+  return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
+function decodeDataUrl(dataUrl) {
+  const match = /^data:([^;,]*)(;base64)?,(.*)$/s.exec(String(dataUrl || ""));
+  if (!match) {
+    return null;
+  }
+
+  const mimeType = match[1] || "application/octet-stream";
+  const payload = match[3] || "";
+  try {
+    return {
+      mimeType,
+      buffer: match[2] ? Buffer.from(payload, "base64") : Buffer.from(decodeURIComponent(payload), "utf8")
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getInlineAttachmentMimeType(attachment, dataUrlMimeType = "") {
+  const extension = path.extname(attachment?.name || "").toLowerCase();
+  return attachment?.mimeType || dataUrlMimeType || inlineAttachmentMimeTypes[extension] || "application/octet-stream";
+}
+
+function buildInlineContentDisposition(fileName) {
+  const safeName = String(fileName || "arquivo")
+    .replace(/[\r\n"]/g, "")
+    .trim() || "arquivo";
+  const asciiFallback = safeName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x20-\x7E]/g, "_")
+    .replace(/[\\"]/g, "_");
+
+  return `inline; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(safeName)}`;
+}
+
 function normalizeFolderName(value) {
   const name = String(value || "").replace(/\s+/g, " ").trim();
   if (!name) {
@@ -583,6 +646,7 @@ function mapObraDocumento(row) {
     titulo: row.titulo,
     tipoDocumento: row.tipo_documento || "",
     arquivo: parseStoredAttachment(row.arquivo),
+    previewToken: createDocumentPreviewToken(row.id),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -1336,6 +1400,43 @@ async function verifyCurrentUserPassword(userId, password) {
   return verifyPassword(String(password || ""), result.rows[0].password);
 }
 
+async function sendObraDocumentoRawFile(req, res, pathname) {
+  const documentId = getResourceId(pathname);
+  const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+  const token = requestUrl.searchParams.get("token") || "";
+
+  if (!verifyDocumentPreviewToken(documentId, token)) {
+    sendJson(res, 403, { error: "Link de visualizacao invalido." });
+    return true;
+  }
+
+  const result = await pool.query(
+    "SELECT titulo, arquivo FROM obra_documentos WHERE id = $1 LIMIT 1",
+    [documentId]
+  );
+  if (!result.rows.length) {
+    sendJson(res, 404, { error: "Arquivo nao encontrado." });
+    return true;
+  }
+
+  const attachment = parseStoredAttachment(result.rows[0].arquivo);
+  const decoded = decodeDataUrl(attachment?.dataUrl);
+  if (!attachment || !decoded) {
+    sendJson(res, 404, { error: "Arquivo indisponivel para visualizacao." });
+    return true;
+  }
+
+  res.writeHead(200, {
+    "Content-Type": getInlineAttachmentMimeType(attachment, decoded.mimeType),
+    "Content-Length": decoded.buffer.length,
+    "Content-Disposition": buildInlineContentDisposition(attachment.name || result.rows[0].titulo),
+    "Cache-Control": "private, max-age=300",
+    "X-Content-Type-Options": "nosniff"
+  });
+  res.end(decoded.buffer);
+  return true;
+}
+
 async function handleApi(req, res, pathname) {
   if (req.method === "GET" && pathname === "/api/healthz") {
     sendJson(res, 200, { status: "ok", environment: process.env.NODE_ENV });
@@ -1350,6 +1451,10 @@ async function handleApi(req, res, pathname) {
       generatedAt: new Date().toISOString()
     });
     return true;
+  }
+
+  if (req.method === "GET" && /^\/api\/obra-documentos\/[^/]+\/raw(?:\/|$)/.test(pathname)) {
+    return sendObraDocumentoRawFile(req, res, pathname);
   }
 
   if (req.method === "POST" && pathname === "/api/login") {

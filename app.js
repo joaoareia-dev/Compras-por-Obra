@@ -28,6 +28,7 @@ const state = {
   },
   selectedObraRepositorioId: "",
   currentObraFolderId: "",
+  previewedObraFileId: "",
   medicaoDraftItems: [],
   medicaoBaseDraft: null,
   medicaoHistory: [],
@@ -75,6 +76,11 @@ const obraNewFolderBtn = document.getElementById("obraNewFolderBtn");
 const obraFileUploadInput = document.getElementById("obraFileUploadInput");
 const obraFileBreadcrumb = document.getElementById("obraFileBreadcrumb");
 const obraFileExplorer = document.getElementById("obraFileExplorer");
+const obraFilePreviewPanel = document.getElementById("obraFilePreviewPanel");
+const obraFilePreviewTitle = document.getElementById("obraFilePreviewTitle");
+const obraFilePreviewMeta = document.getElementById("obraFilePreviewMeta");
+const obraFilePreviewCloseBtn = document.getElementById("obraFilePreviewCloseBtn");
+const obraFilePreviewBody = document.getElementById("obraFilePreviewBody");
 
 const finalizacaoForm = document.getElementById("finalizacaoForm");
 const finalizacaoObraSelect = document.getElementById("finalizacaoObra");
@@ -891,6 +897,7 @@ function normalizeObraDocumento(documento) {
     titulo: String(documento.titulo || arquivo.name).trim(),
     tipoDocumento: String(documento.tipoDocumento || "").trim(),
     arquivo,
+    previewToken: String(documento.previewToken || ""),
     createdAt: documento.createdAt || "",
     updatedAt: documento.updatedAt || ""
   };
@@ -963,6 +970,120 @@ function getObraFileChildren(folderId = state.currentObraFolderId) {
     .sort((a, b) => a.titulo.localeCompare(b.titulo, "pt-BR"));
 }
 
+function getObraDocumentById(fileId) {
+  return getObraArquivos().documentos.find((documento) => documento.id === String(fileId || "")) || null;
+}
+
+function getObraFileExtension(fileName) {
+  const match = String(fileName || "").toLowerCase().match(/\.([^.]+)$/);
+  return match ? match[1] : "";
+}
+
+function getObraFileRawUrl(documento) {
+  const fileName = encodeURIComponent(documento?.arquivo?.name || "arquivo");
+  const token = encodeURIComponent(documento?.previewToken || "");
+  return new URL(`/api/obra-documentos/${documento.id}/raw/${fileName}?token=${token}`, window.location.origin).toString();
+}
+
+function canUseExternalOnlineViewer() {
+  const hostname = window.location.hostname.toLowerCase();
+  const isLocalHost = /^(localhost|127\.|0\.0\.0\.0|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(hostname);
+  return ["http:", "https:"].includes(window.location.protocol) && Boolean(hostname) && !isLocalHost;
+}
+
+function renderObraFilePreviewMessage(message, documento = null) {
+  if (!obraFilePreviewBody) {
+    return;
+  }
+
+  const downloadLink = documento?.arquivo?.dataUrl
+    ? `<a class="btn ghost" href="${documento.arquivo.dataUrl}" download="${escapeHtml(documento.arquivo.name)}">Baixar arquivo</a>`
+    : "";
+  obraFilePreviewBody.innerHTML = `
+    <div class="cloud-preview-message">
+      <p>${escapeHtml(message)}</p>
+      ${downloadLink}
+    </div>
+  `;
+}
+
+function closeObraFilePreview() {
+  state.previewedObraFileId = "";
+  if (obraFilePreviewPanel) {
+    obraFilePreviewPanel.classList.add("hidden");
+  }
+  if (obraFilePreviewTitle) {
+    obraFilePreviewTitle.textContent = "Visualizacao do arquivo";
+  }
+  if (obraFilePreviewMeta) {
+    obraFilePreviewMeta.textContent = "";
+  }
+  if (obraFilePreviewBody) {
+    obraFilePreviewBody.innerHTML = "";
+  }
+}
+
+function openObraFilePreview(documento) {
+  if (!documento || !obraFilePreviewPanel || !obraFilePreviewBody) {
+    return;
+  }
+
+  state.previewedObraFileId = documento.id;
+  const fileName = documento.arquivo?.name || documento.titulo || "arquivo";
+  const extension = getObraFileExtension(fileName);
+  const rawUrl = getObraFileRawUrl(documento);
+  const canUseOnlineViewer = canUseExternalOnlineViewer();
+
+  if (obraFilePreviewTitle) {
+    obraFilePreviewTitle.textContent = documento.titulo || fileName;
+  }
+  if (obraFilePreviewMeta) {
+    obraFilePreviewMeta.textContent = `${fileName}${documento.createdAt ? ` - enviado em ${formatDateTime(documento.createdAt)}` : ""}`;
+  }
+
+  obraFilePreviewPanel.classList.remove("hidden");
+
+  if (!documento.previewToken) {
+    renderObraFilePreviewMessage("Este arquivo ainda nao possui link de visualizacao. Atualize a pagina e tente novamente.", documento);
+    obraFilePreviewPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  if (extension === "pdf") {
+    obraFilePreviewBody.innerHTML = `
+      <iframe class="cloud-preview-frame" title="${escapeHtml(fileName)}" src="${escapeHtml(rawUrl)}#toolbar=1"></iframe>
+    `;
+  } else if (["xls", "xlsx"].includes(extension)) {
+    if (!canUseOnlineViewer) {
+      renderObraFilePreviewMessage("A visualizacao de planilhas usa um viewer online e precisa do endereco publico do sistema no Render.", documento);
+    } else {
+      const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(rawUrl)}`;
+      obraFilePreviewBody.innerHTML = `
+        <p class="cloud-preview-note">Planilha aberta em visualizacao online. O arquivo original continua salvo no repositorio da obra.</p>
+        <iframe class="cloud-preview-frame" title="${escapeHtml(fileName)}" src="${escapeHtml(viewerUrl)}"></iframe>
+      `;
+    }
+  } else if (["dwg", "dgw", "dxf"].includes(extension)) {
+    if (!canUseOnlineViewer) {
+      renderObraFilePreviewMessage("A visualizacao de DWG/DXF precisa do endereco publico do sistema no Render para que o viewer CAD consiga ler o arquivo.", documento);
+    } else {
+      const viewerUrl = `https://sharecad.org/cadframe/load?url=${encodeURIComponent(rawUrl)}`;
+      obraFilePreviewBody.innerHTML = `
+        <p class="cloud-preview-note">Arquivo CAD aberto em viewer online. Desenhos grandes podem levar alguns instantes para carregar.</p>
+        <iframe class="cloud-preview-frame" title="${escapeHtml(fileName)}" src="${escapeHtml(viewerUrl)}" scrolling="no"></iframe>
+      `;
+    }
+  } else if (["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(extension)) {
+    obraFilePreviewBody.innerHTML = `
+      <img class="cloud-preview-image" src="${escapeHtml(rawUrl)}" alt="${escapeHtml(fileName)}" />
+    `;
+  } else {
+    renderObraFilePreviewMessage("Este tipo de arquivo nao possui visualizador online configurado. Use a opcao Baixar para abrir no aplicativo apropriado.", documento);
+  }
+
+  obraFilePreviewPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function renderObraBreadcrumb() {
   if (!obraFileBreadcrumb) {
     return;
@@ -1012,7 +1133,7 @@ function renderObraFileExplorer(isLoading = false) {
         <small>${escapeHtml(documento.arquivo.name)}${documento.createdAt ? ` - ${formatDateTime(documento.createdAt)}` : ""}</small>
       </div>
       <div class="cloud-item-actions">
-        <a class="btn ghost" href="${documento.arquivo.dataUrl}" target="_blank" rel="noopener">Visualizar</a>
+        <button type="button" class="btn ghost" data-obra-file-view="${documento.id}">Visualizar</button>
         <a class="btn ghost" href="${documento.arquivo.dataUrl}" download="${escapeHtml(documento.arquivo.name)}">Baixar</a>
         <button type="button" class="btn delete" data-obra-file-delete="${documento.id}">Excluir</button>
       </div>
@@ -1034,6 +1155,7 @@ function renderObraRepository(isLoading = false) {
   if (!obra) {
     obraRepositoryTitle.textContent = "Arquivos da Obra";
     obraRepositorySubtitle.textContent = "Selecione uma obra para acessar seus arquivos.";
+    closeObraFilePreview();
     if (obraFileBreadcrumb) {
       obraFileBreadcrumb.innerHTML = "";
     }
@@ -1063,6 +1185,7 @@ async function openObraRepository(obra) {
   }
 
   closeObraEditor();
+  closeObraFilePreview();
   state.selectedObraRepositorioId = obra.id;
   state.currentObraFolderId = "";
   obraRepositoryPanel.classList.remove("hidden");
@@ -1084,6 +1207,7 @@ function closeObraRepository() {
   }
 
   obraRepositoryPanel.classList.add("hidden");
+  closeObraFilePreview();
   state.selectedObraRepositorioId = "";
   state.currentObraFolderId = "";
   if (obraFileUploadInput) {
@@ -1100,6 +1224,9 @@ async function refreshCurrentObraArquivos() {
   await fetchObraArquivos(obraId);
   if (state.currentObraFolderId && !getObraFolderById(state.currentObraFolderId)) {
     state.currentObraFolderId = "";
+  }
+  if (state.previewedObraFileId && !getObraDocumentById(state.previewedObraFileId)) {
+    closeObraFilePreview();
   }
   renderObraRepository();
 }
@@ -1215,6 +1342,9 @@ async function deleteObraFile(fileId) {
   }
 
   await apiFetch(`/api/obra-documentos/${fileId}`, { method: "DELETE" });
+  if (state.previewedObraFileId === fileId) {
+    closeObraFilePreview();
+  }
   await refreshCurrentObraArquivos();
   await refreshAuditLogsIfNeeded();
 }
@@ -4333,6 +4463,15 @@ if (obraRepositoryPanel) {
         return;
       }
 
+      const fileViewButton = event.target.closest("[data-obra-file-view]");
+      if (fileViewButton) {
+        const documento = getObraDocumentById(fileViewButton.getAttribute("data-obra-file-view"));
+        if (documento) {
+          openObraFilePreview(documento);
+        }
+        return;
+      }
+
       const fileDeleteButton = event.target.closest("[data-obra-file-delete]");
       if (fileDeleteButton) {
         await deleteObraFile(fileDeleteButton.getAttribute("data-obra-file-delete"));
@@ -4341,6 +4480,7 @@ if (obraRepositoryPanel) {
 
       const breadcrumbButton = event.target.closest("[data-obra-folder-breadcrumb]");
       if (breadcrumbButton) {
+        closeObraFilePreview();
         state.currentObraFolderId = breadcrumbButton.getAttribute("data-obra-folder-breadcrumb") || "";
         renderObraRepository();
         return;
@@ -4348,6 +4488,7 @@ if (obraRepositoryPanel) {
 
       const folderOpenButton = event.target.closest("[data-obra-folder-open]");
       if (folderOpenButton) {
+        closeObraFilePreview();
         state.currentObraFolderId = folderOpenButton.getAttribute("data-obra-folder-open") || "";
         renderObraRepository();
         return;
@@ -4371,9 +4512,14 @@ if (obraNewFolderBtn) {
 if (obraFolderUpBtn) {
   obraFolderUpBtn.addEventListener("click", () => {
     const currentFolder = getCurrentObraFolder();
+    closeObraFilePreview();
     state.currentObraFolderId = currentFolder?.parentId || "";
     renderObraRepository();
   });
+}
+
+if (obraFilePreviewCloseBtn) {
+  obraFilePreviewCloseBtn.addEventListener("click", closeObraFilePreview);
 }
 
 if (obraFileUploadInput) {

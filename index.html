@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Gestão de Custos de Obras</title>
-  <link rel="stylesheet" href="style.css?v=20260421-5" />
+  <link rel="stylesheet" href="style.css?v=20260421-6" />
 </head>
 <body>
   <div class="app-bg"></div>
@@ -215,6 +215,16 @@
 
           <nav id="obraFileBreadcrumb" class="cloud-breadcrumb" aria-label="Caminho dos arquivos"></nav>
           <div id="obraFileExplorer" class="cloud-explorer"></div>
+          <div id="obraFilePreviewPanel" class="cloud-preview hidden">
+            <div class="cloud-preview-header">
+              <div>
+                <h4 id="obraFilePreviewTitle">VisualizaÃ§Ã£o do arquivo</h4>
+                <p id="obraFilePreviewMeta" class="subtitle"></p>
+              </div>
+              <button type="button" id="obraFilePreviewCloseBtn" class="btn ghost">Fechar visualizaÃ§Ã£o</button>
+            </div>
+            <div id="obraFilePreviewBody" class="cloud-preview-body"></div>
+          </div>
         </div>
 
         <div class="table-wrap">
@@ -782,6 +792,6 @@
   <script src="node_modules/jspdf/dist/jspdf.umd.min.js?v=20260323-12"></script>
   <script src="vendor/read-excel-file.min.js?v=20260326-1"></script>
   <script src="vendor/write-excel-file.min.js?v=20260326-1"></script>
-  <script src="app.js?v=20260421-5"></script>
+  <script src="app.js?v=20260421-6"></script>
 </body>
 </html>

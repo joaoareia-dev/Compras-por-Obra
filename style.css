@@ -570,6 +570,68 @@ button.cloud-item-main {
   gap: 8px;
 }
 
+.cloud-preview {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #dbe4f2;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 16px 34px rgba(39, 62, 102, 0.08);
+}
+
+.cloud-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.cloud-preview-header h4 {
+  margin: 0 0 4px;
+}
+
+.cloud-preview-body {
+  min-height: 420px;
+}
+
+.cloud-preview-frame {
+  width: 100%;
+  min-height: 70vh;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.cloud-preview-note {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+
+.cloud-preview-message {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding: 18px;
+  border: 1px dashed #cbd7e6;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.cloud-preview-message p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.cloud-preview-image {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto;
+  border-radius: 14px;
+}
+
 .subpanel {
   margin-bottom: 18px;
   padding: 18px;
@@ -1372,6 +1434,15 @@ th {
 
   .repo-file-actions {
     justify-content: flex-start;
+  }
+
+  .cloud-preview-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cloud-preview-frame {
+    min-height: 60vh;
   }
 
   .obra-summary-grid {
