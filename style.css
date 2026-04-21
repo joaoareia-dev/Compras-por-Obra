@@ -251,7 +251,7 @@ textarea:focus {
 
 .compra-item-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.4fr) minmax(90px, 0.65fr) minmax(95px, 0.65fr) minmax(125px, 0.8fr) minmax(125px, 0.8fr) auto;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(100px, 0.65fr) minmax(100px, 0.65fr) minmax(135px, 0.8fr) minmax(135px, 0.8fr);
   gap: 10px;
   align-items: end;
   padding: 12px;
@@ -260,7 +260,15 @@ textarea:focus {
   background: #fff;
 }
 
+.compra-item-row label,
+.compra-item-row input {
+  min-width: 0;
+  width: 100%;
+}
+
 .compra-item-remove {
+  grid-column: 1 / -1;
+  justify-self: end;
   min-height: 38px;
 }
 
@@ -283,6 +291,64 @@ textarea:focus {
 .compra-total-resumo strong {
   color: var(--text);
   font-size: 1.25rem;
+}
+
+.compra-preview-area {
+  margin-top: 14px;
+}
+
+.compra-preview-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #dbe4f2;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(39, 62, 102, 0.08);
+}
+
+.compra-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.compra-preview-header h4 {
+  margin: 4px 0 0;
+}
+
+.compra-preview-header strong {
+  font-size: 1.35rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.compra-preview-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.compra-preview-meta p {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #e1e8f4;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.compra-preview-meta strong {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.compact-table {
+  margin-top: 0;
 }
 
 .subpanel {
@@ -1069,6 +1135,14 @@ th {
 
   .report-header {
     flex-direction: column;
+  }
+
+  .compra-preview-header {
+    flex-direction: column;
+  }
+
+  .compra-preview-meta {
+    grid-template-columns: 1fr;
   }
 
   .obra-summary-grid {

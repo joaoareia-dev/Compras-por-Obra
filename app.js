@@ -103,6 +103,11 @@ const compraFornecedorInput = document.getElementById("compraFornecedor");
 const compraItensContainer = document.getElementById("compraItensContainer");
 const compraAddItemBtn = document.getElementById("compraAddItemBtn");
 const compraItensTotal = document.getElementById("compraItensTotal");
+const compraPreviewPanel = document.getElementById("compraPreviewPanel");
+const compraPreviewTitle = document.getElementById("compraPreviewTitle");
+const compraPreviewSubtitle = document.getElementById("compraPreviewSubtitle");
+const compraPreviewCloseBtn = document.getElementById("compraPreviewCloseBtn");
+const compraPreviewArea = document.getElementById("compraPreviewArea");
 const descricaoOptions = document.getElementById("descricaoOptions");
 const compraItemDescricaoOptions = document.getElementById("compraItemDescricaoOptions");
 const categoriaOptions = document.getElementById("categoriaOptions");
@@ -2312,6 +2317,7 @@ function closeObraEditor() {
 }
 
 function resetCompraForm() {
+  closeCompraPreview();
   compraForm.reset();
   compraEditIdInput.value = "";
   compraSubmitBtn.textContent = "Registrar Compra";
@@ -2338,6 +2344,7 @@ function resetMaoDeObraForm() {
 }
 
 function preencherFormularioCompra(compra) {
+  closeCompraPreview();
   compraEditIdInput.value = compra.id;
   compraObraSelect.value = compra.obraId;
   compraPagoInput.value = String(Boolean(compra.pago));
@@ -2348,6 +2355,75 @@ function preencherFormularioCompra(compra) {
   hydrateCompraItensForm(getCompraItens(compra));
   compraSubmitBtn.textContent = "Atualizar Compra";
   compraCancelEditBtn.classList.remove("hidden");
+}
+
+function renderCompraPreview(compra) {
+  if (!compraPreviewPanel || !compraPreviewArea) {
+    return;
+  }
+
+  const obraNome = buildObraNameMap(getObras()).get(compra.obraId) || "Obra removida";
+  const itens = getCompraItens(compra);
+  compraPreviewTitle.textContent = "Visualização da Compra";
+  compraPreviewSubtitle.textContent = `${obraNome} • ${formatDate(compra.data)} • ${formatCurrency(getCompraTotal(compra))}`;
+  compraPreviewArea.innerHTML = `
+    <article class="compra-preview-card">
+      <div class="compra-preview-header">
+        <div>
+          <span class="eyebrow">Compra</span>
+          <h4>${escapeHtml(compra.descricao || "-")}</h4>
+        </div>
+        <strong>${formatCurrency(getCompraTotal(compra))}</strong>
+      </div>
+      <div class="compra-preview-meta">
+        <p><strong>Obra</strong><span>${escapeHtml(obraNome)}</span></p>
+        <p><strong>Data</strong><span>${formatDate(compra.data)}</span></p>
+        <p><strong>Fornecedor</strong><span>${escapeHtml(compra.fornecedor || "-")}</span></p>
+        <p><strong>Categoria</strong><span>${escapeHtml(compra.categoria || "-")}</span></p>
+      </div>
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Unidade</th>
+              <th>Qtd.</th>
+              <th>Valor unit.</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itens.map((item) => `
+              <tr>
+                <td>${escapeHtml(item.descricao || "-")}</td>
+                <td>${escapeHtml(item.unidade || "-")}</td>
+                <td>${formatNumber(item.quantidade || 0)}</td>
+                <td>${formatCurrency(item.precoUnitario || 0)}</td>
+                <td>${formatCurrency(item.precoTotal || 0)}</td>
+              </tr>
+            `).join("") || `<tr><td colspan="5" class="empty">Nenhum item encontrado.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  `;
+  compraPreviewPanel.classList.remove("hidden");
+  compraPreviewPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function closeCompraPreview() {
+  if (!compraPreviewPanel || !compraPreviewArea) {
+    return;
+  }
+
+  compraPreviewPanel.classList.add("hidden");
+  compraPreviewArea.innerHTML = "";
+  if (compraPreviewTitle) {
+    compraPreviewTitle.textContent = "Visualização da Compra";
+  }
+  if (compraPreviewSubtitle) {
+    compraPreviewSubtitle.textContent = "Confira os dados da compra e seus itens.";
+  }
 }
 
 function preencherFormularioMaoDeObra(pagamento) {
@@ -2540,7 +2616,7 @@ function renderAuditLogs() {
   }
 
   if (!isAdmin()) {
-    auditLogsTableBody.innerHTML = `<tr><td colspan="5" class="empty">Apenas gerentes podem visualizar os logs.</td></tr>`;
+    auditLogsTableBody.innerHTML = `<tr><td colspan="5" class="empty">Apenas administradores podem visualizar os logs.</td></tr>`;
     return;
   }
 
@@ -2809,6 +2885,7 @@ function renderCompras() {
         </td>
         <td>${formatCurrency(getCompraTotal(compra))}</td>
         <td>
+          <button class="btn ghost" data-compra-view="${compra.id}">Visualizar</button>
           <button class="btn ghost" data-compra-edit="${compra.id}">Editar</button>
           <button class="btn delete" data-compra-delete="${compra.id}">Excluir</button>
         </td>
@@ -4180,6 +4257,12 @@ compraCancelEditBtn.addEventListener("click", () => {
   resetCompraForm();
 });
 
+if (compraPreviewCloseBtn) {
+  compraPreviewCloseBtn.addEventListener("click", () => {
+    closeCompraPreview();
+  });
+}
+
 maoDeObraForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -4576,6 +4659,19 @@ obrasTableBody.addEventListener("click", async (event) => {
 });
 
 comprasTableBody.addEventListener("click", async (event) => {
+  const viewButton = event.target.closest("[data-compra-view]");
+  if (viewButton) {
+    const id = viewButton.getAttribute("data-compra-view");
+    const compra = getCompras().find((item) => item.id === id);
+    if (!compra) {
+      return;
+    }
+
+    renderCompraPreview(compra);
+    activatePage("compras");
+    return;
+  }
+
   const editButton = event.target.closest("[data-compra-edit]");
   if (editButton) {
     const id = editButton.getAttribute("data-compra-edit");
@@ -4610,6 +4706,7 @@ comprasTableBody.addEventListener("click", async (event) => {
     await apiFetch(`/api/compras/${id}`, { method: "DELETE" });
     await refreshData();
     await refreshAuditLogsIfNeeded();
+    closeCompraPreview();
     renderAll();
   } catch (error) {
     alert(error.message);
