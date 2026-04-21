@@ -465,6 +465,111 @@ textarea:focus {
   gap: 8px;
 }
 
+.cloud-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.file-upload-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.file-upload-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.cloud-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 10px 12px;
+  border: 1px solid #dbe4f2;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.cloud-breadcrumb span {
+  color: var(--muted);
+}
+
+.cloud-breadcrumb-item {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--primary-strong);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.cloud-explorer {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.cloud-item {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dbe4f2;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(39, 62, 102, 0.06);
+}
+
+.cloud-item-main {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+button.cloud-item-main {
+  cursor: pointer;
+}
+
+.cloud-item-main strong,
+.cloud-item-main small {
+  overflow-wrap: anywhere;
+}
+
+.cloud-item-main small {
+  color: var(--muted);
+}
+
+.cloud-icon {
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #e8f6f1;
+  color: var(--primary-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.cloud-file .cloud-icon {
+  background: #eef3ff;
+  color: #123c69;
+}
+
+.cloud-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .subpanel {
   margin-bottom: 18px;
   padding: 18px;

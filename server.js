@@ -26,13 +26,13 @@ const JSON_BODY_LIMIT_BYTES = Number(process.env.JSON_BODY_LIMIT_BYTES) || 60 * 
 const noCacheExtensions = new Set([".html", ".js", ".mjs", ".css", ".webmanifest"]);
 const RDO_CLIMA_OPTIONS = new Set(["Ensolarado", "Nublado", "Chuvoso"]);
 const AUDIT_ACTIONS = new Set(["cadastro", "edicao", "exclusao"]);
-const OBRA_DOCUMENTO_CATEGORIAS = new Set(["contratos", "projetos", "planilhas", "medicoes"]);
-const OBRA_DOCUMENTO_EXTENSOES = {
-  contratos: new Set([".pdf"]),
-  projetos: new Set([".pdf", ".dwg"]),
-  planilhas: new Set([".xls", ".xlsx", ".pdf"]),
-  medicoes: new Set([".xls", ".xlsx", ".pdf", ".zip", ".rar"])
-};
+const DEFAULT_OBRA_FOLDERS = [
+  { name: "Contrato e aditivos", category: "contratos" },
+  { name: "Projetos", category: "projetos" },
+  { name: "Planilhas or\u00e7ament\u00e1rias", category: "planilhas" },
+  { name: "Medi\u00e7\u00f5es", category: "medicoes" }
+];
+const DEFAULT_OBRA_FOLDER_CATEGORY_MAP = new Map(DEFAULT_OBRA_FOLDERS.map((folder) => [folder.category, folder.name]));
 const CLIENT_VERSION_TARGETS = {
   mobile: [
     "rdo-mobile.html",
@@ -323,27 +323,202 @@ function normalizeStoredAttachment(value, fieldName = "arquivo") {
   return attachment;
 }
 
-function getFileExtension(fileName) {
-  return path.extname(String(fileName || "").trim()).toLowerCase();
+function normalizeFolderName(value) {
+  const name = String(value || "").replace(/\s+/g, " ").trim();
+  if (!name) {
+    throw new Error("Informe o nome da pasta.");
+  }
+
+  if (name.length > 120) {
+    throw new Error("O nome da pasta deve ter no maximo 120 caracteres.");
+  }
+
+  if (/[<>:"|?*]/.test(name)) {
+    throw new Error("O nome da pasta possui caracteres invalidos.");
+  }
+
+  return name;
 }
 
-function validateObraDocumentoArquivo(categoria, arquivo) {
-  const allowedExtensions = OBRA_DOCUMENTO_EXTENSOES[categoria];
-  const extension = getFileExtension(arquivo.name);
+function normalizeLegacyDocumentCategory(value) {
+  const category = String(value || "arquivos").trim() || "arquivos";
+  if (DEFAULT_OBRA_FOLDER_CATEGORY_MAP.has(category) || category === "arquivos") {
+    return category;
+  }
 
-  if (!allowedExtensions || !allowedExtensions.has(extension)) {
-    const accepted = Array.from(allowedExtensions || []).join(", ");
-    throw new Error(`Formato invalido para este tipo de documento. Use: ${accepted}.`);
+  return "arquivos";
+}
+
+function normalizeOptionalFolderId(value) {
+  return String(value || "").trim() || null;
+}
+
+function mapObraPasta(row) {
+  return {
+    id: row.id,
+    obraId: row.obra_id,
+    parentId: row.parent_id || "",
+    nome: row.nome,
+    isSystem: Boolean(row.is_system),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+async function getObraByIdForFiles(obraId) {
+  const result = await pool.query("SELECT id, nome FROM obras WHERE id = $1 LIMIT 1", [obraId]);
+  return result.rows[0] || null;
+}
+
+async function findObraFolderByName(obraId, parentId, name) {
+  const result = await pool.query(
+    `
+      SELECT *
+      FROM obra_pastas
+      WHERE obra_id = $1
+        AND parent_id IS NOT DISTINCT FROM $2
+        AND lower(nome) = lower($3)
+      LIMIT 1
+    `,
+    [obraId, parentId || null, name]
+  );
+  return result.rows[0] || null;
+}
+
+async function createObraFolder(obraId, parentId, name, isSystem = false) {
+  const id = randomId();
+  await pool.query(
+    `
+      INSERT INTO obra_pastas (id, obra_id, parent_id, nome, is_system, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+    `,
+    [id, obraId, parentId || null, name, Boolean(isSystem)]
+  );
+  return {
+    id,
+    obra_id: obraId,
+    parent_id: parentId || null,
+    nome: name,
+    is_system: Boolean(isSystem)
+  };
+}
+
+async function findOrCreateObraFolder(obraId, parentId, name, isSystem = false) {
+  const normalizedName = normalizeFolderName(name);
+  const existing = await findObraFolderByName(obraId, parentId, normalizedName);
+  if (existing) {
+    if (isSystem && !existing.is_system) {
+      await pool.query("UPDATE obra_pastas SET is_system = TRUE WHERE id = $1", [existing.id]);
+      existing.is_system = true;
+    }
+    return existing;
+  }
+
+  return createObraFolder(obraId, parentId, normalizedName, isSystem);
+}
+
+async function ensureDefaultObraFolders(obraId, markInitialized = true) {
+  for (const folder of DEFAULT_OBRA_FOLDERS) {
+    await findOrCreateObraFolder(obraId, null, folder.name, true);
+  }
+
+  if (markInitialized) {
+    await pool.query("UPDATE obras SET arquivos_inicializados = TRUE WHERE id = $1", [obraId]);
   }
 }
 
-function normalizeObraDocumentoCategoria(value) {
-  const categoria = String(value || "").trim();
-  if (!OBRA_DOCUMENTO_CATEGORIAS.has(categoria)) {
-    throw new Error("Categoria de documento invalida.");
+async function ensureAllObraDefaultFolders() {
+  const result = await pool.query("SELECT id FROM obras WHERE arquivos_inicializados = FALSE");
+  for (const row of result.rows) {
+    await ensureDefaultObraFolders(row.id);
+  }
+}
+
+async function ensureObraFileRepositoryInitialized(obraId) {
+  const result = await pool.query("SELECT arquivos_inicializados FROM obras WHERE id = $1 LIMIT 1", [obraId]);
+  if (result.rows[0]?.arquivos_inicializados) {
+    return;
   }
 
-  return categoria;
+  await ensureDefaultObraFolders(obraId);
+}
+
+async function assertFolderBelongsToObra(folderId, obraId) {
+  const normalizedFolderId = normalizeOptionalFolderId(folderId);
+  if (!normalizedFolderId) {
+    return null;
+  }
+
+  const result = await pool.query("SELECT * FROM obra_pastas WHERE id = $1 LIMIT 1", [normalizedFolderId]);
+  const folder = result.rows[0];
+  if (!folder || folder.obra_id !== obraId) {
+    throw new Error("Pasta nao encontrada para esta obra.");
+  }
+
+  return folder;
+}
+
+async function getFolderPathRows(obraId, folderId) {
+  const foldersResult = await pool.query("SELECT * FROM obra_pastas WHERE obra_id = $1", [obraId]);
+  const folderMap = new Map(foldersResult.rows.map((folder) => [folder.id, folder]));
+  const pathRows = [];
+  let current = folderMap.get(folderId || "");
+  const visited = new Set();
+
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    pathRows.unshift(current);
+    current = current.parent_id ? folderMap.get(current.parent_id) : null;
+  }
+
+  return pathRows;
+}
+
+async function getFolderPathString(obraId, folderId) {
+  const rows = await getFolderPathRows(obraId, folderId);
+  return rows.map((row) => row.nome).join("/");
+}
+
+async function getDocumentCategoryFromFolder(obraId, folderId, fallback = "arquivos") {
+  const rows = await getFolderPathRows(obraId, folderId);
+  const rootName = rows[0]?.nome || "";
+  const defaultFolder = DEFAULT_OBRA_FOLDERS.find((folder) => folder.name.toLowerCase() === rootName.toLowerCase());
+  return defaultFolder?.category || fallback;
+}
+
+async function ensureFolderPath(obraId, parentId, pathValue) {
+  const parts = String(pathValue || "")
+    .split(/[\\/]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  let currentParentId = parentId || null;
+  let currentFolder = null;
+
+  for (const part of parts) {
+    currentFolder = await findOrCreateObraFolder(obraId, currentParentId, part, false);
+    currentParentId = currentFolder.id;
+  }
+
+  return currentFolder;
+}
+
+async function migrateObraDocumentosToFolders() {
+  const result = await pool.query(`
+    SELECT id, obra_id, categoria, pasta
+    FROM obra_documentos
+    WHERE folder_id IS NULL
+  `);
+
+  for (const row of result.rows) {
+    await ensureDefaultObraFolders(row.obra_id, false);
+    const category = normalizeLegacyDocumentCategory(row.categoria);
+    const rootName = DEFAULT_OBRA_FOLDER_CATEGORY_MAP.get(category) || "Arquivos";
+    const rootFolder = await findOrCreateObraFolder(row.obra_id, null, rootName, category !== "arquivos");
+    const targetFolder = row.pasta
+      ? await ensureFolderPath(row.obra_id, rootFolder.id, row.pasta)
+      : rootFolder;
+    await pool.query("UPDATE obra_documentos SET folder_id = $2 WHERE id = $1", [row.id, targetFolder.id]);
+  }
 }
 
 function toDateOnlyString(value) {
@@ -402,6 +577,7 @@ function mapObraDocumento(row) {
   return {
     id: row.id,
     obraId: row.obra_id,
+    folderId: row.folder_id || "",
     categoria: row.categoria,
     pasta: row.pasta || "",
     titulo: row.titulo,
@@ -809,6 +985,7 @@ async function ensureDatabase() {
       contratada_logo TEXT,
       orcamento_sintetico_arquivo TEXT,
       orcamento_analitico_arquivo TEXT,
+      arquivos_inicializados BOOLEAN NOT NULL DEFAULT FALSE,
       finalizacao_data_entrega DATE,
       finalizacao_aditivos_info TEXT,
       finalizacao_aditivos_valor NUMERIC(14, 2) DEFAULT 0,
@@ -822,11 +999,30 @@ async function ensureDatabase() {
   await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS contratada_logo TEXT");
   await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS orcamento_sintetico_arquivo TEXT");
   await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS orcamento_analitico_arquivo TEXT");
+  await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS arquivos_inicializados BOOLEAN NOT NULL DEFAULT FALSE");
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS obra_pastas (
+      id TEXT PRIMARY KEY,
+      obra_id TEXT NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+      parent_id TEXT REFERENCES obra_pastas(id) ON DELETE CASCADE,
+      nome TEXT NOT NULL,
+      is_system BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query("ALTER TABLE obra_pastas ADD COLUMN IF NOT EXISTS parent_id TEXT REFERENCES obra_pastas(id) ON DELETE CASCADE");
+  await pool.query("ALTER TABLE obra_pastas ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT FALSE");
+  await pool.query("ALTER TABLE obra_pastas ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()");
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_obra_pastas_obra_parent ON obra_pastas (obra_id, parent_id)");
+  await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_obra_pastas_unique_name ON obra_pastas (obra_id, COALESCE(parent_id, ''), lower(nome))");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS obra_documentos (
       id TEXT PRIMARY KEY,
       obra_id TEXT NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+      folder_id TEXT REFERENCES obra_pastas(id) ON DELETE CASCADE,
       categoria TEXT NOT NULL,
       pasta TEXT NOT NULL DEFAULT '',
       titulo TEXT NOT NULL,
@@ -836,10 +1032,28 @@ async function ensureDatabase() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+  await pool.query("ALTER TABLE obra_documentos ADD COLUMN IF NOT EXISTS folder_id TEXT");
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'obra_documentos_folder_id_fkey'
+      ) THEN
+        ALTER TABLE obra_documentos
+        ADD CONSTRAINT obra_documentos_folder_id_fkey
+        FOREIGN KEY (folder_id) REFERENCES obra_pastas(id) ON DELETE CASCADE;
+      END IF;
+    END $$;
+  `);
   await pool.query("ALTER TABLE obra_documentos ADD COLUMN IF NOT EXISTS pasta TEXT NOT NULL DEFAULT ''");
   await pool.query("ALTER TABLE obra_documentos ADD COLUMN IF NOT EXISTS tipo_documento TEXT");
   await pool.query("ALTER TABLE obra_documentos ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()");
   await pool.query("CREATE INDEX IF NOT EXISTS idx_obra_documentos_obra_categoria ON obra_documentos (obra_id, categoria)");
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_obra_documentos_folder ON obra_documentos (folder_id)");
+  await ensureAllObraDefaultFolders();
+  await migrateObraDocumentosToFolders();
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS compras (
@@ -1373,6 +1587,52 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  if (req.method === "GET" && pathname === "/api/obra-arquivos") {
+    if (!requireAdmin(res, user)) {
+      return true;
+    }
+
+    const searchParams = new URL(req.url, `http://${req.headers.host || "localhost"}`).searchParams;
+    const obraId = searchParams.get("obraId") || "";
+    if (!obraId) {
+      sendJson(res, 400, { error: "Informe a obra para listar arquivos." });
+      return true;
+    }
+
+    const obra = await getObraByIdForFiles(obraId);
+    if (!obra) {
+      sendJson(res, 404, { error: "Obra nao encontrada." });
+      return true;
+    }
+
+    await ensureObraFileRepositoryInitialized(obraId);
+    const [foldersResult, documentsResult] = await Promise.all([
+      pool.query(
+        `
+          SELECT *
+          FROM obra_pastas
+          WHERE obra_id = $1
+          ORDER BY parent_id NULLS FIRST, nome ASC
+        `,
+        [obraId]
+      ),
+      pool.query(
+        `
+          SELECT *
+          FROM obra_documentos
+          WHERE obra_id = $1
+          ORDER BY created_at DESC
+        `,
+        [obraId]
+      )
+    ]);
+    sendJson(res, 200, {
+      pastas: foldersResult.rows.map(mapObraPasta),
+      documentos: documentsResult.rows.map(mapObraDocumento)
+    });
+    return true;
+  }
+
   if (req.method === "GET" && pathname === "/api/obra-documentos") {
     if (!requireAdmin(res, user)) {
       return true;
@@ -1385,6 +1645,7 @@ async function handleApi(req, res, pathname) {
       return true;
     }
 
+    await ensureObraFileRepositoryInitialized(obraId);
     const result = await pool.query(
       `
         SELECT *
@@ -1398,36 +1659,148 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  if (req.method === "POST" && pathname === "/api/obra-pastas") {
+    if (!requireAdmin(res, user)) {
+      return true;
+    }
+
+    const body = await parseRequestBody(req);
+    requireFields(body, ["obraId", "nome"]);
+    const obra = await getObraByIdForFiles(body.obraId);
+    if (!obra) {
+      sendJson(res, 404, { error: "Obra nao encontrada." });
+      return true;
+    }
+
+    const parentId = normalizeOptionalFolderId(body.parentId);
+    await assertFolderBelongsToObra(parentId, body.obraId);
+    const name = normalizeFolderName(body.nome);
+    const existing = await findObraFolderByName(body.obraId, parentId, name);
+    if (existing) {
+      sendJson(res, 409, { error: "Ja existe uma pasta com este nome neste local." });
+      return true;
+    }
+
+    const folder = await createObraFolder(body.obraId, parentId, name, false);
+    await createAuditLog(req, user, "cadastro", "obra_pasta", folder.id, `Pasta ${name} criada na obra ${obra.nome}.`, {
+      obraId: body.obraId,
+      parentId: parentId || ""
+    });
+    sendJson(res, 201, { ok: true, pasta: mapObraPasta(folder) });
+    return true;
+  }
+
+  if (req.method === "PUT" && pathname.startsWith("/api/obra-pastas/")) {
+    if (!requireAdmin(res, user)) {
+      return true;
+    }
+
+    const folderId = getResourceId(pathname);
+    const body = await parseRequestBody(req);
+    requireFields(body, ["nome"]);
+    const folderResult = await pool.query("SELECT * FROM obra_pastas WHERE id = $1 LIMIT 1", [folderId]);
+    const folder = folderResult.rows[0];
+    if (!folder) {
+      sendJson(res, 404, { error: "Pasta nao encontrada." });
+      return true;
+    }
+
+    const name = normalizeFolderName(body.nome);
+    const existing = await findObraFolderByName(folder.obra_id, folder.parent_id, name);
+    if (existing && existing.id !== folderId) {
+      sendJson(res, 409, { error: "Ja existe uma pasta com este nome neste local." });
+      return true;
+    }
+
+    await pool.query("UPDATE obra_pastas SET nome = $2, updated_at = NOW() WHERE id = $1", [folderId, name]);
+    await createAuditLog(req, user, "edicao", "obra_pasta", folderId, `Pasta ${folder.nome} renomeada para ${name}.`, {
+      obraId: folder.obra_id,
+      nomeAnterior: folder.nome,
+      novoNome: name
+    });
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  if (req.method === "DELETE" && pathname.startsWith("/api/obra-pastas/")) {
+    if (!requireAdmin(res, user)) {
+      return true;
+    }
+
+    const folderId = getResourceId(pathname);
+    const folderResult = await pool.query(
+      `
+        SELECT p.*, o.nome AS obra_nome
+        FROM obra_pastas p
+        JOIN obras o ON o.id = p.obra_id
+        WHERE p.id = $1
+        LIMIT 1
+      `,
+      [folderId]
+    );
+    const folder = folderResult.rows[0];
+    if (!folder) {
+      sendJson(res, 404, { error: "Pasta nao encontrada." });
+      return true;
+    }
+
+    await pool.query("DELETE FROM obra_pastas WHERE id = $1", [folderId]);
+    await createAuditLog(req, user, "exclusao", "obra_pasta", folderId, `Pasta ${folder.nome} removida da obra ${folder.obra_nome}.`, {
+      obraId: folder.obra_id,
+      parentId: folder.parent_id || ""
+    });
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
   if (req.method === "POST" && pathname === "/api/obra-documentos") {
     if (!requireAdmin(res, user)) {
       return true;
     }
 
     const body = await parseRequestBody(req);
-    requireFields(body, ["obraId", "categoria", "titulo"]);
-    const categoria = normalizeObraDocumentoCategoria(body.categoria);
+    requireFields(body, ["obraId", "titulo"]);
     const arquivo = normalizeStoredAttachment(body.arquivo, "arquivo do documento");
-    validateObraDocumentoArquivo(categoria, arquivo);
 
-    const obraResult = await pool.query("SELECT nome FROM obras WHERE id = $1 LIMIT 1", [body.obraId]);
-    if (!obraResult.rows.length) {
+    const obra = await getObraByIdForFiles(body.obraId);
+    if (!obra) {
       sendJson(res, 404, { error: "Obra nao encontrada." });
       return true;
+    }
+
+    await ensureObraFileRepositoryInitialized(body.obraId);
+    let folderId = normalizeOptionalFolderId(body.folderId);
+    let categoria = normalizeLegacyDocumentCategory(body.categoria);
+    let pasta = String(body.pasta || "").trim();
+
+    if (folderId) {
+      await assertFolderBelongsToObra(folderId, body.obraId);
+      categoria = await getDocumentCategoryFromFolder(body.obraId, folderId, categoria);
+      pasta = await getFolderPathString(body.obraId, folderId);
+    } else if (body.categoria) {
+      const rootName = DEFAULT_OBRA_FOLDER_CATEGORY_MAP.get(categoria) || "Arquivos";
+      const rootFolder = await findOrCreateObraFolder(body.obraId, null, rootName, categoria !== "arquivos");
+      const targetFolder = pasta
+        ? await ensureFolderPath(body.obraId, rootFolder.id, pasta)
+        : rootFolder;
+      folderId = targetFolder.id;
+      pasta = await getFolderPathString(body.obraId, folderId);
     }
 
     const id = randomId();
     await pool.query(
       `
         INSERT INTO obra_documentos (
-          id, obra_id, categoria, pasta, titulo, tipo_documento, arquivo, created_at, updated_at
+          id, obra_id, folder_id, categoria, pasta, titulo, tipo_documento, arquivo, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW(), NOW())
       `,
       [
         id,
         body.obraId,
+        folderId,
         categoria,
-        String(body.pasta || "").trim(),
+        pasta,
         String(body.titulo || "").trim(),
         String(body.tipoDocumento || "").trim(),
         JSON.stringify(arquivo)
@@ -1440,11 +1813,12 @@ async function handleApi(req, res, pathname) {
       "cadastro",
       "obra_documento",
       id,
-      `Documento ${String(body.titulo || "").trim()} cadastrado na obra ${obraResult.rows[0].nome}.`,
+      `Arquivo ${String(body.titulo || "").trim()} enviado para a obra ${obra.nome}.`,
       {
         obraId: body.obraId,
+        folderId: folderId || "",
         categoria,
-        pasta: String(body.pasta || "").trim(),
+        pasta,
         arquivo: arquivo.name
       }
     );
@@ -1524,6 +1898,7 @@ async function handleApi(req, res, pathname) {
         body.orcamentoAnaliticoArquivo ? JSON.stringify(body.orcamentoAnaliticoArquivo) : null
       ]
     );
+    await ensureDefaultObraFolders(id);
     await createAuditLog(req, user, "cadastro", "obra", id, `Obra ${String(body.nome).trim()} cadastrada.`, {
       nome: String(body.nome).trim(),
       local: String(body.local).trim(),

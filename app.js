@@ -1,4 +1,4 @@
-﻿const state = {
+const state = {
   obras: [],
   compras: [],
   maoDeObra: [],
@@ -10,7 +10,7 @@
   },
   auditLogs: [],
   usuarios: [],
-  obraDocumentos: {},
+  obraArquivos: {},
   sessionUser: null,
   loginTakeoverEmail: null,
   lastCompraDate: "",
@@ -27,6 +27,7 @@
     orcamentoSintetico: null
   },
   selectedObraRepositorioId: "",
+  currentObraFolderId: "",
   medicaoDraftItems: [],
   medicaoBaseDraft: null,
   medicaoHistory: [],
@@ -69,8 +70,11 @@ const obraRepositoryPanel = document.getElementById("obraRepositoryPanel");
 const obraRepositoryTitle = document.getElementById("obraRepositoryTitle");
 const obraRepositorySubtitle = document.getElementById("obraRepositorySubtitle");
 const obraRepositoryCloseBtn = document.getElementById("obraRepositoryCloseBtn");
-const obraRepositoryForms = Array.from(document.querySelectorAll("[data-obra-doc-form]"));
-const obraRepositoryLists = Array.from(document.querySelectorAll("[data-obra-doc-list]"));
+const obraFolderUpBtn = document.getElementById("obraFolderUpBtn");
+const obraNewFolderBtn = document.getElementById("obraNewFolderBtn");
+const obraFileUploadInput = document.getElementById("obraFileUploadInput");
+const obraFileBreadcrumb = document.getElementById("obraFileBreadcrumb");
+const obraFileExplorer = document.getElementById("obraFileExplorer");
 
 const finalizacaoForm = document.getElementById("finalizacaoForm");
 const finalizacaoObraSelect = document.getElementById("finalizacaoObra");
@@ -121,33 +125,6 @@ const compraItemDescricaoOptions = document.getElementById("compraItemDescricaoO
 const categoriaOptions = document.getElementById("categoriaOptions");
 const fornecedorOptions = document.getElementById("fornecedorOptions");
 const unidadeOptions = document.getElementById("unidadeOptions");
-
-const OBRA_DOCUMENTO_CATEGORIAS = {
-  contratos: {
-    label: "Contrato e aditivos",
-    emptyMessage: "Nenhum contrato ou aditivo cadastrado.",
-    defaultFolder: "Documentos contratuais",
-    allowedExtensions: [".pdf"]
-  },
-  projetos: {
-    label: "Projetos",
-    emptyMessage: "Nenhum projeto cadastrado.",
-    defaultFolder: "Sem pasta",
-    allowedExtensions: [".pdf", ".dwg"]
-  },
-  planilhas: {
-    label: "Planilhas orçamentárias",
-    emptyMessage: "Nenhuma planilha orçamentária cadastrada.",
-    defaultFolder: "Planilhas",
-    allowedExtensions: [".xls", ".xlsx", ".pdf"]
-  },
-  medicoes: {
-    label: "Medições",
-    emptyMessage: "Nenhum documento de medição cadastrado.",
-    defaultFolder: "Sem medição",
-    allowedExtensions: [".xls", ".xlsx", ".pdf", ".zip", ".rar"]
-  }
-};
 
 const maoDeObraForm = document.getElementById("maoDeObraForm");
 const maoDeObraTableBody = document.getElementById("maoDeObraTableBody");
@@ -883,38 +860,33 @@ function renderObraArquivoPreviews() {
   );
 }
 
-function getObraDocumentoConfig(categoria) {
-  return OBRA_DOCUMENTO_CATEGORIAS[categoria] || null;
-}
-
-function getObraDocumentoExtension(fileName) {
-  const match = String(fileName || "").trim().toLowerCase().match(/\.[^.]+$/);
-  return match ? match[0] : "";
-}
-
-function validateObraDocumentoFile(categoria, file) {
-  const config = getObraDocumentoConfig(categoria);
-  if (!config) {
-    throw new Error("Categoria de documento invalida.");
+function normalizeObraPasta(pasta) {
+  if (!pasta?.id) {
+    return null;
   }
 
-  const extension = getObraDocumentoExtension(file?.name || "");
-  if (!config.allowedExtensions.includes(extension)) {
-    throw new Error(`Formato invalido para ${config.label}. Use: ${config.allowedExtensions.join(", ")}.`);
-  }
+  return {
+    id: String(pasta.id),
+    obraId: String(pasta.obraId || ""),
+    parentId: String(pasta.parentId || ""),
+    nome: String(pasta.nome || "Pasta").trim() || "Pasta",
+    isSystem: Boolean(pasta.isSystem),
+    createdAt: pasta.createdAt || "",
+    updatedAt: pasta.updatedAt || ""
+  };
 }
 
 function normalizeObraDocumento(documento) {
-  const categoria = String(documento?.categoria || "").trim();
   const arquivo = normalizeObraArquivoDraft(documento?.arquivo);
-  if (!documento?.id || !categoria || !arquivo) {
+  if (!documento?.id || !arquivo) {
     return null;
   }
 
   return {
     id: String(documento.id),
     obraId: String(documento.obraId || ""),
-    categoria,
+    folderId: String(documento.folderId || ""),
+    categoria: String(documento.categoria || "arquivos").trim(),
     pasta: String(documento.pasta || "").trim(),
     titulo: String(documento.titulo || arquivo.name).trim(),
     tipoDocumento: String(documento.tipoDocumento || "").trim(),
@@ -924,90 +896,133 @@ function normalizeObraDocumento(documento) {
   };
 }
 
-function getObraDocumentos(obraId) {
-  return state.obraDocumentos?.[obraId] || [];
+function getObraArquivos(obraId = state.selectedObraRepositorioId) {
+  return state.obraArquivos?.[obraId] || { pastas: [], documentos: [] };
 }
 
-function setObraDocumentos(obraId, documentos) {
-  state.obraDocumentos = {
-    ...state.obraDocumentos,
-    [obraId]: Array.isArray(documentos)
-      ? documentos.map(normalizeObraDocumento).filter(Boolean)
-      : []
+function setObraArquivos(obraId, payload = {}) {
+  state.obraArquivos = {
+    ...state.obraArquivos,
+    [obraId]: {
+      pastas: Array.isArray(payload.pastas) ? payload.pastas.map(normalizeObraPasta).filter(Boolean) : [],
+      documentos: Array.isArray(payload.documentos) ? payload.documentos.map(normalizeObraDocumento).filter(Boolean) : []
+    }
   };
 }
 
-async function fetchObraDocumentos(obraId) {
-  const payload = await apiFetch(`/api/obra-documentos?obraId=${encodeURIComponent(obraId)}`);
-  setObraDocumentos(obraId, payload.documentos || []);
-  return getObraDocumentos(obraId);
+async function fetchObraArquivos(obraId) {
+  const payload = await apiFetch(`/api/obra-arquivos?obraId=${encodeURIComponent(obraId)}`);
+  setObraArquivos(obraId, payload);
+  return getObraArquivos(obraId);
 }
 
-function getObraDocumentoFolderName(documento, config) {
-  return documento.pasta || documento.tipoDocumento || config.defaultFolder || "Documentos";
+function getCurrentObraFolder() {
+  const folderId = state.currentObraFolderId;
+  if (!folderId) {
+    return null;
+  }
+
+  return getObraArquivos().pastas.find((pasta) => pasta.id === folderId) || null;
 }
 
-function groupObraDocumentosByFolder(documentos, config) {
-  const groups = new Map();
-  documentos.forEach((documento) => {
-    const folderName = getObraDocumentoFolderName(documento, config);
-    if (!groups.has(folderName)) {
-      groups.set(folderName, []);
-    }
-    groups.get(folderName).push(documento);
-  });
+function getObraFolderById(folderId) {
+  if (!folderId) {
+    return null;
+  }
 
-  return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
+  return getObraArquivos().pastas.find((pasta) => pasta.id === folderId) || null;
 }
 
-function renderObraRepositoryList(categoria) {
-  const container = document.querySelector(`[data-obra-doc-list="${categoria}"]`);
-  const config = getObraDocumentoConfig(categoria);
-  if (!container || !config) {
+function getObraFolderPath(folderId = state.currentObraFolderId) {
+  const folders = getObraArquivos().pastas;
+  const folderMap = new Map(folders.map((folder) => [folder.id, folder]));
+  const path = [];
+  let current = folderMap.get(folderId || "");
+  const visited = new Set();
+
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    path.unshift(current);
+    current = current.parentId ? folderMap.get(current.parentId) : null;
+  }
+
+  return path;
+}
+
+function getObraFolderChildren(parentId = state.currentObraFolderId) {
+  const normalizedParentId = parentId || "";
+  return getObraArquivos().pastas
+    .filter((folder) => (folder.parentId || "") === normalizedParentId)
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
+function getObraFileChildren(folderId = state.currentObraFolderId) {
+  const normalizedFolderId = folderId || "";
+  return getObraArquivos().documentos
+    .filter((documento) => (documento.folderId || "") === normalizedFolderId)
+    .sort((a, b) => a.titulo.localeCompare(b.titulo, "pt-BR"));
+}
+
+function renderObraBreadcrumb() {
+  if (!obraFileBreadcrumb) {
     return;
   }
 
-  const obraId = state.selectedObraRepositorioId;
-  if (!obraId) {
-    container.innerHTML = `<p class="empty">Selecione uma obra para visualizar os documentos.</p>`;
+  const path = getObraFolderPath();
+  obraFileBreadcrumb.innerHTML = `
+    <button type="button" class="cloud-breadcrumb-item" data-obra-folder-breadcrumb="">Arquivos</button>
+    ${path.map((folder) => `
+      <span>/</span>
+      <button type="button" class="cloud-breadcrumb-item" data-obra-folder-breadcrumb="${folder.id}">${escapeHtml(folder.nome)}</button>
+    `).join("")}
+  `;
+}
+
+function renderObraFileExplorer(isLoading = false) {
+  if (!obraFileExplorer) {
     return;
   }
 
-  const documentos = getObraDocumentos(obraId)
-    .filter((documento) => documento.categoria === categoria)
-    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
-
-  if (!documentos.length) {
-    container.innerHTML = `<p class="empty">${config.emptyMessage}</p>`;
+  if (isLoading) {
+    obraFileExplorer.innerHTML = `<p class="empty">Carregando arquivos...</p>`;
     return;
   }
 
-  container.innerHTML = groupObraDocumentosByFolder(documentos, config)
-    .map(([folderName, folderDocs]) => `
-      <article class="repo-folder">
-        <div class="repo-folder-header">
-          <strong>${escapeHtml(folderName)}</strong>
-          <span>${folderDocs.length} arquivo(s)</span>
-        </div>
-        <div class="repo-file-list">
-          ${folderDocs.map((documento) => `
-            <div class="repo-file-card">
-              <div>
-                <strong>${escapeHtml(documento.titulo || documento.arquivo.name)}</strong>
-                <span>${escapeHtml(documento.tipoDocumento || documento.arquivo.name)}${documento.createdAt ? ` • ${formatDateTime(documento.createdAt)}` : ""}</span>
-                <small>${escapeHtml(documento.arquivo.name)}</small>
-              </div>
-              <div class="repo-file-actions">
-                <a class="btn ghost" href="${documento.arquivo.dataUrl}" target="_blank" rel="noopener">Visualizar</a>
-                <a class="btn ghost" href="${documento.arquivo.dataUrl}" download="${escapeHtml(documento.arquivo.name)}">Baixar</a>
-                <button type="button" class="btn delete" data-obra-doc-delete="${documento.id}">Excluir</button>
-              </div>
-            </div>
-          `).join("")}
-        </div>
-      </article>
-    `)
-    .join("");
+  const folders = getObraFolderChildren();
+  const files = getObraFileChildren();
+  const folderCards = folders.map((folder) => `
+    <article class="cloud-item cloud-folder" data-obra-folder-open="${folder.id}">
+      <button type="button" class="cloud-item-main" data-obra-folder-open="${folder.id}">
+        <span class="cloud-icon">Pasta</span>
+        <strong>${escapeHtml(folder.nome)}</strong>
+        ${folder.isSystem ? `<small>Pasta padrao</small>` : `<small>Pasta</small>`}
+      </button>
+      <div class="cloud-item-actions">
+        <button type="button" class="btn ghost" data-obra-folder-rename="${folder.id}">Renomear</button>
+        <button type="button" class="btn delete" data-obra-folder-delete="${folder.id}">Excluir</button>
+      </div>
+    </article>
+  `).join("");
+
+  const fileCards = files.map((documento) => `
+    <article class="cloud-item cloud-file">
+      <div class="cloud-item-main">
+        <span class="cloud-icon">Arquivo</span>
+        <strong>${escapeHtml(documento.titulo || documento.arquivo.name)}</strong>
+        <small>${escapeHtml(documento.arquivo.name)}${documento.createdAt ? ` - ${formatDateTime(documento.createdAt)}` : ""}</small>
+      </div>
+      <div class="cloud-item-actions">
+        <a class="btn ghost" href="${documento.arquivo.dataUrl}" target="_blank" rel="noopener">Visualizar</a>
+        <a class="btn ghost" href="${documento.arquivo.dataUrl}" download="${escapeHtml(documento.arquivo.name)}">Baixar</a>
+        <button type="button" class="btn delete" data-obra-file-delete="${documento.id}">Excluir</button>
+      </div>
+    </article>
+  `).join("");
+
+  const hasItems = Boolean(folderCards || fileCards);
+  obraFileExplorer.innerHTML = hasItems
+    ? `${folderCards}${fileCards}`
+    : `<p class="empty">Esta pasta esta vazia.</p>`;
 }
 
 function renderObraRepository(isLoading = false) {
@@ -1017,25 +1032,29 @@ function renderObraRepository(isLoading = false) {
 
   const obra = getObraById(state.selectedObraRepositorioId);
   if (!obra) {
-    obraRepositoryTitle.textContent = "Repositório da Obra";
-    obraRepositorySubtitle.textContent = "Selecione uma obra para acessar seus documentos.";
-    obraRepositoryLists.forEach((container) => {
-      container.innerHTML = `<p class="empty">Selecione uma obra.</p>`;
-    });
+    obraRepositoryTitle.textContent = "Arquivos da Obra";
+    obraRepositorySubtitle.textContent = "Selecione uma obra para acessar seus arquivos.";
+    if (obraFileBreadcrumb) {
+      obraFileBreadcrumb.innerHTML = "";
+    }
+    if (obraFileExplorer) {
+      obraFileExplorer.innerHTML = `<p class="empty">Selecione uma obra.</p>`;
+    }
     return;
   }
 
-  obraRepositoryTitle.textContent = `Repositório - ${obra.nome}`;
-  obraRepositorySubtitle.textContent = `${obra.local || "Local não informado"} • ${obra.responsavel || "Responsável não informado"}`;
+  const currentFolder = getCurrentObraFolder();
+  obraRepositoryTitle.textContent = `Arquivos - ${obra.nome}`;
+  obraRepositorySubtitle.textContent = currentFolder
+    ? `Pasta atual: ${currentFolder.nome}`
+    : `${obra.local || "Local nao informado"} - raiz do repositorio`;
 
-  if (isLoading) {
-    obraRepositoryLists.forEach((container) => {
-      container.innerHTML = `<p class="empty">Carregando documentos...</p>`;
-    });
-    return;
+  if (obraFolderUpBtn) {
+    obraFolderUpBtn.disabled = !state.currentObraFolderId;
   }
 
-  Object.keys(OBRA_DOCUMENTO_CATEGORIAS).forEach(renderObraRepositoryList);
+  renderObraBreadcrumb();
+  renderObraFileExplorer(isLoading);
 }
 
 async function openObraRepository(obra) {
@@ -1045,12 +1064,13 @@ async function openObraRepository(obra) {
 
   closeObraEditor();
   state.selectedObraRepositorioId = obra.id;
+  state.currentObraFolderId = "";
   obraRepositoryPanel.classList.remove("hidden");
   renderObraRepository(true);
   obraRepositoryPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 
   try {
-    await fetchObraDocumentos(obra.id);
+    await fetchObraArquivos(obra.id);
     renderObraRepository();
   } catch (error) {
     renderObraRepository();
@@ -1065,9 +1085,139 @@ function closeObraRepository() {
 
   obraRepositoryPanel.classList.add("hidden");
   state.selectedObraRepositorioId = "";
-  obraRepositoryForms.forEach((form) => form.reset());
+  state.currentObraFolderId = "";
+  if (obraFileUploadInput) {
+    obraFileUploadInput.value = "";
+  }
 }
 
+async function refreshCurrentObraArquivos() {
+  const obraId = state.selectedObraRepositorioId;
+  if (!obraId) {
+    return;
+  }
+
+  await fetchObraArquivos(obraId);
+  if (state.currentObraFolderId && !getObraFolderById(state.currentObraFolderId)) {
+    state.currentObraFolderId = "";
+  }
+  renderObraRepository();
+}
+
+async function createObraFolderFromPrompt() {
+  const obraId = state.selectedObraRepositorioId;
+  if (!obraId) {
+    alert("Selecione uma obra antes de criar pastas.");
+    return;
+  }
+
+  const nome = prompt("Nome da nova pasta:");
+  if (nome === null) {
+    return;
+  }
+
+  const trimmedName = nome.trim();
+  if (!trimmedName) {
+    alert("Informe o nome da pasta.");
+    return;
+  }
+
+  await apiFetch("/api/obra-pastas", {
+    method: "POST",
+    body: JSON.stringify({
+      obraId,
+      parentId: state.currentObraFolderId || "",
+      nome: trimmedName
+    })
+  });
+  await refreshCurrentObraArquivos();
+  await refreshAuditLogsIfNeeded();
+}
+
+async function renameObraFolder(folderId) {
+  const folder = getObraFolderById(folderId);
+  if (!folder) {
+    return;
+  }
+
+  const nome = prompt("Novo nome da pasta:", folder.nome);
+  if (nome === null) {
+    return;
+  }
+
+  const trimmedName = nome.trim();
+  if (!trimmedName || trimmedName === folder.nome) {
+    return;
+  }
+
+  await apiFetch(`/api/obra-pastas/${folderId}`, {
+    method: "PUT",
+    body: JSON.stringify({ nome: trimmedName })
+  });
+  await refreshCurrentObraArquivos();
+  await refreshAuditLogsIfNeeded();
+}
+
+async function deleteObraFolder(folderId) {
+  const folder = getObraFolderById(folderId);
+  if (!folder) {
+    return;
+  }
+
+  if (!confirm(`Excluir a pasta "${folder.nome}"? Subpastas e arquivos dentro dela tambem serao removidos.`)) {
+    return;
+  }
+
+  await apiFetch(`/api/obra-pastas/${folderId}`, { method: "DELETE" });
+  await refreshCurrentObraArquivos();
+  await refreshAuditLogsIfNeeded();
+}
+
+async function uploadObraFiles(files) {
+  const obraId = state.selectedObraRepositorioId;
+  const selectedFiles = Array.from(files || []);
+  if (!obraId || !selectedFiles.length) {
+    return;
+  }
+
+  for (const file of selectedFiles) {
+    const dataUrl = await readFileAsDataUrl(file);
+    await apiFetch("/api/obra-documentos", {
+      method: "POST",
+      body: JSON.stringify({
+        obraId,
+        folderId: state.currentObraFolderId || "",
+        titulo: file.name,
+        arquivo: {
+          name: file.name,
+          mimeType: file.type || "",
+          dataUrl
+        }
+      })
+    });
+  }
+
+  if (obraFileUploadInput) {
+    obraFileUploadInput.value = "";
+  }
+  await refreshCurrentObraArquivos();
+  await refreshAuditLogsIfNeeded();
+}
+
+async function deleteObraFile(fileId) {
+  const documento = getObraArquivos().documentos.find((item) => item.id === fileId);
+  if (!documento) {
+    return;
+  }
+
+  if (!confirm(`Excluir o arquivo "${documento.titulo || documento.arquivo.name}"?`)) {
+    return;
+  }
+
+  await apiFetch(`/api/obra-documentos/${fileId}`, { method: "DELETE" });
+  await refreshCurrentObraArquivos();
+  await refreshAuditLogsIfNeeded();
+}
 function normalizeMedicaoItemKey(item) {
   const codigo = normalizeValue(item?.codigo);
   if (codigo) {
@@ -2824,6 +2974,7 @@ function formatAuditEntityType(entityType) {
   return {
     obra: "Obra",
     obra_documento: "Documento de Obra",
+    obra_pasta: "Pasta de Obra",
     compra: "Compra",
     medicao: "MediÃ§Ã£o",
     mao_de_obra: "MÃ£o de Obra",
@@ -3064,14 +3215,14 @@ function renderObras() {
     .map(
       (obra) => `
       <tr>
-        <td><button type="button" class="link-button" data-obra-open="${obra.id}">${escapeHtml(obra.nome)}</button></td>
+        <td>${escapeHtml(obra.nome)}</td>
         <td>${escapeHtml(obra.local)}</td>
         <td>${escapeHtml(obra.responsavel)}</td>
         <td>${formatDate(obra.dataInicio)}</td>
         <td>${formatCurrency(getOrcamentoComAditivos(obra))}</td>
         <td>${obra.finalizacao?.dataEntrega ? "Finalizada" : "Em andamento"}</td>
         <td>
-          <button class="btn ghost" data-obra-open="${obra.id}">Documentos</button>
+          <button class="btn ghost" data-obra-open="${obra.id}">Arquivos</button>
           <button class="btn ghost" data-obra-edit="${obra.id}">Editar</button>
           <button class="btn delete" data-obra-delete="${obra.id}">Excluir</button>
         </td>
@@ -4167,78 +4318,68 @@ if (obraOrcamentoTemplateBtn) {
   });
 }
 
-obraRepositoryForms.forEach((form) => {
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    const obraId = state.selectedObraRepositorioId;
-    const categoria = form.getAttribute("data-obra-doc-form");
-    const fileInput = form.querySelector('input[name="arquivo"]');
-    const file = fileInput?.files?.[0];
-    if (!obraId) {
-      alert("Selecione uma obra antes de cadastrar documentos.");
-      return;
-    }
-
-    if (!file) {
-      alert("Selecione um arquivo para anexar.");
-      return;
-    }
-
-    const submitButton = form.querySelector('button[type="submit"]');
-    try {
-      validateObraDocumentoFile(categoria, file);
-      submitButton.disabled = true;
-      submitButton.textContent = "Enviando...";
-      const dataUrl = await readFileAsDataUrl(file);
-
-      await apiFetch("/api/obra-documentos", {
-        method: "POST",
-        body: JSON.stringify({
-          obraId,
-          categoria,
-          pasta: form.elements.pasta?.value.trim() || "",
-          titulo: form.elements.titulo?.value.trim() || file.name,
-          tipoDocumento: form.elements.tipoDocumento?.value.trim() || "",
-          arquivo: {
-            name: file.name,
-            mimeType: file.type || "",
-            dataUrl
-          }
-        })
-      });
-
-      form.reset();
-      await fetchObraDocumentos(obraId);
-      await refreshAuditLogsIfNeeded();
-      renderObraRepository();
-    } catch (error) {
-      alert(error.message);
-    } finally {
-      submitButton.disabled = false;
-      submitButton.textContent = "Adicionar";
-    }
-  });
-});
-
 if (obraRepositoryPanel) {
   obraRepositoryPanel.addEventListener("click", async (event) => {
-    const deleteButton = event.target.closest("[data-obra-doc-delete]");
-    if (!deleteButton) {
-      return;
-    }
-
-    const documentoId = deleteButton.getAttribute("data-obra-doc-delete");
-    if (!confirm("Tem certeza que deseja excluir este documento da obra?")) {
-      return;
-    }
-
-    const obraId = state.selectedObraRepositorioId;
     try {
-      await apiFetch(`/api/obra-documentos/${documentoId}`, { method: "DELETE" });
-      await fetchObraDocumentos(obraId);
-      await refreshAuditLogsIfNeeded();
-      renderObraRepository();
+      const renameButton = event.target.closest("[data-obra-folder-rename]");
+      if (renameButton) {
+        await renameObraFolder(renameButton.getAttribute("data-obra-folder-rename"));
+        return;
+      }
+
+      const folderDeleteButton = event.target.closest("[data-obra-folder-delete]");
+      if (folderDeleteButton) {
+        await deleteObraFolder(folderDeleteButton.getAttribute("data-obra-folder-delete"));
+        return;
+      }
+
+      const fileDeleteButton = event.target.closest("[data-obra-file-delete]");
+      if (fileDeleteButton) {
+        await deleteObraFile(fileDeleteButton.getAttribute("data-obra-file-delete"));
+        return;
+      }
+
+      const breadcrumbButton = event.target.closest("[data-obra-folder-breadcrumb]");
+      if (breadcrumbButton) {
+        state.currentObraFolderId = breadcrumbButton.getAttribute("data-obra-folder-breadcrumb") || "";
+        renderObraRepository();
+        return;
+      }
+
+      const folderOpenButton = event.target.closest("[data-obra-folder-open]");
+      if (folderOpenButton) {
+        state.currentObraFolderId = folderOpenButton.getAttribute("data-obra-folder-open") || "";
+        renderObraRepository();
+        return;
+      }
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+}
+
+if (obraNewFolderBtn) {
+  obraNewFolderBtn.addEventListener("click", async () => {
+    try {
+      await createObraFolderFromPrompt();
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+}
+
+if (obraFolderUpBtn) {
+  obraFolderUpBtn.addEventListener("click", () => {
+    const currentFolder = getCurrentObraFolder();
+    state.currentObraFolderId = currentFolder?.parentId || "";
+    renderObraRepository();
+  });
+}
+
+if (obraFileUploadInput) {
+  obraFileUploadInput.addEventListener("change", async () => {
+    try {
+      await uploadObraFiles(obraFileUploadInput.files);
     } catch (error) {
       alert(error.message);
     }
