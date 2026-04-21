@@ -231,6 +231,21 @@ textarea:focus {
   gap: 8px;
 }
 
+.link-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--primary-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
 .table-muted-line {
   display: block;
   margin-top: 4px;
@@ -349,6 +364,105 @@ textarea:focus {
 
 .compact-table {
   margin-top: 0;
+}
+
+.obra-repository {
+  background:
+    linear-gradient(145deg, rgba(31, 138, 112, 0.08), rgba(18, 60, 105, 0.06)),
+    #fbfcff;
+}
+
+.obra-repository-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.obra-repository-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #dbe4f2;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(39, 62, 102, 0.06);
+}
+
+.repo-upload-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.repo-upload-form .full-width,
+.repo-upload-form button {
+  grid-column: 1 / -1;
+}
+
+.repo-doc-list {
+  display: grid;
+  gap: 10px;
+}
+
+.repo-folder {
+  border: 1px solid #e1e8f4;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #f8fbff;
+}
+
+.repo-folder-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e1e8f4;
+}
+
+.repo-folder-header span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.repo-file-list {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.repo-file-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #edf2f9;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.repo-file-card strong,
+.repo-file-card span,
+.repo-file-card small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.repo-file-card span,
+.repo-file-card small {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.repo-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .subpanel {
@@ -1143,6 +1257,16 @@ th {
 
   .compra-preview-meta {
     grid-template-columns: 1fr;
+  }
+
+  .obra-repository-grid,
+  .repo-upload-form,
+  .repo-file-card {
+    grid-template-columns: 1fr;
+  }
+
+  .repo-file-actions {
+    justify-content: flex-start;
   }
 
   .obra-summary-grid {

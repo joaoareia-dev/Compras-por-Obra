@@ -10,6 +10,7 @@
   },
   auditLogs: [],
   usuarios: [],
+  obraDocumentos: {},
   sessionUser: null,
   loginTakeoverEmail: null,
   lastCompraDate: "",
@@ -25,6 +26,7 @@
   obraArquivoDrafts: {
     orcamentoSintetico: null
   },
+  selectedObraRepositorioId: "",
   medicaoDraftItems: [],
   medicaoBaseDraft: null,
   medicaoHistory: [],
@@ -63,6 +65,12 @@ const obraEditorTitle = document.getElementById("obraEditorTitle");
 const obraEditorSubtitle = document.getElementById("obraEditorSubtitle");
 const obraCloseEditorBtn = document.getElementById("obraCloseEditorBtn");
 const finalizacaoPanel = document.getElementById("finalizacaoPanel");
+const obraRepositoryPanel = document.getElementById("obraRepositoryPanel");
+const obraRepositoryTitle = document.getElementById("obraRepositoryTitle");
+const obraRepositorySubtitle = document.getElementById("obraRepositorySubtitle");
+const obraRepositoryCloseBtn = document.getElementById("obraRepositoryCloseBtn");
+const obraRepositoryForms = Array.from(document.querySelectorAll("[data-obra-doc-form]"));
+const obraRepositoryLists = Array.from(document.querySelectorAll("[data-obra-doc-list]"));
 
 const finalizacaoForm = document.getElementById("finalizacaoForm");
 const finalizacaoObraSelect = document.getElementById("finalizacaoObra");
@@ -113,6 +121,33 @@ const compraItemDescricaoOptions = document.getElementById("compraItemDescricaoO
 const categoriaOptions = document.getElementById("categoriaOptions");
 const fornecedorOptions = document.getElementById("fornecedorOptions");
 const unidadeOptions = document.getElementById("unidadeOptions");
+
+const OBRA_DOCUMENTO_CATEGORIAS = {
+  contratos: {
+    label: "Contrato e aditivos",
+    emptyMessage: "Nenhum contrato ou aditivo cadastrado.",
+    defaultFolder: "Documentos contratuais",
+    allowedExtensions: [".pdf"]
+  },
+  projetos: {
+    label: "Projetos",
+    emptyMessage: "Nenhum projeto cadastrado.",
+    defaultFolder: "Sem pasta",
+    allowedExtensions: [".pdf", ".dwg"]
+  },
+  planilhas: {
+    label: "Planilhas orçamentárias",
+    emptyMessage: "Nenhuma planilha orçamentária cadastrada.",
+    defaultFolder: "Planilhas",
+    allowedExtensions: [".xls", ".xlsx", ".pdf"]
+  },
+  medicoes: {
+    label: "Medições",
+    emptyMessage: "Nenhum documento de medição cadastrado.",
+    defaultFolder: "Sem medição",
+    allowedExtensions: [".xls", ".xlsx", ".pdf", ".zip", ".rar"]
+  }
+};
 
 const maoDeObraForm = document.getElementById("maoDeObraForm");
 const maoDeObraTableBody = document.getElementById("maoDeObraTableBody");
@@ -846,6 +881,191 @@ function renderObraArquivoPreviews() {
     state.obraArquivoDrafts.orcamentoSintetico,
     "orcamentoSintetico"
   );
+}
+
+function getObraDocumentoConfig(categoria) {
+  return OBRA_DOCUMENTO_CATEGORIAS[categoria] || null;
+}
+
+function getObraDocumentoExtension(fileName) {
+  const match = String(fileName || "").trim().toLowerCase().match(/\.[^.]+$/);
+  return match ? match[0] : "";
+}
+
+function validateObraDocumentoFile(categoria, file) {
+  const config = getObraDocumentoConfig(categoria);
+  if (!config) {
+    throw new Error("Categoria de documento invalida.");
+  }
+
+  const extension = getObraDocumentoExtension(file?.name || "");
+  if (!config.allowedExtensions.includes(extension)) {
+    throw new Error(`Formato invalido para ${config.label}. Use: ${config.allowedExtensions.join(", ")}.`);
+  }
+}
+
+function normalizeObraDocumento(documento) {
+  const categoria = String(documento?.categoria || "").trim();
+  const arquivo = normalizeObraArquivoDraft(documento?.arquivo);
+  if (!documento?.id || !categoria || !arquivo) {
+    return null;
+  }
+
+  return {
+    id: String(documento.id),
+    obraId: String(documento.obraId || ""),
+    categoria,
+    pasta: String(documento.pasta || "").trim(),
+    titulo: String(documento.titulo || arquivo.name).trim(),
+    tipoDocumento: String(documento.tipoDocumento || "").trim(),
+    arquivo,
+    createdAt: documento.createdAt || "",
+    updatedAt: documento.updatedAt || ""
+  };
+}
+
+function getObraDocumentos(obraId) {
+  return state.obraDocumentos?.[obraId] || [];
+}
+
+function setObraDocumentos(obraId, documentos) {
+  state.obraDocumentos = {
+    ...state.obraDocumentos,
+    [obraId]: Array.isArray(documentos)
+      ? documentos.map(normalizeObraDocumento).filter(Boolean)
+      : []
+  };
+}
+
+async function fetchObraDocumentos(obraId) {
+  const payload = await apiFetch(`/api/obra-documentos?obraId=${encodeURIComponent(obraId)}`);
+  setObraDocumentos(obraId, payload.documentos || []);
+  return getObraDocumentos(obraId);
+}
+
+function getObraDocumentoFolderName(documento, config) {
+  return documento.pasta || documento.tipoDocumento || config.defaultFolder || "Documentos";
+}
+
+function groupObraDocumentosByFolder(documentos, config) {
+  const groups = new Map();
+  documentos.forEach((documento) => {
+    const folderName = getObraDocumentoFolderName(documento, config);
+    if (!groups.has(folderName)) {
+      groups.set(folderName, []);
+    }
+    groups.get(folderName).push(documento);
+  });
+
+  return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
+}
+
+function renderObraRepositoryList(categoria) {
+  const container = document.querySelector(`[data-obra-doc-list="${categoria}"]`);
+  const config = getObraDocumentoConfig(categoria);
+  if (!container || !config) {
+    return;
+  }
+
+  const obraId = state.selectedObraRepositorioId;
+  if (!obraId) {
+    container.innerHTML = `<p class="empty">Selecione uma obra para visualizar os documentos.</p>`;
+    return;
+  }
+
+  const documentos = getObraDocumentos(obraId)
+    .filter((documento) => documento.categoria === categoria)
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+
+  if (!documentos.length) {
+    container.innerHTML = `<p class="empty">${config.emptyMessage}</p>`;
+    return;
+  }
+
+  container.innerHTML = groupObraDocumentosByFolder(documentos, config)
+    .map(([folderName, folderDocs]) => `
+      <article class="repo-folder">
+        <div class="repo-folder-header">
+          <strong>${escapeHtml(folderName)}</strong>
+          <span>${folderDocs.length} arquivo(s)</span>
+        </div>
+        <div class="repo-file-list">
+          ${folderDocs.map((documento) => `
+            <div class="repo-file-card">
+              <div>
+                <strong>${escapeHtml(documento.titulo || documento.arquivo.name)}</strong>
+                <span>${escapeHtml(documento.tipoDocumento || documento.arquivo.name)}${documento.createdAt ? ` • ${formatDateTime(documento.createdAt)}` : ""}</span>
+                <small>${escapeHtml(documento.arquivo.name)}</small>
+              </div>
+              <div class="repo-file-actions">
+                <a class="btn ghost" href="${documento.arquivo.dataUrl}" target="_blank" rel="noopener">Visualizar</a>
+                <a class="btn ghost" href="${documento.arquivo.dataUrl}" download="${escapeHtml(documento.arquivo.name)}">Baixar</a>
+                <button type="button" class="btn delete" data-obra-doc-delete="${documento.id}">Excluir</button>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </article>
+    `)
+    .join("");
+}
+
+function renderObraRepository(isLoading = false) {
+  if (!obraRepositoryPanel) {
+    return;
+  }
+
+  const obra = getObraById(state.selectedObraRepositorioId);
+  if (!obra) {
+    obraRepositoryTitle.textContent = "Repositório da Obra";
+    obraRepositorySubtitle.textContent = "Selecione uma obra para acessar seus documentos.";
+    obraRepositoryLists.forEach((container) => {
+      container.innerHTML = `<p class="empty">Selecione uma obra.</p>`;
+    });
+    return;
+  }
+
+  obraRepositoryTitle.textContent = `Repositório - ${obra.nome}`;
+  obraRepositorySubtitle.textContent = `${obra.local || "Local não informado"} • ${obra.responsavel || "Responsável não informado"}`;
+
+  if (isLoading) {
+    obraRepositoryLists.forEach((container) => {
+      container.innerHTML = `<p class="empty">Carregando documentos...</p>`;
+    });
+    return;
+  }
+
+  Object.keys(OBRA_DOCUMENTO_CATEGORIAS).forEach(renderObraRepositoryList);
+}
+
+async function openObraRepository(obra) {
+  if (!obraRepositoryPanel || !obra) {
+    return;
+  }
+
+  closeObraEditor();
+  state.selectedObraRepositorioId = obra.id;
+  obraRepositoryPanel.classList.remove("hidden");
+  renderObraRepository(true);
+  obraRepositoryPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  try {
+    await fetchObraDocumentos(obra.id);
+    renderObraRepository();
+  } catch (error) {
+    renderObraRepository();
+    alert(error.message);
+  }
+}
+
+function closeObraRepository() {
+  if (!obraRepositoryPanel) {
+    return;
+  }
+
+  obraRepositoryPanel.classList.add("hidden");
+  state.selectedObraRepositorioId = "";
+  obraRepositoryForms.forEach((form) => form.reset());
 }
 
 function normalizeMedicaoItemKey(item) {
@@ -2288,6 +2508,7 @@ function resetFinalizacaoForm() {
 }
 
 function openObraEditor(obra = null) {
+  closeObraRepository();
   obraEditorPanel.classList.remove("hidden");
 
   if (obra) {
@@ -2602,6 +2823,7 @@ function formatAuditAction(action) {
 function formatAuditEntityType(entityType) {
   return {
     obra: "Obra",
+    obra_documento: "Documento de Obra",
     compra: "Compra",
     medicao: "MediÃ§Ã£o",
     mao_de_obra: "MÃ£o de Obra",
@@ -2842,13 +3064,14 @@ function renderObras() {
     .map(
       (obra) => `
       <tr>
-        <td>${obra.nome}</td>
-        <td>${obra.local}</td>
-        <td>${obra.responsavel}</td>
+        <td><button type="button" class="link-button" data-obra-open="${obra.id}">${escapeHtml(obra.nome)}</button></td>
+        <td>${escapeHtml(obra.local)}</td>
+        <td>${escapeHtml(obra.responsavel)}</td>
         <td>${formatDate(obra.dataInicio)}</td>
         <td>${formatCurrency(getOrcamentoComAditivos(obra))}</td>
         <td>${obra.finalizacao?.dataEntrega ? "Finalizada" : "Em andamento"}</td>
         <td>
+          <button class="btn ghost" data-obra-open="${obra.id}">Documentos</button>
           <button class="btn ghost" data-obra-edit="${obra.id}">Editar</button>
           <button class="btn delete" data-obra-delete="${obra.id}">Excluir</button>
         </td>
@@ -3672,6 +3895,7 @@ function renderAll() {
   refreshCompraAutocomplete();
   populateRdoAutocomplete();
   renderObras();
+  renderObraRepository();
   renderMedicoes();
   renderCompras();
   renderMaoDeObra();
@@ -3879,6 +4103,12 @@ if (obraCloseEditorBtn) {
   });
 }
 
+if (obraRepositoryCloseBtn) {
+  obraRepositoryCloseBtn.addEventListener("click", () => {
+    closeObraRepository();
+  });
+}
+
 if (obraContratanteLogoInput) {
   obraContratanteLogoInput.addEventListener("change", () => {
     handleObraLogoFileInput(obraContratanteLogoInput, "contratante");
@@ -3931,6 +4161,84 @@ if (obraOrcamentoTemplateBtn) {
   obraOrcamentoTemplateBtn.addEventListener("click", () => {
     try {
       downloadOrcamentoSinteticoTemplate();
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+}
+
+obraRepositoryForms.forEach((form) => {
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const obraId = state.selectedObraRepositorioId;
+    const categoria = form.getAttribute("data-obra-doc-form");
+    const fileInput = form.querySelector('input[name="arquivo"]');
+    const file = fileInput?.files?.[0];
+    if (!obraId) {
+      alert("Selecione uma obra antes de cadastrar documentos.");
+      return;
+    }
+
+    if (!file) {
+      alert("Selecione um arquivo para anexar.");
+      return;
+    }
+
+    const submitButton = form.querySelector('button[type="submit"]');
+    try {
+      validateObraDocumentoFile(categoria, file);
+      submitButton.disabled = true;
+      submitButton.textContent = "Enviando...";
+      const dataUrl = await readFileAsDataUrl(file);
+
+      await apiFetch("/api/obra-documentos", {
+        method: "POST",
+        body: JSON.stringify({
+          obraId,
+          categoria,
+          pasta: form.elements.pasta?.value.trim() || "",
+          titulo: form.elements.titulo?.value.trim() || file.name,
+          tipoDocumento: form.elements.tipoDocumento?.value.trim() || "",
+          arquivo: {
+            name: file.name,
+            mimeType: file.type || "",
+            dataUrl
+          }
+        })
+      });
+
+      form.reset();
+      await fetchObraDocumentos(obraId);
+      await refreshAuditLogsIfNeeded();
+      renderObraRepository();
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = "Adicionar";
+    }
+  });
+});
+
+if (obraRepositoryPanel) {
+  obraRepositoryPanel.addEventListener("click", async (event) => {
+    const deleteButton = event.target.closest("[data-obra-doc-delete]");
+    if (!deleteButton) {
+      return;
+    }
+
+    const documentoId = deleteButton.getAttribute("data-obra-doc-delete");
+    if (!confirm("Tem certeza que deseja excluir este documento da obra?")) {
+      return;
+    }
+
+    const obraId = state.selectedObraRepositorioId;
+    try {
+      await apiFetch(`/api/obra-documentos/${documentoId}`, { method: "DELETE" });
+      await fetchObraDocumentos(obraId);
+      await refreshAuditLogsIfNeeded();
+      renderObraRepository();
     } catch (error) {
       alert(error.message);
     }
@@ -4618,6 +4926,19 @@ compraDescricaoInput.addEventListener("change", preencherCamposPorDescricao);
 compraDescricaoInput.addEventListener("blur", preencherCamposPorDescricao);
 
 obrasTableBody.addEventListener("click", async (event) => {
+  const openButton = event.target.closest("[data-obra-open]");
+  if (openButton) {
+    const id = openButton.getAttribute("data-obra-open");
+    const obra = getObraById(id);
+    if (!obra) {
+      return;
+    }
+
+    await openObraRepository(obra);
+    activatePage("obras");
+    return;
+  }
+
   const editButton = event.target.closest("[data-obra-edit]");
   if (editButton) {
     const id = editButton.getAttribute("data-obra-edit");
@@ -4651,6 +4972,9 @@ obrasTableBody.addEventListener("click", async (event) => {
     await refreshAuditLogsIfNeeded();
     if (obraEditIdInput.value === id) {
       closeObraEditor();
+    }
+    if (state.selectedObraRepositorioId === id) {
+      closeObraRepository();
     }
     renderAll();
   } catch (error) {

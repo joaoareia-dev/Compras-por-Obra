@@ -22,10 +22,17 @@ const pool = new Pool({
 
 const SESSION_COOKIE = "gc_session";
 const SESSION_TTL_DAYS = 7;
-const JSON_BODY_LIMIT_BYTES = Number(process.env.JSON_BODY_LIMIT_BYTES) || 20 * 1024 * 1024;
+const JSON_BODY_LIMIT_BYTES = Number(process.env.JSON_BODY_LIMIT_BYTES) || 60 * 1024 * 1024;
 const noCacheExtensions = new Set([".html", ".js", ".mjs", ".css", ".webmanifest"]);
 const RDO_CLIMA_OPTIONS = new Set(["Ensolarado", "Nublado", "Chuvoso"]);
 const AUDIT_ACTIONS = new Set(["cadastro", "edicao", "exclusao"]);
+const OBRA_DOCUMENTO_CATEGORIAS = new Set(["contratos", "projetos", "planilhas", "medicoes"]);
+const OBRA_DOCUMENTO_EXTENSOES = {
+  contratos: new Set([".pdf"]),
+  projetos: new Set([".pdf", ".dwg"]),
+  planilhas: new Set([".xls", ".xlsx", ".pdf"]),
+  medicoes: new Set([".xls", ".xlsx", ".pdf", ".zip", ".rar"])
+};
 const CLIENT_VERSION_TARGETS = {
   mobile: [
     "rdo-mobile.html",
@@ -303,6 +310,42 @@ function parseStoredAttachment(value) {
   }
 }
 
+function normalizeStoredAttachment(value, fieldName = "arquivo") {
+  const attachment = parseStoredAttachment(value);
+  if (!attachment) {
+    throw new Error(`Informe um ${fieldName} valido.`);
+  }
+
+  if (!attachment.dataUrl.startsWith("data:")) {
+    throw new Error(`O ${fieldName} precisa ser enviado como arquivo incorporado.`);
+  }
+
+  return attachment;
+}
+
+function getFileExtension(fileName) {
+  return path.extname(String(fileName || "").trim()).toLowerCase();
+}
+
+function validateObraDocumentoArquivo(categoria, arquivo) {
+  const allowedExtensions = OBRA_DOCUMENTO_EXTENSOES[categoria];
+  const extension = getFileExtension(arquivo.name);
+
+  if (!allowedExtensions || !allowedExtensions.has(extension)) {
+    const accepted = Array.from(allowedExtensions || []).join(", ");
+    throw new Error(`Formato invalido para este tipo de documento. Use: ${accepted}.`);
+  }
+}
+
+function normalizeObraDocumentoCategoria(value) {
+  const categoria = String(value || "").trim();
+  if (!OBRA_DOCUMENTO_CATEGORIAS.has(categoria)) {
+    throw new Error("Categoria de documento invalida.");
+  }
+
+  return categoria;
+}
+
 function toDateOnlyString(value) {
   if (!value) {
     return null;
@@ -352,6 +395,20 @@ function mapObra(row) {
           atualizadoEm: row.finalizacao_atualizado_em
         }
       : null
+  };
+}
+
+function mapObraDocumento(row) {
+  return {
+    id: row.id,
+    obraId: row.obra_id,
+    categoria: row.categoria,
+    pasta: row.pasta || "",
+    titulo: row.titulo,
+    tipoDocumento: row.tipo_documento || "",
+    arquivo: parseStoredAttachment(row.arquivo),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   };
 }
 
@@ -765,6 +822,24 @@ async function ensureDatabase() {
   await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS contratada_logo TEXT");
   await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS orcamento_sintetico_arquivo TEXT");
   await pool.query("ALTER TABLE obras ADD COLUMN IF NOT EXISTS orcamento_analitico_arquivo TEXT");
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS obra_documentos (
+      id TEXT PRIMARY KEY,
+      obra_id TEXT NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
+      categoria TEXT NOT NULL,
+      pasta TEXT NOT NULL DEFAULT '',
+      titulo TEXT NOT NULL,
+      tipo_documento TEXT,
+      arquivo JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query("ALTER TABLE obra_documentos ADD COLUMN IF NOT EXISTS pasta TEXT NOT NULL DEFAULT ''");
+  await pool.query("ALTER TABLE obra_documentos ADD COLUMN IF NOT EXISTS tipo_documento TEXT");
+  await pool.query("ALTER TABLE obra_documentos ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()");
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_obra_documentos_obra_categoria ON obra_documentos (obra_id, categoria)");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS compras (
@@ -1294,6 +1369,126 @@ async function handleApi(req, res, pathname) {
         role: targetUser.role
       });
     }
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  if (req.method === "GET" && pathname === "/api/obra-documentos") {
+    if (!requireAdmin(res, user)) {
+      return true;
+    }
+
+    const searchParams = new URL(req.url, `http://${req.headers.host || "localhost"}`).searchParams;
+    const obraId = searchParams.get("obraId") || "";
+    if (!obraId) {
+      sendJson(res, 400, { error: "Informe a obra para listar documentos." });
+      return true;
+    }
+
+    const result = await pool.query(
+      `
+        SELECT *
+        FROM obra_documentos
+        WHERE obra_id = $1
+        ORDER BY categoria ASC, pasta ASC, created_at DESC
+      `,
+      [obraId]
+    );
+    sendJson(res, 200, { documentos: result.rows.map(mapObraDocumento) });
+    return true;
+  }
+
+  if (req.method === "POST" && pathname === "/api/obra-documentos") {
+    if (!requireAdmin(res, user)) {
+      return true;
+    }
+
+    const body = await parseRequestBody(req);
+    requireFields(body, ["obraId", "categoria", "titulo"]);
+    const categoria = normalizeObraDocumentoCategoria(body.categoria);
+    const arquivo = normalizeStoredAttachment(body.arquivo, "arquivo do documento");
+    validateObraDocumentoArquivo(categoria, arquivo);
+
+    const obraResult = await pool.query("SELECT nome FROM obras WHERE id = $1 LIMIT 1", [body.obraId]);
+    if (!obraResult.rows.length) {
+      sendJson(res, 404, { error: "Obra nao encontrada." });
+      return true;
+    }
+
+    const id = randomId();
+    await pool.query(
+      `
+        INSERT INTO obra_documentos (
+          id, obra_id, categoria, pasta, titulo, tipo_documento, arquivo, created_at, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, NOW(), NOW())
+      `,
+      [
+        id,
+        body.obraId,
+        categoria,
+        String(body.pasta || "").trim(),
+        String(body.titulo || "").trim(),
+        String(body.tipoDocumento || "").trim(),
+        JSON.stringify(arquivo)
+      ]
+    );
+
+    await createAuditLog(
+      req,
+      user,
+      "cadastro",
+      "obra_documento",
+      id,
+      `Documento ${String(body.titulo || "").trim()} cadastrado na obra ${obraResult.rows[0].nome}.`,
+      {
+        obraId: body.obraId,
+        categoria,
+        pasta: String(body.pasta || "").trim(),
+        arquivo: arquivo.name
+      }
+    );
+    sendJson(res, 201, { ok: true, id });
+    return true;
+  }
+
+  if (req.method === "DELETE" && pathname.startsWith("/api/obra-documentos/")) {
+    if (!requireAdmin(res, user)) {
+      return true;
+    }
+
+    const documentoId = getResourceId(pathname);
+    const documentoResult = await pool.query(
+      `
+        SELECT d.*, o.nome AS obra_nome
+        FROM obra_documentos d
+        JOIN obras o ON o.id = d.obra_id
+        WHERE d.id = $1
+        LIMIT 1
+      `,
+      [documentoId]
+    );
+
+    await pool.query("DELETE FROM obra_documentos WHERE id = $1", [documentoId]);
+    if (documentoResult.rows.length) {
+      const documento = documentoResult.rows[0];
+      const arquivo = parseStoredAttachment(documento.arquivo);
+      await createAuditLog(
+        req,
+        user,
+        "exclusao",
+        "obra_documento",
+        documentoId,
+        `Documento ${documento.titulo} removido da obra ${documento.obra_nome}.`,
+        {
+          obraId: documento.obra_id,
+          categoria: documento.categoria,
+          pasta: documento.pasta || "",
+          arquivo: arquivo?.name || ""
+        }
+      );
+    }
+
     sendJson(res, 200, { ok: true });
     return true;
   }
