@@ -481,7 +481,7 @@ function calcularClasseCurvaAbc(percentualAcumulado) {
 
 function getPeriodoRelatorioTexto() {
   if (relatorioTodasComprasInput.checked) {
-    return "Todos os lanÃ§amentos da obra";
+    return "Todos os lançamentos da obra";
   }
 
   const dataInicio = document.getElementById("relatorioDataInicio").value;
@@ -663,8 +663,8 @@ function compareIsoDatesDesc(left, right) {
 
 function getCategoriaLancamentoDisplay(categoria) {
   const normalized = normalizeValue(categoria);
-  if (normalized === "mao de obra" || normalized === "mÃ£o de obra") {
-    return "MÃ£o de Obra";
+  if (normalized === "mao de obra" || normalized === "mão de obra") {
+    return "Mão de Obra";
   }
 
   return String(categoria || "").trim() || "Sem categoria";
@@ -696,7 +696,7 @@ function getLancamentosRelatorio() {
     obraId: pagamento.obraId,
     dataReferencia: pagamento.dataPagamento,
     descricao: pagamento.descricao,
-    categoria: "MÃ£o de Obra",
+    categoria: "Mão de Obra",
     unidade: "-",
     quantidade: 1,
     total: getPagamentoMaoDeObraTotal(pagamento),
@@ -862,7 +862,7 @@ function renderObraArquivoPreview(container, label, fileDraft, type) {
 function renderObraArquivoPreviews() {
   renderObraArquivoPreview(
     obraOrcamentoSinteticoPreview,
-    "planilha sintÃ©tica",
+    "planilha sintética",
     state.obraArquivoDrafts.orcamentoSintetico,
     "orcamentoSintetico"
   );
@@ -1550,7 +1550,7 @@ function renderMedicoes() {
   const obraMap = buildObraNameMap(getObras());
 
   if (!medicoes.length) {
-    medicoesTableBody.innerHTML = `<tr><td colspan="6" class="empty">Nenhuma mediÃƒÂ§ÃƒÂ£o encontrada para os filtros selecionados.</td></tr>`;
+    medicoesTableBody.innerHTML = `<tr><td colspan="6" class="empty">Nenhuma medição encontrada para os filtros selecionados.</td></tr>`;
     return;
   }
 
@@ -1632,7 +1632,7 @@ function resetMedicaoForm() {
   medicaoEditIdInput.value = "";
   medicaoDataInput.value = getTodayIsoDate();
   medicaoReferenciaInput.value = "";
-  medicaoSubmitBtn.textContent = "Salvar MediÃ§Ã£o";
+  medicaoSubmitBtn.textContent = "Salvar Medição";
   medicaoCancelEditBtn.classList.add("hidden");
   setMedicaoHistory("", []);
   setMedicaoBaseDraft(null);
@@ -1643,7 +1643,7 @@ function resetMedicaoForm() {
     medicaoObraSelect.value = obraSelecionada;
   }
 
-  formatMedicaoBaseStatus("Selecione a obra e leia a planilha sintÃ©tica padrÃ£o cadastrada, com colunas Item, CÃ³digo, Banco, DescriÃ§Ã£o, Und, Quant., Valor Unit, Valor Unit com BDI, Total e Peso (%).");
+  formatMedicaoBaseStatus("Selecione a obra e leia a planilha sintética padrão cadastrada, com colunas Item, Código, Banco, Descrição, Und, Quant., Valor Unit, Valor Unit com BDI, Total e Peso (%).");
 }
 
 function preencherFormularioMedicao(medicao) {
@@ -1652,13 +1652,13 @@ function preencherFormularioMedicao(medicao) {
   medicaoObraSelect.value = medicao.obraId;
   medicaoDataInput.value = normalizeDateInputValue(medicao.data);
   medicaoReferenciaInput.value = medicao.referencia || "";
-  medicaoSubmitBtn.textContent = "Atualizar MediÃ§Ã£o";
+  medicaoSubmitBtn.textContent = "Atualizar Medição";
   medicaoCancelEditBtn.classList.remove("hidden");
   setMedicaoBaseDraft(medicao.pdfNome ? { name: medicao.pdfNome, source: "salvo" } : null);
   formatMedicaoBaseStatus(
     medicao.pdfNome
-      ? `Base carregada da mediÃ§Ã£o salva. Planilha de origem: ${medicao.pdfNome}.`
-      : "Base carregada da mediÃ§Ã£o salva."
+      ? `Base carregada da medição salva. Planilha de origem: ${medicao.pdfNome}.`
+      : "Base carregada da medição salva."
   );
   setMedicaoDraftItems(cloneMedicaoItems(medicao.items));
 }
@@ -1679,7 +1679,7 @@ async function carregarBaseNovaMedicao(obraId) {
     setMedicaoHistory("", []);
     setMedicaoDraftItems([]);
     setMedicaoBaseDraft(null);
-    formatMedicaoBaseStatus("Selecione uma obra para iniciar a mediÃ§Ã£o.");
+    formatMedicaoBaseStatus("Selecione uma obra para iniciar a medição.");
     return;
   }
 
@@ -1687,20 +1687,20 @@ async function carregarBaseNovaMedicao(obraId) {
   const ultimaMedicao = medicoes[0] || null;
 
   if (!medicaoReferenciaInput.value.trim()) {
-    medicaoReferenciaInput.value = `MediÃ§Ã£o ${String(medicoes.length + 1).padStart(2, "0")}`;
+    medicaoReferenciaInput.value = `Medição ${String(medicoes.length + 1).padStart(2, "0")}`;
   }
 
   if (!ultimaMedicao) {
     setMedicaoDraftItems([]);
     setMedicaoBaseDraft(null);
-    formatMedicaoBaseStatus("Nenhuma mediÃ§Ã£o anterior encontrada para esta obra. Cadastre a planilha sintÃ©tica da obra no menu Obras e use a leitura local da planilha.");
+    formatMedicaoBaseStatus("Nenhuma medição anterior encontrada para esta obra. Cadastre a planilha sintética da obra no menu Obras e use a leitura local da planilha.");
     return;
   }
 
   setMedicaoDraftItems(cloneMedicaoItems(ultimaMedicao.items, { zeroMeasured: true }));
   setMedicaoBaseDraft(ultimaMedicao.pdfNome ? { name: ultimaMedicao.pdfNome, source: "historico" } : null);
   formatMedicaoBaseStatus(
-    `Itens reaproveitados da Ãºltima mediÃ§Ã£o da obra (${formatDate(ultimaMedicao.data)}). ${
+    `Itens reaproveitados da última medição da obra (${formatDate(ultimaMedicao.data)}). ${
       ultimaMedicao.pdfNome ? `Planilha de origem: ${ultimaMedicao.pdfNome}.` : ""
     }`
   );
@@ -1714,15 +1714,15 @@ async function openMedicaoEditor(medicao = null) {
   medicaoEditorPanel.classList.remove("hidden");
 
   if (medicao) {
-    medicaoEditorTitle.textContent = "Editar MediÃ§Ã£o";
-    medicaoEditorSubtitle.textContent = "Atualize as quantidades medidas mantendo o histÃ³rico do item por obra.";
+    medicaoEditorTitle.textContent = "Editar Medição";
+    medicaoEditorSubtitle.textContent = "Atualize as quantidades medidas mantendo o histórico do item por obra.";
     await loadMedicaoHistoryForObra(medicao.obraId);
     preencherFormularioMedicao(medicao);
     return;
   }
 
-  medicaoEditorTitle.textContent = "Nova MediÃ§Ã£o";
-  medicaoEditorSubtitle.textContent = "Reaproveite a base da Ãºltima mediÃ§Ã£o da obra ou releia a planilha sintÃ©tica padrÃ£o.";
+  medicaoEditorTitle.textContent = "Nova Medição";
+  medicaoEditorSubtitle.textContent = "Reaproveite a base da última medição da obra ou releia a planilha sintética padrão.";
   resetMedicaoForm();
   const obraPrefill = medicaoFiltroObraSelect?.value || medicaoObraSelect?.value || "";
   if (obraPrefill && Array.from(medicaoObraSelect.options).some((option) => option.value === obraPrefill)) {
@@ -2584,8 +2584,8 @@ function refreshCompraAutocomplete() {
 function populateRelatorioCategorias() {
   const categorias = buildUniqueValues([
     ...getCompras().map((compra) => getCategoriaLancamentoDisplay(compra.categoria)),
-    ...getPagamentosMaoDeObra().map(() => "MÃ£o de Obra"),
-    "MÃ£o de Obra"
+    ...getPagamentosMaoDeObra().map(() => "Mão de Obra"),
+    "Mão de Obra"
   ]);
   const selectedValues = new Set(Array.from(relatorioCategoriasSelect.selectedOptions).map((option) => option.value));
 
@@ -2804,7 +2804,7 @@ function openObraEditor(obra = null) {
 
   if (obra) {
     obraEditorTitle.textContent = "Editar Obra";
-    obraEditorSubtitle.textContent = "Atualize os dados da obra e, se necessÃ¡rio, finalize a entrega.";
+    obraEditorSubtitle.textContent = "Atualize os dados da obra e, se necessário, finalize a entrega.";
     preencherFormularioObra(obra);
     finalizacaoPanel.classList.remove("hidden");
     finalizacaoObraSelect.value = obra.id;
@@ -3034,8 +3034,8 @@ function openSenhaPanel(usuario) {
   senhaTargetUserIdInput.value = usuario.id;
   senhaPanelTitle.textContent = isOwnUser ? "Trocar minha Senha" : `Trocar senha de ${usuario.name}`;
   senhaPanelSubtitle.textContent = exigeSenhaAtual
-    ? "Confirme a senha atual para concluir a alteraÃ§Ã£o."
-    : "Como gerente, vocÃª pode definir uma nova senha para este usuÃ¡rio.";
+    ? "Confirme a senha atual para concluir a alteração."
+    : "Como gerente, você pode definir uma nova senha para este usuário.";
   senhaAtualGroup.classList.toggle("hidden", !exigeSenhaAtual);
   document.getElementById("senhaAtual").required = exigeSenhaAtual;
   senhaPanel.classList.remove("hidden");
@@ -3106,8 +3106,8 @@ function renderUsuarios() {
 function formatAuditAction(action) {
   return {
     cadastro: "Cadastro",
-    edicao: "EdiÃ§Ã£o",
-    exclusao: "ExclusÃ£o"
+    edicao: "Edição",
+    exclusao: "Exclusão"
   }[action] || action || "-";
 }
 
@@ -3117,10 +3117,10 @@ function formatAuditEntityType(entityType) {
     obra_documento: "Documento de Obra",
     obra_pasta: "Pasta de Obra",
     compra: "Compra",
-    medicao: "MediÃ§Ã£o",
-    mao_de_obra: "MÃ£o de Obra",
+    medicao: "Medição",
+    mao_de_obra: "Mão de Obra",
     rdo: "RDO",
-    usuario: "UsuÃ¡rio"
+    usuario: "Usuário"
   }[entityType] || entityType || "-";
 }
 
@@ -3136,7 +3136,7 @@ function renderAuditLogs() {
 
   const logs = getAuditLogs();
   if (!logs.length) {
-    auditLogsTableBody.innerHTML = `<tr><td colspan="5" class="empty">Nenhum log de auditoria disponÃ­vel.</td></tr>`;
+    auditLogsTableBody.innerHTML = `<tr><td colspan="5" class="empty">Nenhum log de auditoria disponível.</td></tr>`;
     return;
   }
 
@@ -3237,7 +3237,7 @@ function renderDashboard() {
         <p class="metric-value">${compras.length}</p>
       </article>
       <article class="metric-card">
-        <p class="metric-title">MÃ£o de obra lanÃ§ada</p>
+        <p class="metric-title">Mão de obra lançada</p>
         <p class="metric-value">${pagamentosMaoDeObra.length}</p>
       </article>
       <article class="metric-card">
@@ -3415,7 +3415,7 @@ function renderMaoDeObra() {
   const obraMap = buildObraNameMap(getObras());
 
   if (!pagamentos.length) {
-    maoDeObraTableBody.innerHTML = `<tr><td colspan="6" class="empty">Nenhum pagamento de mÃ£o de obra lanÃ§ado.</td></tr>`;
+    maoDeObraTableBody.innerHTML = `<tr><td colspan="6" class="empty">Nenhum pagamento de mão de obra lançado.</td></tr>`;
     return;
   }
 
@@ -3991,7 +3991,7 @@ function filtrarLancamentosParaRelatorio() {
 function montarCabecalhoRelatorio(lancamentosFiltrados) {
   const obras = getObras();
   const obraSelecionada = obras.find((obra) => obra.id === relatorioObraSelect.value) || null;
-  const tipo = relatorioTipoSelect.value === "mensal" ? "Totais em intervalos mensais" : "Por descriÃ§Ã£o";
+  const tipo = relatorioTipoSelect.value === "mensal" ? "Totais em intervalos mensais" : "Por descrição";
   const categoriasSelecionadas = getSelectedRelatorioCategorias();
   const meta = [
     `<span><strong>Tipo:</strong> ${tipo}</span>`,
@@ -4097,7 +4097,7 @@ function renderRelatorioPorDescricao(lancamentosFiltrados) {
       `
         )
         .join("")
-    : `<tr><td colspan="${relatorioObraSelect.value ? (usarCurvaAbc ? 7 : 5) : (usarCurvaAbc ? 8 : 6)}" class="empty">Nenhum lanÃ§amento encontrado para os filtros selecionados.</td></tr>`;
+    : `<tr><td colspan="${relatorioObraSelect.value ? (usarCurvaAbc ? 7 : 5) : (usarCurvaAbc ? 8 : 6)}" class="empty">Nenhum lançamento encontrado para os filtros selecionados.</td></tr>`;
 }
 
 function renderRelatorioMensal(lancamentosFiltrados) {
@@ -4128,7 +4128,7 @@ function renderRelatorioMensal(lancamentosFiltrados) {
   relatorioTableHead.innerHTML = `
     <tr>
       <th>Mes</th>
-      <th>Quantidade de lanÃ§amentos</th>
+      <th>Quantidade de lançamentos</th>
       <th>Total do mes</th>
     </tr>
   `;
@@ -4145,7 +4145,7 @@ function renderRelatorioMensal(lancamentosFiltrados) {
       `
         )
         .join("")
-    : `<tr><td colspan="3" class="empty">Nenhum lanÃ§amento encontrado para os filtros selecionados.</td></tr>`;
+    : `<tr><td colspan="3" class="empty">Nenhum lançamento encontrado para os filtros selecionados.</td></tr>`;
 }
 
 function renderRelatorios() {
@@ -4671,7 +4671,7 @@ if (medicaoObraSelect) {
     if (medicaoId) {
       const originalObraId = medicaoForm?.dataset.originalObraId || "";
       if (originalObraId && medicaoObraSelect.value !== originalObraId) {
-        const confirmed = confirm("Ao trocar a obra, a base de itens da mediÃ§Ã£o serÃ¡ recarregada a partir do histÃ³rico da nova obra. Deseja continuar?");
+        const confirmed = confirm("Ao trocar a obra, a base de itens da medição será recarregada a partir do histórico da nova obra. Deseja continuar?");
         if (!confirmed) {
           medicaoObraSelect.value = originalObraId;
           return;
@@ -4679,7 +4679,7 @@ if (medicaoObraSelect) {
 
         medicaoEditIdInput.value = "";
         medicaoForm.dataset.originalObraId = "";
-        medicaoSubmitBtn.textContent = "Salvar MediÃ§Ã£o";
+        medicaoSubmitBtn.textContent = "Salvar Medição";
         medicaoCancelEditBtn.classList.add("hidden");
         medicaoReferenciaInput.value = "";
         try {
@@ -4877,17 +4877,17 @@ maoDeObraForm.addEventListener("submit", async (event) => {
   const periodoFimValue = maoDeObraPeriodoFimInput.value;
   const dataPagamentoValue = maoDeObraDataPagamentoInput.value;
   if (!obraId) {
-    alert("Cadastre uma obra antes de lanÃ§ar pagamentos de mÃ£o de obra.");
+    alert("Cadastre uma obra antes de lançar pagamentos de mão de obra.");
     return;
   }
 
   if (periodoFimValue < periodoInicioValue) {
-    alert("A data final do perÃ­odo trabalhado nÃ£o pode ser anterior Ã  data inicial.");
+    alert("A data final do período trabalhado não pode ser anterior à data inicial.");
     return;
   }
 
   try {
-    if (isObraFinalizada(obraId) && !(await confirmarAutorizacaoGerente("lancamento de mÃ£o de obra em obra finalizada"))) {
+    if (isObraFinalizada(obraId) && !(await confirmarAutorizacaoGerente("lancamento de mão de obra em obra finalizada"))) {
       return;
     }
 
@@ -5344,7 +5344,7 @@ maoDeObraTableBody.addEventListener("click", async (event) => {
       return;
     }
 
-    if (isObraFinalizada(pagamento.obraId) && !(await confirmarAutorizacaoGerente("edicao de mÃ£o de obra de obra finalizada"))) {
+    if (isObraFinalizada(pagamento.obraId) && !(await confirmarAutorizacaoGerente("edicao de mão de obra de obra finalizada"))) {
       return;
     }
 
@@ -5362,7 +5362,7 @@ maoDeObraTableBody.addEventListener("click", async (event) => {
     const id = deleteButton.getAttribute("data-mao-de-obra-delete");
     const pagamento = getPagamentosMaoDeObra().find((item) => item.id === id);
     if (pagamento && isObraFinalizada(pagamento.obraId)) {
-      if (!(await confirmarAutorizacaoGerente("exclusao de mÃ£o de obra de obra finalizada"))) {
+      if (!(await confirmarAutorizacaoGerente("exclusao de mão de obra de obra finalizada"))) {
         return;
       }
     }
